@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import { ArrowLeft } from 'lucide-react';
@@ -24,6 +24,7 @@ const subTypes: Record<CategoryType, { value: string; label: string }[]> = {
     { value: 'diaper', label: '换尿布' },
     { value: 'bath', label: '洗澡' },
     { value: 'supplement', label: '营养补充' },
+    { value: 'temperature', label: '体温' },
   ],
   activity: [
     { value: 'sleep', label: '睡眠' },
@@ -31,6 +32,11 @@ const subTypes: Record<CategoryType, { value: string; label: string }[]> = {
     { value: 'other', label: '其他' },
   ],
 };
+
+const typeLabels: Record<string, string> = Object.values(subTypes).flat().reduce((acc, item) => {
+  acc[item.value] = item.label;
+  return acc;
+}, {} as Record<string, string>);
 
 const quickTimes = [
   { label: '现在', offset: 0 },
@@ -43,10 +49,15 @@ const quickTimes = [
 export default function RecordFormPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const isEditing = !!id;
   const { currentBaby } = useBaby();
-  const [category, setCategory] = useState<CategoryType>('feeding');
-  const [type, setType] = useState('breastfeed');
+
+  const urlType = searchParams.get('type');
+  const urlCategory = searchParams.get('category') as CategoryType | null;
+
+  const [category, setCategory] = useState<CategoryType>(urlCategory || 'feeding');
+  const [type, setType] = useState(urlType || 'breastfeed');
   const [occurredAt, setOccurredAt] = useState(new Date().toISOString().slice(0, 16));
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
@@ -63,6 +74,8 @@ export default function RecordFormPage() {
   const [diaperType, setDiaperType] = useState<'wet' | 'dirty' | 'both'>('wet');
   const [sleepDuration, setSleepDuration] = useState(60);
   const [supplementName, setSupplementName] = useState('维生素D');
+  const [temperature, setTemperature] = useState(36.5);
+  const [tempLocation, setTempLocation] = useState<'axillary' | 'ear' | 'forehead' | 'rectal'>('axillary');
 
   useEffect(() => {
     if (isEditing && currentBaby) {
@@ -116,6 +129,10 @@ export default function RecordFormPage() {
       case 'sleep':
         setSleepDuration(data.durationMinutes || 0);
         break;
+      case 'temperature':
+        setTemperature(data.value || 36.5);
+        setTempLocation(data.location || 'axillary');
+        break;
     }
   };
 
@@ -145,6 +162,8 @@ export default function RecordFormPage() {
         return {};
       case 'supplement':
         return { name: supplementName };
+      case 'temperature':
+        return { value: temperature, location: tempLocation };
       case 'sleep':
         return { startTime: new Date(occurredAt).toISOString(), durationMinutes: sleepDuration };
       case 'play':
@@ -188,11 +207,11 @@ export default function RecordFormPage() {
         return (
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">左侧(分钟)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">左侧(分钟)</label>
               <input type="number" value={leftMinutes} onChange={(e) => setLeftMinutes(+e.target.value)} className="input" min={0} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">右侧(分钟)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">右侧(分钟)</label>
               <input type="number" value={rightMinutes} onChange={(e) => setRightMinutes(+e.target.value)} className="input" min={0} />
             </div>
           </div>
@@ -201,14 +220,14 @@ export default function RecordFormPage() {
         return (
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">奶类型</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">奶类型</label>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setMilkType('formula')} className={`flex-1 py-2 rounded-lg border-2 text-sm ${milkType === 'formula' ? 'border-primary-400 bg-primary-50' : 'border-gray-200'}`}>配方奶</button>
-                <button type="button" onClick={() => setMilkType('breast_milk')} className={`flex-1 py-2 rounded-lg border-2 text-sm ${milkType === 'breast_milk' ? 'border-primary-400 bg-primary-50' : 'border-gray-200'}`}>母乳</button>
+                <button type="button" onClick={() => setMilkType('formula')} className={`flex-1 py-2 rounded-lg border-2 text-sm ${milkType === 'formula' ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300' : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'}`}>配方奶</button>
+                <button type="button" onClick={() => setMilkType('breast_milk')} className={`flex-1 py-2 rounded-lg border-2 text-sm ${milkType === 'breast_milk' ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300' : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'}`}>母乳</button>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">奶量(ml)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">奶量(ml)</label>
               <input type="number" value={amountMl} onChange={(e) => setAmountMl(+e.target.value)} className="input" min={0} step={10} />
             </div>
           </div>
@@ -217,11 +236,11 @@ export default function RecordFormPage() {
         return (
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">食物名称</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">食物名称</label>
               <input type="text" value={solidName} onChange={(e) => setSolidName(e.target.value)} className="input" placeholder="如：米糊" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">食用量</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">食用量</label>
               <input type="text" value={solidAmount} onChange={(e) => setSolidAmount(e.target.value)} className="input" placeholder="如：半碗" />
             </div>
           </div>
@@ -229,14 +248,14 @@ export default function RecordFormPage() {
       case 'water':
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">水量(ml)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">水量(ml)</label>
             <input type="number" value={waterMl} onChange={(e) => setWaterMl(+e.target.value)} className="input" min={0} step={5} />
           </div>
         );
       case 'diaper':
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">类型</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">类型</label>
             <div className="flex gap-3">
               {[
                 { value: 'wet' as const, label: '尿' },
@@ -247,7 +266,7 @@ export default function RecordFormPage() {
                   key={item.value}
                   type="button"
                   onClick={() => setDiaperType(item.value)}
-                  className={`flex-1 py-2 rounded-lg border-2 text-sm ${diaperType === item.value ? 'border-primary-400 bg-primary-50' : 'border-gray-200'}`}
+                  className={`flex-1 py-2 rounded-lg border-2 text-sm ${diaperType === item.value ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300' : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'}`}
                 >
                   {item.label}
                 </button>
@@ -258,14 +277,43 @@ export default function RecordFormPage() {
       case 'supplement':
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">名称</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">名称</label>
             <input type="text" value={supplementName} onChange={(e) => setSupplementName(e.target.value)} className="input" placeholder="如：维生素D" />
+          </div>
+        );
+      case 'temperature':
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">温度(°C)</label>
+              <input type="number" value={temperature} onChange={(e) => setTemperature(+e.target.value)} className="input" min={35} max={42} step={0.1} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">测量部位</label>
+              <div className="flex gap-2">
+                {([
+                  { value: 'axillary' as const, label: '腋下' },
+                  { value: 'ear' as const, label: '耳温' },
+                  { value: 'forehead' as const, label: '额温' },
+                  { value: 'rectal' as const, label: '肛温' },
+                ]).map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => setTempLocation(item.value)}
+                    className={`flex-1 py-2 rounded-lg border-2 text-sm ${tempLocation === item.value ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300' : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'}`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         );
       case 'sleep':
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">持续时间(分钟)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">持续时间(分钟)</label>
             <input type="number" value={sleepDuration} onChange={(e) => setSleepDuration(+e.target.value)} className="input" min={0} step={5} />
           </div>
         );
@@ -284,41 +332,44 @@ export default function RecordFormPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} />
         </Button>
-        <h2 className="text-xl font-semibold dark:text-gray-100">{isEditing ? '编辑记录' : '添加记录'}</h2>
+        <h2 className="text-xl font-semibold dark:text-gray-100">{typeLabels[type] || type}</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Category Selection */}
-        <div className="flex gap-2">
-          {categories.map((cat) => (
-            <button
-              key={cat.value}
-              type="button"
-              onClick={() => handleCategoryChange(cat.value)}
-              className={`flex-1 py-2 rounded-lg font-medium text-sm transition-colors ${
-                category === cat.value ? 'bg-primary-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
+        {/* Category & Type Selection - only show when not pre-selected */}
+        {!urlType && !isEditing && (
+          <>
+            <div className="flex gap-2">
+              {categories.map((cat) => (
+                <button
+                  key={cat.value}
+                  type="button"
+                  onClick={() => handleCategoryChange(cat.value)}
+                  className={`flex-1 py-2 rounded-lg font-medium text-sm transition-colors ${
+                    category === cat.value ? 'bg-primary-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
 
-        {/* Sub Type Selection */}
-        <div className="flex flex-wrap gap-2">
-          {subTypes[category].map((st) => (
-            <button
-              key={st.value}
-              type="button"
-              onClick={() => setType(st.value)}
-              className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
-                type === st.value ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-300 dark:border-primary-700' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
-              }`}
-            >
-              {st.label}
-            </button>
-          ))}
-        </div>
+            <div className="flex flex-wrap gap-2">
+              {subTypes[category].map((st) => (
+                <button
+                  key={st.value}
+                  type="button"
+                  onClick={() => setType(st.value)}
+                  className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
+                    type === st.value ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-300 dark:border-primary-700' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
+                  }`}
+                >
+                  {st.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Quick Time */}
         <div>

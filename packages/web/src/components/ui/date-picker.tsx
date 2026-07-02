@@ -11,9 +11,9 @@ import dayjs from 'dayjs';
 const calendarClassNames = {
   months: 'flex flex-col space-y-4',
   month: 'space-y-4',
-  month_caption: 'relative flex justify-center pt-1 items-center h-8',
+  month_caption: 'flex items-center',
   caption_label: 'text-sm font-medium dark:text-gray-100',
-  nav: 'absolute inset-x-0 top-1 flex justify-between items-center px-1',
+  nav: 'hidden',
   button_previous: 'h-7 w-7 bg-transparent p-0 hover:bg-gray-100 dark:hover:bg-gray-700 inline-flex items-center justify-center rounded-md text-gray-600 dark:text-gray-300',
   button_next: 'h-7 w-7 bg-transparent p-0 hover:bg-gray-100 dark:hover:bg-gray-700 inline-flex items-center justify-center rounded-md text-gray-600 dark:text-gray-300',
   month_grid: 'w-full border-collapse space-y-1',
@@ -27,6 +27,20 @@ const calendarClassNames = {
   outside: '[&_.day_button]:text-gray-300 [&_.day_button]:dark:text-gray-600',
   disabled: '[&_.day_button]:text-gray-300 [&_.day_button]:dark:text-gray-600',
 };
+
+function CustomMonth({ calendarMonth, displayIndex, children, ...props }: any) {
+  const childArray = React.Children.toArray(children);
+  return (
+    <div {...props}>
+      <div className="flex justify-center items-center gap-1">
+        {childArray[0]}
+        {childArray[1]}
+        {childArray[2]}
+      </div>
+      {childArray.slice(3)}
+    </div>
+  );
+}
 
 interface DatePickerProps {
   value?: string;
@@ -64,12 +78,14 @@ export function DatePicker({ value, onChange, placeholder = '选择日期', clas
       <PopoverContent className="w-auto p-0" align="start">
         <DayPicker
           mode="single"
+          navLayout="around"
           selected={selected}
           onSelect={handleSelect}
           locale={zhCN}
           className="p-3"
           classNames={calendarClassNames}
           components={{
+            Month: CustomMonth,
             Chevron: ({ orientation }) =>
               orientation === 'left' ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />,
           }}
@@ -118,12 +134,14 @@ export function DateTimePicker({ value, onChange, placeholder = '选择日期和
       <PopoverContent className="w-auto p-0" align="start">
         <DayPicker
           mode="single"
+          navLayout="around"
           selected={selected}
           onSelect={handleDateSelect}
           locale={zhCN}
           className="p-3"
           classNames={calendarClassNames}
           components={{
+            Month: CustomMonth,
             Chevron: ({ orientation }) =>
               orientation === 'left' ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />,
           }}

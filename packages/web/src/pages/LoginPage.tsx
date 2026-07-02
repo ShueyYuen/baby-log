@@ -29,7 +29,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-primary-600">宝宝日志</h1>
+          <h1 className="text-3xl font-bold text-primary-600 dark:text-primary-400">宝宝日志</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-2">新生儿照护记录系统</p>
         </div>
 

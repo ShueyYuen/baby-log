@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Clock, Calendar, TrendingUp, BarChart3, Plus, Sun, Moon, Monitor } from 'lucide-react';
+import { Clock, Calendar, TrendingUp, BarChart3, Sun, Moon, Monitor } from 'lucide-react';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -119,14 +119,6 @@ export default function Layout({ children }: LayoutProps) {
       <main className="pt-16 md:pt-0 px-4 md:px-8 py-6 max-w-4xl mx-auto">
         {children}
       </main>
-
-      {/* FAB for adding records */}
-      <Link
-        to="/record/new"
-        className="fixed right-4 bottom-24 md:bottom-8 w-14 h-14 bg-primary-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-primary-600 transition-colors z-40"
-      >
-        <Plus size={24} />
-      </Link>
 
       {/* Mobile Bottom Nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-50 flex">

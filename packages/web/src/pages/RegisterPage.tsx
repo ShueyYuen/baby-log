@@ -27,22 +27,22 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-primary-600">宝宝日志</h1>
-          <p className="text-gray-500 mt-2">创建您的账号</p>
+          <h1 className="text-3xl font-bold text-primary-600 dark:text-primary-400">宝宝日志</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-2">创建您的账号</p>
         </div>
 
         <form onSubmit={handleSubmit} className="card space-y-4">
-          <h2 className="text-xl font-semibold text-center">注册</h2>
+          <h2 className="text-xl font-semibold text-center dark:text-gray-100">注册</h2>
 
           {error && (
-            <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg">{error}</div>
+            <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm p-3 rounded-lg">{error}</div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">用户名</label>
             <input
               type="text"
               value={username}
@@ -54,7 +54,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">显示名称</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">显示名称</label>
             <input
               type="text"
               value={displayName}
@@ -66,7 +66,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">密码</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">密码</label>
             <input
               type="password"
               value={password}

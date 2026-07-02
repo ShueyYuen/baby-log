@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Pencil, Trash2 } from 'lucide-react';
+import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Pencil, Trash2, Plus, X, Gamepad2, Thermometer } from 'lucide-react';
 
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
@@ -34,10 +34,26 @@ const typeConfig: Record<string, { label: string; icon: any; color: string }> = 
   diaper: { label: '换尿布', icon: Droplets, color: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-950/40' },
   bath: { label: '洗澡', icon: Bath, color: 'text-teal-500 bg-teal-50 dark:bg-teal-950/40' },
   supplement: { label: '营养补充', icon: Pill, color: 'text-purple-500 bg-purple-50 dark:bg-purple-950/40' },
+  temperature: { label: '体温', icon: Thermometer, color: 'text-red-500 bg-red-50 dark:bg-red-950/40' },
   sleep: { label: '睡眠', icon: Moon, color: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40' },
   play: { label: '玩耍', icon: Baby, color: 'text-orange-500 bg-orange-50 dark:bg-orange-950/40' },
   other: { label: '其他', icon: Baby, color: 'text-gray-500 bg-gray-50 dark:bg-gray-700' },
 };
+
+const allRecordTypes = [
+  { type: 'breastfeed', category: 'feeding', label: '母乳', icon: Milk, color: 'text-pink-500 bg-pink-50 dark:bg-pink-950/40' },
+  { type: 'bottle', category: 'feeding', label: '瓶喂', icon: Milk, color: 'text-blue-500 bg-blue-50 dark:bg-blue-950/40' },
+  { type: 'solid', category: 'feeding', label: '辅食', icon: Apple, color: 'text-green-500 bg-green-50 dark:bg-green-950/40' },
+  { type: 'water', category: 'feeding', label: '喝水', icon: GlassWater, color: 'text-cyan-500 bg-cyan-50 dark:bg-cyan-950/40' },
+  { type: 'diaper', category: 'nursing', label: '换尿布', icon: Droplets, color: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-950/40' },
+  { type: 'bath', category: 'nursing', label: '洗澡', icon: Bath, color: 'text-teal-500 bg-teal-50 dark:bg-teal-950/40' },
+  { type: 'supplement', category: 'nursing', label: '营养补充', icon: Pill, color: 'text-purple-500 bg-purple-50 dark:bg-purple-950/40' },
+  { type: 'temperature', category: 'nursing', label: '体温', icon: Thermometer, color: 'text-red-500 bg-red-50 dark:bg-red-950/40' },
+  { type: 'sleep', category: 'activity', label: '睡眠', icon: Moon, color: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40' },
+  { type: 'play', category: 'activity', label: '玩耍', icon: Gamepad2, color: 'text-orange-500 bg-orange-50 dark:bg-orange-950/40' },
+  { type: 'other', category: 'activity', label: '其他', icon: Baby, color: 'text-gray-500 bg-gray-50 dark:bg-gray-700' },
+];
+
 
 function formatRecordDetail(record: RecordItem): string {
   const { type, data } = record;
@@ -56,6 +72,10 @@ function formatRecordDetail(record: RecordItem): string {
       return data.durationMinutes ? `${data.durationMinutes}分钟` : '进行中';
     case 'supplement':
       return data.name || '';
+    case 'temperature': {
+      const loc: Record<string, string> = { axillary: '腋下', ear: '耳温', forehead: '额温', rectal: '肛温' };
+      return `${data.value}°C (${loc[data.location] || data.location})`;
+    }
     default:
       return record.note || '';
   }
@@ -75,6 +95,12 @@ export default function TimelinePage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('');
+  const [showTypePanel, setShowTypePanel] = useState(false);
+
+  const handleAddType = (type: string, category: string) => {
+    setShowTypePanel(false);
+    navigate(`/record/new?type=${type}&category=${category}`);
+  };
 
   useEffect(() => {
     if (!currentBaby) return;
@@ -128,6 +154,7 @@ export default function TimelinePage() {
   }, {});
 
   return (
+    <>
     <div className="space-y-6">
       {/* Summary Cards */}
       {summary && (
@@ -230,5 +257,46 @@ export default function TimelinePage() {
         </div>
       )}
     </div>
+
+      {/* FAB */}
+      <button
+        onClick={() => setShowTypePanel(true)}
+        className="fixed right-4 bottom-24 md:bottom-8 w-14 h-14 bg-primary-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-primary-600 transition-colors z-40"
+      >
+        <Plus size={24} />
+      </button>
+
+      {/* Type Selection Panel */}
+      {showTypePanel && (
+        <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowTypePanel(false)} />
+          <div className="relative w-full max-w-sm bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-2xl p-6 pb-10 animate-slide-up">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-semibold dark:text-gray-100">添加记录</h3>
+              <button onClick={() => setShowTypePanel(false)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="grid grid-cols-4 gap-4">
+              {allRecordTypes.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.type}
+                    onClick={() => handleAddType(item.type, item.category)}
+                    className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${item.color}`}>
+                      <Icon size={22} />
+                    </div>
+                    <span className="text-xs text-gray-700 dark:text-gray-300">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
