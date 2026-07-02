@@ -7,7 +7,7 @@ cd /app/packages/server
 npx prisma migrate deploy 2>/dev/null || npx prisma migrate dev --name init --skip-generate
 
 # Start API server in background
-npx tsx src/index.ts &
+node dist/index.js &
 
 # Start nginx in foreground
 nginx -g "daemon off;"
