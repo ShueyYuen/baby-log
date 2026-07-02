@@ -2,6 +2,7 @@
   "name": "baby-log",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@10.32.1",
   "description": "\u65b0\u751f\u513f\u7167\u62a4\u8bb0\u5f55\u4e0e\u7ba1\u7406\u7cfb\u7edf",
   "scripts": {
     "dev": "concurrently \"pnpm --filter server dev\" \"pnpm --filter web dev\"",

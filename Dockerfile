@@ -1,5 +1,5 @@
-FROM node:20-alpine AS base
-RUN corepack enable && corepack prepare pnpm@latest --activate
+FROM node:22-alpine AS base
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 WORKDIR /app
 
 # Install dependencies
@@ -26,8 +26,8 @@ COPY tsconfig.base.json ./
 RUN cd packages/server && npx prisma generate
 
 # Production image
-FROM node:20-alpine AS production
-RUN corepack enable && corepack prepare pnpm@latest --activate
+FROM node:22-alpine AS production
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 RUN apk add --no-cache nginx
 
 WORKDIR /app
