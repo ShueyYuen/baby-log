@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import { ArrowLeft } from 'lucide-react';
+import { Button, Input, Textarea, DateTimePicker } from '../components/ui';
 
 type CategoryType = 'feeding' | 'nursing' | 'activity';
 
@@ -280,10 +281,10 @@ export default function RecordFormPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} />
-        </button>
-        <h2 className="text-xl font-semibold">{isEditing ? '编辑记录' : '添加记录'}</h2>
+        </Button>
+        <h2 className="text-xl font-semibold dark:text-gray-100">{isEditing ? '编辑记录' : '添加记录'}</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -295,7 +296,7 @@ export default function RecordFormPage() {
               type="button"
               onClick={() => handleCategoryChange(cat.value)}
               className={`flex-1 py-2 rounded-lg font-medium text-sm transition-colors ${
-                category === cat.value ? 'bg-primary-500 text-white' : 'bg-white text-gray-600 border border-gray-200'
+                category === cat.value ? 'bg-primary-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
               }`}
             >
               {cat.label}
@@ -311,7 +312,7 @@ export default function RecordFormPage() {
               type="button"
               onClick={() => setType(st.value)}
               className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
-                type === st.value ? 'bg-primary-100 text-primary-700 border border-primary-300' : 'bg-white text-gray-600 border border-gray-200'
+                type === st.value ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-300 dark:border-primary-700' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
               }`}
             >
               {st.label}
@@ -321,24 +322,25 @@ export default function RecordFormPage() {
 
         {/* Quick Time */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">时间</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">时间</label>
           <div className="flex flex-wrap gap-2 mb-2">
             {quickTimes.map((qt) => (
-              <button
+              <Button
                 key={qt.label}
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={() => setQuickTime(qt.offset)}
-                className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200"
+                className="text-xs"
               >
                 {qt.label}
-              </button>
+              </Button>
             ))}
           </div>
-          <input
-            type="datetime-local"
+          <DateTimePicker
             value={occurredAt}
-            onChange={(e) => setOccurredAt(e.target.value)}
-            className="input"
+            onChange={(val) => setOccurredAt(val)}
+            placeholder="选择记录时间"
           />
         </div>
 
@@ -349,20 +351,19 @@ export default function RecordFormPage() {
 
         {/* Note */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">备注</label>
-          <textarea
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">备注</label>
+          <Textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            className="input"
             rows={2}
             placeholder="可选备注..."
           />
         </div>
 
         {/* Submit */}
-        <button type="submit" disabled={loading} className="btn-primary w-full">
+        <Button type="submit" disabled={loading} className="w-full">
           {loading ? '保存中...' : isEditing ? '保存修改' : '保存记录'}
-        </button>
+        </Button>
       </form>
     </div>
   );

@@ -26,22 +26,22 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-primary-600">宝宝日志</h1>
-          <p className="text-gray-500 mt-2">新生儿照护记录系统</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-2">新生儿照护记录系统</p>
         </div>
 
         <form onSubmit={handleSubmit} className="card space-y-4">
-          <h2 className="text-xl font-semibold text-center">登录</h2>
+          <h2 className="text-xl font-semibold text-center dark:text-gray-100">登录</h2>
 
           {error && (
-            <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg">{error}</div>
+            <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm p-3 rounded-lg">{error}</div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">用户名</label>
             <input
               type="text"
               value={username}
@@ -53,7 +53,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">密码</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">密码</label>
             <input
               type="password"
               value={password}
@@ -68,7 +68,7 @@ export default function LoginPage() {
             {loading ? '登录中...' : '登录'}
           </button>
 
-          <p className="text-center text-sm text-gray-500">
+          <p className="text-center text-sm text-gray-500 dark:text-gray-400">
             还没有账号？
             <Link to="/register" className="text-primary-500 hover:underline ml-1">
               注册

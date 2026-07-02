@@ -3,7 +3,13 @@ import { Link } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import 'dayjs/locale/zh-cn';
 import { Calendar, CheckCircle, Clock, Plus } from 'lucide-react';
+import { Button, Card, CardContent, Badge } from '../components/ui';
+
+dayjs.extend(relativeTime);
+dayjs.locale('zh-cn');
 
 interface PlanItem {
   id: string;
@@ -23,11 +29,11 @@ const typeLabels: Record<string, string> = {
   custom: '自定义',
 };
 
-const statusColors: Record<string, string> = {
-  pending: 'text-orange-500 bg-orange-50',
-  completed: 'text-green-500 bg-green-50',
-  cancelled: 'text-gray-400 bg-gray-50',
-  postponed: 'text-blue-500 bg-blue-50',
+const statusConfig: Record<string, { label: string; variant: 'warning' | 'success' | 'secondary' | 'info' }> = {
+  pending: { label: '待完成', variant: 'warning' },
+  completed: { label: '已完成', variant: 'success' },
+  cancelled: { label: '已取消', variant: 'secondary' },
+  postponed: { label: '已延期', variant: 'info' },
 };
 
 export default function PlansPage() {
@@ -68,10 +74,12 @@ export default function PlansPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">计划安排</h2>
-        <Link to="/plan/new" className="btn-primary flex items-center gap-1 text-sm">
-          <Plus size={16} /> 新计划
-        </Link>
+        <h2 className="text-xl font-semibold dark:text-gray-100">计划安排</h2>
+        <Button asChild size="sm">
+          <Link to="/plan/new">
+            <Plus size={16} /> 新计划
+          </Link>
+        </Button>
       </div>
 
       {/* Status Filter */}
@@ -81,17 +89,14 @@ export default function PlansPage() {
           { value: 'completed', label: '已完成' },
           { value: '', label: '全部' },
         ].map((item) => (
-          <button
+          <Button
             key={item.value}
+            variant={statusFilter === item.value ? 'default' : 'outline'}
+            size="sm"
             onClick={() => setStatusFilter(item.value)}
-            className={`px-4 py-1.5 rounded-full text-sm ${
-              statusFilter === item.value
-                ? 'bg-primary-500 text-white'
-                : 'bg-white text-gray-600 border border-gray-200'
-            }`}
           >
             {item.label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -103,40 +108,42 @@ export default function PlansPage() {
       ) : (
         <div className="space-y-3">
           {plans.map((plan) => (
-            <div key={plan.id} className="card">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[plan.status] || ''}`}>
-                      {typeLabels[plan.type] || plan.type}
-                    </span>
-                    {plan.repeat !== 'none' && (
-                      <span className="text-xs text-gray-400">重复</span>
+            <Card key={plan.id}>
+              <CardContent>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant={statusConfig[plan.status]?.variant || 'secondary'}>
+                        {typeLabels[plan.type] || plan.type}
+                      </Badge>
+                      {plan.repeat !== 'none' && (
+                        <Badge variant="secondary">重复</Badge>
+                      )}
+                    </div>
+                    <h3 className="font-medium dark:text-gray-100">{plan.title}</h3>
+                    {plan.description && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{plan.description}</p>
                     )}
+                    <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 mt-2">
+                      <Calendar size={12} />
+                      <span>{dayjs(plan.scheduledAt).format('YYYY-MM-DD HH:mm')}</span>
+                      <Clock size={12} className="ml-2" />
+                      <span>{dayjs(plan.scheduledAt).fromNow()}</span>
+                    </div>
                   </div>
-                  <h3 className="font-medium">{plan.title}</h3>
-                  {plan.description && (
-                    <p className="text-sm text-gray-500 mt-1">{plan.description}</p>
-                  )}
-                  <div className="flex items-center gap-1 text-xs text-gray-400 mt-2">
-                    <Calendar size={12} />
-                    <span>{dayjs(plan.scheduledAt).format('YYYY-MM-DD HH:mm')}</span>
-                    <Clock size={12} className="ml-2" />
-                    <span>{dayjs(plan.scheduledAt).fromNow()}</span>
-                  </div>
-                </div>
 
-                {plan.status === 'pending' && (
-                  <button
-                    onClick={() => updateStatus(plan.id, 'completed')}
-                    className="p-2 text-gray-300 hover:text-green-500 transition-colors"
-                    title="标记完成"
-                  >
-                    <CheckCircle size={24} />
-                  </button>
-                )}
-              </div>
-            </div>
+                  {plan.status === 'pending' && (
+                    <button
+                      onClick={() => updateStatus(plan.id, 'completed')}
+                      className="p-2 text-gray-300 dark:text-gray-600 hover:text-green-500 dark:hover:text-green-400 transition-colors"
+                      title="标记完成"
+                    >
+                      <CheckCircle size={24} />
+                    </button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import { ArrowLeft } from 'lucide-react';
+import { Button, Input, Textarea, DateTimePicker } from '../components/ui';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 
 const planTypes = [
   { value: 'vaccine', label: '疫苗接种' },
@@ -47,59 +49,63 @@ export default function PlanFormPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} />
-        </button>
-        <h2 className="text-xl font-semibold">新建计划</h2>
+        </Button>
+        <h2 className="text-xl font-semibold dark:text-gray-100">新建计划</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">计划类型</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">计划类型</label>
           <div className="flex flex-wrap gap-2">
             {planTypes.map((pt) => (
-              <button
+              <Button
                 key={pt.value}
                 type="button"
+                variant={type === pt.value ? 'default' : 'outline'}
+                size="sm"
                 onClick={() => setType(pt.value)}
-                className={`px-4 py-1.5 rounded-full text-sm ${
-                  type === pt.value ? 'bg-primary-100 text-primary-700 border border-primary-300' : 'bg-white text-gray-600 border border-gray-200'
-                }`}
               >
                 {pt.label}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">标题</label>
-          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="input" placeholder="如：乙肝疫苗第二针" required />
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">标题</label>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="如：乙肝疫苗第二针" required />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">计划时间</label>
-          <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="input" required />
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">计划时间</label>
+          <DateTimePicker value={scheduledAt} onChange={setScheduledAt} placeholder="选择计划时间" />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">描述</label>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="input" rows={3} placeholder="可选描述..." />
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">描述</label>
+          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="可选描述..." />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">重复</label>
-          <select value={repeat} onChange={(e) => setRepeat(e.target.value)} className="input">
-            <option value="none">不重复</option>
-            <option value="daily">每天</option>
-            <option value="weekly">每周</option>
-            <option value="monthly">每月</option>
-          </select>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">重复</label>
+          <Select value={repeat} onValueChange={setRepeat}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">不重复</SelectItem>
+              <SelectItem value="daily">每天</SelectItem>
+              <SelectItem value="weekly">每周</SelectItem>
+              <SelectItem value="monthly">每月</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        <button type="submit" disabled={loading} className="btn-primary w-full">
+        <Button type="submit" disabled={loading} className="w-full">
           {loading ? '创建中...' : '创建计划'}
-        </button>
+        </Button>
       </form>
     </div>
   );

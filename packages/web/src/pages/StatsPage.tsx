@@ -52,7 +52,7 @@ export default function StatsPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold">数据统计</h2>
+      <h2 className="text-xl font-semibold dark:text-gray-100">数据统计</h2>
 
       {loading ? (
         <div className="text-center py-12 text-gray-400">加载中...</div>
@@ -63,22 +63,22 @@ export default function StatsPage() {
             <div className="grid grid-cols-3 gap-3">
               <div className="card text-center">
                 <p className="text-2xl font-bold text-primary-500">{todayData.feedingCount}</p>
-                <p className="text-xs text-gray-500 mt-1">今日喂养</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">今日喂养</p>
               </div>
               <div className="card text-center">
                 <p className="text-2xl font-bold text-yellow-500">{todayData.diaperCount}</p>
-                <p className="text-xs text-gray-500 mt-1">今日换尿布</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">今日换尿布</p>
               </div>
               <div className="card text-center">
                 <p className="text-2xl font-bold text-indigo-500">{Math.round(todayData.sleepMinutes / 60 * 10) / 10}h</p>
-                <p className="text-xs text-gray-500 mt-1">今日睡眠</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">今日睡眠</p>
               </div>
             </div>
           )}
 
           {/* Feeding Chart */}
           <div className="card">
-            <h3 className="font-medium mb-4">近7天喂养次数</h3>
+            <h3 className="font-medium mb-4 dark:text-gray-100">近7天喂养次数</h3>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -92,7 +92,7 @@ export default function StatsPage() {
 
           {/* Diaper Chart */}
           <div className="card">
-            <h3 className="font-medium mb-4">近7天换尿布次数</h3>
+            <h3 className="font-medium mb-4 dark:text-gray-100">近7天换尿布次数</h3>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -106,7 +106,7 @@ export default function StatsPage() {
 
           {/* Sleep Chart */}
           <div className="card">
-            <h3 className="font-medium mb-4">近7天睡眠时长(小时)</h3>
+            <h3 className="font-medium mb-4 dark:text-gray-100">近7天睡眠时长(小时)</h3>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />

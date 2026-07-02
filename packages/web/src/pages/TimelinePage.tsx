@@ -27,16 +27,16 @@ interface Summary {
 }
 
 const typeConfig: Record<string, { label: string; icon: any; color: string }> = {
-  breastfeed: { label: '母乳', icon: Milk, color: 'text-pink-500 bg-pink-50' },
-  bottle: { label: '瓶喂', icon: Milk, color: 'text-blue-500 bg-blue-50' },
-  solid: { label: '辅食', icon: Apple, color: 'text-green-500 bg-green-50' },
-  water: { label: '喝水', icon: GlassWater, color: 'text-cyan-500 bg-cyan-50' },
-  diaper: { label: '换尿布', icon: Droplets, color: 'text-yellow-600 bg-yellow-50' },
-  bath: { label: '洗澡', icon: Bath, color: 'text-teal-500 bg-teal-50' },
-  supplement: { label: '营养补充', icon: Pill, color: 'text-purple-500 bg-purple-50' },
-  sleep: { label: '睡眠', icon: Moon, color: 'text-indigo-500 bg-indigo-50' },
-  play: { label: '玩耍', icon: Baby, color: 'text-orange-500 bg-orange-50' },
-  other: { label: '其他', icon: Baby, color: 'text-gray-500 bg-gray-50' },
+  breastfeed: { label: '母乳', icon: Milk, color: 'text-pink-500 bg-pink-50 dark:bg-pink-950/40' },
+  bottle: { label: '瓶喂', icon: Milk, color: 'text-blue-500 bg-blue-50 dark:bg-blue-950/40' },
+  solid: { label: '辅食', icon: Apple, color: 'text-green-500 bg-green-50 dark:bg-green-950/40' },
+  water: { label: '喝水', icon: GlassWater, color: 'text-cyan-500 bg-cyan-50 dark:bg-cyan-950/40' },
+  diaper: { label: '换尿布', icon: Droplets, color: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-950/40' },
+  bath: { label: '洗澡', icon: Bath, color: 'text-teal-500 bg-teal-50 dark:bg-teal-950/40' },
+  supplement: { label: '营养补充', icon: Pill, color: 'text-purple-500 bg-purple-50 dark:bg-purple-950/40' },
+  sleep: { label: '睡眠', icon: Moon, color: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40' },
+  play: { label: '玩耍', icon: Baby, color: 'text-orange-500 bg-orange-50 dark:bg-orange-950/40' },
+  other: { label: '其他', icon: Baby, color: 'text-gray-500 bg-gray-50 dark:bg-gray-700' },
 };
 
 function formatRecordDetail(record: RecordItem): string {
@@ -133,20 +133,20 @@ export default function TimelinePage() {
       {summary && (
         <div className="grid grid-cols-3 gap-3">
           <div className="card text-center">
-            <p className="text-xs text-gray-500">上次喂养</p>
-            <p className="text-sm font-semibold mt-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400">上次喂养</p>
+            <p className="text-sm font-semibold mt-1 dark:text-gray-100">
               {summary.lastFeeding ? formatTimeAgo(summary.lastFeeding.minutesAgo) : '--'}
             </p>
           </div>
           <div className="card text-center">
-            <p className="text-xs text-gray-500">上次换尿布</p>
-            <p className="text-sm font-semibold mt-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400">上次换尿布</p>
+            <p className="text-sm font-semibold mt-1 dark:text-gray-100">
               {summary.lastDiaper ? formatTimeAgo(summary.lastDiaper.minutesAgo) : '--'}
             </p>
           </div>
           <div className="card text-center">
-            <p className="text-xs text-gray-500">上次睡眠</p>
-            <p className="text-sm font-semibold mt-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400">上次睡眠</p>
+            <p className="text-sm font-semibold mt-1 dark:text-gray-100">
               {summary.lastSleep ? formatTimeAgo(summary.lastSleep.minutesAgo) : '--'}
             </p>
           </div>
@@ -167,7 +167,7 @@ export default function TimelinePage() {
             className={`px-4 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors ${
               filter === item.value
                 ? 'bg-primary-500 text-white'
-                : 'bg-white text-gray-600 border border-gray-200'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
             }`}
           >
             {item.label}
@@ -184,7 +184,7 @@ export default function TimelinePage() {
         <div className="space-y-6">
           {Object.entries(groupedRecords).map(([group, items]) => (
             <div key={group}>
-              <h3 className="text-sm font-medium text-gray-500 mb-3">{group}</h3>
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">{group}</h3>
               <div className="space-y-2">
                 {items.map((record) => {
                   const config = typeConfig[record.type] || typeConfig.other;
@@ -196,26 +196,26 @@ export default function TimelinePage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm">{config.label}</span>
-                          <span className="text-xs text-gray-400">
+                          <span className="font-medium text-sm dark:text-gray-100">{config.label}</span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">
                             {dayjs(record.occurredAt).format('HH:mm')}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-500 truncate">
+                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
                           {formatRecordDetail(record)}
                         </p>
                       </div>
                       <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
                         <button
                           onClick={() => navigate(`/record/${record.id}/edit`)}
-                          className="p-1.5 text-gray-400 hover:text-blue-500 rounded-md hover:bg-blue-50 transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
                           title="编辑"
                         >
                           <Pencil size={14} />
                         </button>
                         <button
                           onClick={() => handleDelete(record.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-md hover:bg-red-50 transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                           title="删除"
                         >
                           <Trash2 size={14} />

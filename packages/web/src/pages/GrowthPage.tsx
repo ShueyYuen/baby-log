@@ -4,6 +4,9 @@ import { api } from '../lib/api';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Plus, Star } from 'lucide-react';
+import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DatePicker } from '../components/ui';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
+import { Textarea } from '../components/ui';
 
 interface GrowthItem {
   id: string;
@@ -41,13 +44,11 @@ export default function GrowthPage() {
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
   const [activeChart, setActiveChart] = useState<'weight' | 'height' | 'head'>('weight');
 
-  // Growth form
   const [gDate, setGDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [gHeight, setGHeight] = useState('');
   const [gWeight, setGWeight] = useState('');
   const [gHead, setGHead] = useState('');
 
-  // Milestone form
   const [mType, setMType] = useState('smile');
   const [mTitle, setMTitle] = useState('');
   const [mDate, setMDate] = useState(dayjs().format('YYYY-MM-DD'));
@@ -115,83 +116,134 @@ export default function GrowthPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold">成长记录</h2>
+      <h2 className="text-xl font-semibold dark:text-gray-100">成长记录</h2>
 
       {/* Growth Chart */}
-      <div className="card">
-        <div className="flex gap-2 mb-4">
-          {Object.entries(chartConfig).map(([key, cfg]) => (
-            <button
-              key={key}
-              onClick={() => setActiveChart(key as any)}
-              className={`px-3 py-1 rounded-full text-xs ${activeChart === key ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'}`}
-            >
-              {cfg.label}
-            </button>
-          ))}
-        </div>
+      <Card>
+        <CardContent>
+          <div className="flex gap-2 mb-4">
+            {Object.entries(chartConfig).map(([key, cfg]) => (
+              <Button
+                key={key}
+                variant={activeChart === key ? 'default' : 'secondary'}
+                size="sm"
+                onClick={() => setActiveChart(key as any)}
+              >
+                {cfg.label}
+              </Button>
+            ))}
+          </div>
 
-        {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" fontSize={12} />
-              <YAxis fontSize={12} />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey={chartConfig[activeChart].key}
-                stroke={chartConfig[activeChart].color}
-                strokeWidth={2}
-                dot={{ r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        ) : (
-          <p className="text-center text-gray-400 py-8">暂无数据</p>
-        )}
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid, #e5e7eb)" />
+                <XAxis dataKey="date" fontSize={12} />
+                <YAxis fontSize={12} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'var(--tooltip-bg, white)',
+                    border: '1px solid var(--tooltip-border, #e5e7eb)',
+                    borderRadius: '8px',
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey={chartConfig[activeChart].key}
+                  stroke={chartConfig[activeChart].color}
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-center text-gray-400 py-8">暂无数据</p>
+          )}
 
-        <button onClick={() => setShowGrowthForm(true)} className="btn-secondary w-full mt-4 flex items-center justify-center gap-1">
-          <Plus size={16} /> 记录生理数据
-        </button>
-      </div>
-
-      {/* Growth Form Modal */}
-      {showGrowthForm && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4">
-          <form onSubmit={addGrowth} className="bg-white rounded-xl p-6 w-full max-w-sm space-y-4">
-            <h3 className="font-semibold text-lg">记录生理数据</h3>
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">日期</label>
-              <input type="date" value={gDate} onChange={(e) => setGDate(e.target.value)} className="input" required />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">体重(kg)</label>
-              <input type="number" value={gWeight} onChange={(e) => setGWeight(e.target.value)} className="input" step="0.1" placeholder="如：3.5" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">身高(cm)</label>
-              <input type="number" value={gHeight} onChange={(e) => setGHeight(e.target.value)} className="input" step="0.1" placeholder="如：50" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">头围(cm)</label>
-              <input type="number" value={gHead} onChange={(e) => setGHead(e.target.value)} className="input" step="0.1" placeholder="如：34" />
-            </div>
-            <div className="flex gap-3">
-              <button type="button" onClick={() => setShowGrowthForm(false)} className="btn-secondary flex-1">取消</button>
-              <button type="submit" className="btn-primary flex-1">保存</button>
-            </div>
-          </form>
-        </div>
-      )}
+          <Dialog open={showGrowthForm} onOpenChange={setShowGrowthForm}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="w-full mt-4">
+                <Plus size={16} /> 记录生理数据
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-sm mx-4">
+              <DialogHeader>
+                <DialogTitle>记录生理数据</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={addGrowth} className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">日期</label>
+                  <DatePicker value={gDate} onChange={setGDate} placeholder="选择日期" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">体重(kg)</label>
+                  <Input type="number" value={gWeight} onChange={(e) => setGWeight(e.target.value)} step="0.1" placeholder="如：3.5" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">身高(cm)</label>
+                  <Input type="number" value={gHeight} onChange={(e) => setGHeight(e.target.value)} step="0.1" placeholder="如：50" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">头围(cm)</label>
+                  <Input type="number" value={gHead} onChange={(e) => setGHead(e.target.value)} step="0.1" placeholder="如：34" />
+                </div>
+                <div className="flex gap-3">
+                  <Button type="button" variant="outline" className="flex-1" onClick={() => setShowGrowthForm(false)}>取消</Button>
+                  <Button type="submit" className="flex-1">保存</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </CardContent>
+      </Card>
 
       {/* Milestones */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-lg">里程碑</h3>
-          <button onClick={() => setShowMilestoneForm(true)} className="text-sm text-primary-500 flex items-center gap-1">
-            <Plus size={14} /> 添加
-          </button>
+          <h3 className="font-semibold text-lg dark:text-gray-100">里程碑</h3>
+          <Dialog open={showMilestoneForm} onOpenChange={setShowMilestoneForm}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <Plus size={14} /> 添加
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-sm mx-4">
+              <DialogHeader>
+                <DialogTitle>记录里程碑</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={addMilestone} className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">类型</label>
+                  <Select value={mType} onValueChange={setMType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(milestoneLabels).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">标题</label>
+                  <Input value={mTitle} onChange={(e) => setMTitle(e.target.value)} placeholder="留空则使用类型名称" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">日期</label>
+                  <DatePicker value={mDate} onChange={setMDate} placeholder="选择日期" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">描述</label>
+                  <Textarea value={mDesc} onChange={(e) => setMDesc(e.target.value)} placeholder="可选..." />
+                </div>
+                <div className="flex gap-3">
+                  <Button type="button" variant="outline" className="flex-1" onClick={() => setShowMilestoneForm(false)}>取消</Button>
+                  <Button type="submit" className="flex-1">保存</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {milestones.length === 0 ? (
@@ -199,53 +251,22 @@ export default function GrowthPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {milestones.map((m) => (
-              <div key={m.id} className="card flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-yellow-50 flex items-center justify-center">
-                  <Star size={18} className="text-yellow-500" />
-                </div>
-                <div>
-                  <h4 className="font-medium text-sm">{m.title}</h4>
-                  <p className="text-xs text-gray-400">{dayjs(m.occurredAt).format('YYYY-MM-DD')}</p>
-                  {m.description && <p className="text-xs text-gray-500 mt-1">{m.description}</p>}
-                </div>
-              </div>
+              <Card key={m.id}>
+                <CardContent className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-yellow-50 dark:bg-yellow-900/30 flex items-center justify-center flex-shrink-0">
+                    <Star size={18} className="text-yellow-500" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-sm dark:text-gray-100">{m.title}</h4>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">{dayjs(m.occurredAt).format('YYYY-MM-DD')}</p>
+                    {m.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{m.description}</p>}
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         )}
       </div>
-
-      {/* Milestone Form Modal */}
-      {showMilestoneForm && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4">
-          <form onSubmit={addMilestone} className="bg-white rounded-xl p-6 w-full max-w-sm space-y-4">
-            <h3 className="font-semibold text-lg">记录里程碑</h3>
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">类型</label>
-              <select value={mType} onChange={(e) => setMType(e.target.value)} className="input">
-                {Object.entries(milestoneLabels).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">标题</label>
-              <input type="text" value={mTitle} onChange={(e) => setMTitle(e.target.value)} className="input" placeholder="留空则使用类型名称" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">日期</label>
-              <input type="date" value={mDate} onChange={(e) => setMDate(e.target.value)} className="input" required />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">描述</label>
-              <textarea value={mDesc} onChange={(e) => setMDesc(e.target.value)} className="input" rows={2} placeholder="可选..." />
-            </div>
-            <div className="flex gap-3">
-              <button type="button" onClick={() => setShowMilestoneForm(false)} className="btn-secondary flex-1">取消</button>
-              <button type="submit" className="btn-primary flex-1">保存</button>
-            </div>
-          </form>
-        </div>
-      )}
     </div>
   );
 }
