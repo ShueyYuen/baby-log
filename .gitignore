@@ -127,6 +127,15 @@ dist
 
 # pnpm
 .pnpm-store
+.pnpm-approve-builds.json
+
+# Database
+packages/server/prisma/dev.db
+packages/server/prisma/dev.db-journal
+
+# Uploads
+packages/server/uploads/*
+!packages/server/uploads/.gitkeep
 
 # yarn v3
 .pnp.*

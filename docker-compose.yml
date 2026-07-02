@@ -1,0 +1,27 @@
+services:
+  baby-log:
+    build: .
+    container_name: baby-log
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - baby-log-data:/app/data
+      - baby-log-uploads:/app/packages/server/uploads
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/data/baby-log.db
+      # 存储配置 - 默认使用本地存储，如需 S3 请取消注释以下配置
+      - STORAGE_TYPE=local
+      # - STORAGE_TYPE=s3
+      # - S3_BUCKET=baby-log-uploads
+      # - S3_REGION=us-east-1
+      # - S3_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
+      # - S3_ACCESS_KEY_ID=your-access-key
+      # - S3_SECRET_ACCESS_KEY=your-secret-key
+      # - S3_PUBLIC_URL=https://your-bucket.oss-cn-hangzhou.aliyuncs.com
+      # - S3_FORCE_PATH_STYLE=false
+
+volumes:
+  baby-log-data:
+  baby-log-uploads:

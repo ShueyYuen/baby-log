@@ -1,0 +1,24 @@
+{
+  "name": "baby-log",
+  "version": "1.0.0",
+  "private": true,
+  "description": "\u65b0\u751f\u513f\u7167\u62a4\u8bb0\u5f55\u4e0e\u7ba1\u7406\u7cfb\u7edf",
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter server dev\" \"pnpm --filter web dev\"",
+    "build": "pnpm --filter shared build && pnpm --filter server build && pnpm --filter web build",
+    "db:migrate": "pnpm --filter server db:migrate",
+    "db:seed": "pnpm --filter server db:seed"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ]
+  }
+}

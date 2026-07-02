@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+**/dist
+packages/server/prisma/dev.db
+packages/server/prisma/dev.db-journal
+packages/server/uploads/*
+!packages/server/uploads/.gitkeep
+.git
+.gitignore
+*.md
+docs/
+.pnpm-approve-builds.json

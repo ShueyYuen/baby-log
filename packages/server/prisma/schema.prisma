@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(uuid())
+  username    String   @unique
+  password    String
+  displayName String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  babies       BabyMember[]
+  records      Record[]
+  plans        Plan[]
+}
+
+model Baby {
+  id        String   @id @default(uuid())
+  name      String
+  gender    String
+  birthDate DateTime
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members    BabyMember[]
+  records    Record[]
+  plans      Plan[]
+  growths    GrowthRecord[]
+  milestones Milestone[]
+}
+
+model BabyMember {
+  id     String @id @default(uuid())
+  userId String
+  babyId String
+  role   String @default("admin") // admin | editor | viewer
+
+  user User @relation(fields: [userId], references: [id])
+  baby Baby @relation(fields: [babyId], references: [id])
+
+  @@unique([userId, babyId])
+}
+
+model Record {
+  id         String   @id @default(uuid())
+  babyId     String
+  category   String
+  type       String
+  data       String   // JSON string
+  occurredAt DateTime
+  note       String?
+  images     String?  // JSON array of URLs
+  createdBy  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  baby Baby @relation(fields: [babyId], references: [id])
+  user User @relation(fields: [createdBy], references: [id])
+
+  @@index([babyId, occurredAt])
+  @@index([babyId, category])
+}
+
+model Plan {
+  id          String   @id @default(uuid())
+  babyId      String
+  title       String
+  type        String
+  scheduledAt DateTime
+  description String?
+  reminder    String?
+  repeat      String   @default("none")
+  status      String   @default("pending")
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  baby Baby @relation(fields: [babyId], references: [id])
+  user User @relation(fields: [createdBy], references: [id])
+
+  @@index([babyId, scheduledAt])
+  @@index([babyId, status])
+}
+
+model GrowthRecord {
+  id                String   @id @default(uuid())
+  babyId            String
+  date              DateTime
+  height            Float?
+  weight            Float?
+  headCircumference Float?
+  note              String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  baby Baby @relation(fields: [babyId], references: [id])
+
+  @@index([babyId, date])
+}
+
+model Milestone {
+  id          String   @id @default(uuid())
+  babyId      String
+  type        String
+  title       String
+  occurredAt  DateTime
+  description String?
+  images      String?  // JSON array of URLs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  baby Baby @relation(fields: [babyId], references: [id])
+
+  @@index([babyId, occurredAt])
+}

@@ -1,0 +1,47 @@
+{
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.detectIndentation": false,
+  "editor.trimAutoWhitespace": true,
+  "editor.defaultFormatter": "oxc.oxc-vscode",
+  "editor.formatOnSave": true,
+  "editor.formatOnSaveMode": "file",
+  "editor.formatOnPaste": false,
+  "editor.formatOnType": false,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.oxc": "always",
+    "source.organizeImports": "explicit"
+  },
+
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/coverage": true,
+    "**/.playwright": true,
+    "**/*.min.js": true,
+    "**/*.bundle.js": true
+  },
+
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/coverage/**": true,
+    "**/.playwright/**": true
+  },
+
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "package.json": "pnpm-lock.yaml, .npmrc, pnpm-workspace.yaml, .pnpm-approve-builds.json",
+    "vite.config.ts": ".editorconfig, playwright.config.ts",
+    "tsconfig.json": "tsconfig.json, tsconfig.*.json",
+    "README.md": "CHANGELOG.md, LICENSE, CONTRIBUTING.md, AUTHORS.md, CODE_OF_CONDUCT.md, ROADMAP.md",
+    ".env": ".env, .env.*",
+    "*.css": "${basename}.css.map",
+    "*.ts": "${basename}.css",
+    ".gitignore": ".gitignore, .gitattributes"
+  },
+}
