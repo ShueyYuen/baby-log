@@ -142,16 +142,18 @@ statsRouter.get('/predict', async (req: Request, res: Response) => {
     }
 
     if (predictedInterval === null) {
-      res.json({ success: true, data: { nextFeeding: null, avgIntervalMinutes: null, method: null } });
+      res.json({ success: true, data: { minutesUntilNext: null, avgIntervalMinutes: null, method: null } });
       return;
     }
 
+    const now = new Date();
     const nextFeedingTime = new Date(lastFeedingTime + predictedInterval * 60000);
+    const minutesUntilNext = Math.round((nextFeedingTime.getTime() - now.getTime()) / 60000);
 
     res.json({
       success: true,
       data: {
-        nextFeeding: nextFeedingTime.toISOString(),
+        minutesUntilNext,
         avgIntervalMinutes: predictedInterval,
         method,
       },

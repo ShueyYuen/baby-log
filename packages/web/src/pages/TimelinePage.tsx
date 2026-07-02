@@ -29,7 +29,7 @@ interface Summary {
 }
 
 interface FeedingPrediction {
-  nextFeeding: string | null;
+  minutesUntilNext: number | null;
   avgIntervalMinutes: number | null;
   method: 'bottle' | 'breastfeed' | 'average' | null;
 }
@@ -190,37 +190,69 @@ export default function TimelinePage() {
       )}
 
       {/* Feeding Prediction */}
-      {prediction?.nextFeeding && (
-        <div className="card flex items-center gap-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-100 dark:border-blue-900/50">
-          <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0">
-            <Milk size={16} className="text-blue-600 dark:text-blue-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-              预计下次喂奶
-              {prediction.method === 'bottle' && ' (基于奶量)'}
-              {prediction.method === 'breastfeed' && ' (基于哺乳时长)'}
-            </p>
-            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {(() => {
-                const next = dayjs(prediction.nextFeeding);
-                const now = dayjs();
-                if (next.isBefore(now)) return '已超时，建议尽快喂奶';
-                const diffMin = next.diff(now, 'minute');
-                if (diffMin < 60) return `约 ${diffMin} 分钟后 (${next.format('HH:mm')})`;
-                return `约 ${Math.floor(diffMin / 60)}小时${diffMin % 60}分钟后 (${next.format('HH:mm')})`;
-              })()}
-            </p>
-          </div>
-          {prediction.avgIntervalMinutes && (
-            <span className="text-xs text-blue-500 dark:text-blue-400 whitespace-nowrap">
-              预计间隔 {prediction.avgIntervalMinutes >= 60
-                ? `${Math.floor(prediction.avgIntervalMinutes / 60)}h${prediction.avgIntervalMinutes % 60 > 0 ? `${prediction.avgIntervalMinutes % 60}m` : ''}`
-                : `${prediction.avgIntervalMinutes}m`}
+      {prediction?.minutesUntilNext != null && prediction.avgIntervalMinutes && (() => {
+        const min = prediction.minutesUntilNext!;
+        const interval = prediction.avgIntervalMinutes!;
+        const ratio = min / interval;
+
+        let cardBg: string, iconBg: string, iconColor: string, labelColor: string, badgeColor: string;
+        if (min <= 0) {
+          cardBg = 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/30 border border-red-200 dark:border-red-900/50';
+          iconBg = 'bg-red-100 dark:bg-red-900/50';
+          iconColor = 'text-red-600 dark:text-red-400';
+          labelColor = 'text-red-600 dark:text-red-400';
+          badgeColor = 'text-red-500 dark:text-red-400';
+        } else if (ratio <= 0.25) {
+          cardBg = 'bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 border border-orange-200 dark:border-orange-900/50';
+          iconBg = 'bg-orange-100 dark:bg-orange-900/50';
+          iconColor = 'text-orange-600 dark:text-orange-400';
+          labelColor = 'text-orange-600 dark:text-orange-400';
+          badgeColor = 'text-orange-500 dark:text-orange-400';
+        } else if (ratio <= 0.5) {
+          cardBg = 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/30 dark:to-amber-950/30 border border-yellow-200 dark:border-yellow-900/50';
+          iconBg = 'bg-yellow-100 dark:bg-yellow-900/50';
+          iconColor = 'text-yellow-600 dark:text-yellow-500';
+          labelColor = 'text-yellow-600 dark:text-yellow-500';
+          badgeColor = 'text-yellow-600 dark:text-yellow-500';
+        } else {
+          cardBg = 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border border-green-200 dark:border-green-900/50';
+          iconBg = 'bg-green-100 dark:bg-green-900/50';
+          iconColor = 'text-green-600 dark:text-green-400';
+          labelColor = 'text-green-600 dark:text-green-400';
+          badgeColor = 'text-green-500 dark:text-green-400';
+        }
+
+        return (
+          <div className={`card flex items-center gap-3 ${cardBg}`}>
+            <div className={`w-9 h-9 rounded-full ${iconBg} flex items-center justify-center flex-shrink-0`}>
+              <Milk size={16} className={iconColor} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-xs font-medium ${labelColor}`}>
+                预计下次喂奶
+                {prediction.method === 'bottle' && ' (基于奶量)'}
+                {prediction.method === 'breastfeed' && ' (基于哺乳时长)'}
+              </p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                {(() => {
+                  if (min <= 0) {
+                    const overdue = Math.abs(min);
+                    if (overdue < 60) return `已超时 ${overdue} 分钟，建议尽快喂奶`;
+                    return `已超时 ${Math.floor(overdue / 60)}小时${overdue % 60 > 0 ? `${overdue % 60}分钟` : ''}，建议尽快喂奶`;
+                  }
+                  if (min < 60) return `约 ${min} 分钟后`;
+                  return `约 ${Math.floor(min / 60)}小时${min % 60 > 0 ? `${min % 60}分钟` : ''}后`;
+                })()}
+              </p>
+            </div>
+            <span className={`text-xs whitespace-nowrap ${badgeColor}`}>
+              间隔 {interval >= 60
+                ? `${Math.floor(interval / 60)}h${interval % 60 > 0 ? `${interval % 60}m` : ''}`
+                : `${interval}m`}
             </span>
-          )}
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       {/* Filter */}
       <div className="flex gap-2 overflow-x-auto pb-2">

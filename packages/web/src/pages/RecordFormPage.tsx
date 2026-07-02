@@ -5,6 +5,11 @@ import { api } from '../lib/api';
 import { ArrowLeft, ImagePlus, X } from 'lucide-react';
 import { Button, Input, Textarea, DateTimePicker, ScrollDateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ImageViewer } from '../components/ui';
 
+function toLocalDateTimeString(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 type CategoryType = 'feeding' | 'nursing' | 'activity';
 
 const categories: { value: CategoryType; label: string }[] = [
@@ -58,7 +63,7 @@ export default function RecordFormPage() {
 
   const [category, setCategory] = useState<CategoryType>(urlCategory || 'feeding');
   const [type, setType] = useState(urlType || 'breastfeed');
-  const [occurredAt, setOccurredAt] = useState(new Date().toISOString().slice(0, 16));
+  const [occurredAt, setOccurredAt] = useState(toLocalDateTimeString(new Date()));
   const [note, setNote] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -99,7 +104,7 @@ export default function RecordFormPage() {
       if (record) {
         setCategory(record.category as CategoryType);
         setType(record.type);
-        setOccurredAt(new Date(record.occurredAt).toISOString().slice(0, 16));
+        setOccurredAt(toLocalDateTimeString(new Date(record.occurredAt)));
         setNote(record.note || '');
         setImages(record.images || []);
         populateData(record.type, record.data);
