@@ -5,7 +5,10 @@ import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import { BabyProvider } from './contexts/BabyContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { setupServiceWorkerMessageHandler } from './lib/push';
 import './index.css';
+
+setupServiceWorkerMessageHandler();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

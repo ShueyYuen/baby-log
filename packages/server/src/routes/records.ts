@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
+import { createAutoFeedingReminder } from '../lib/auto-reminder';
 
 export const recordRouter = Router();
 
@@ -118,6 +119,10 @@ recordRouter.post('/', async (req: Request, res: Response) => {
       success: true,
       data: { ...record, data: JSON.parse(record.data), images: record.images ? JSON.parse(record.images) : [] },
     });
+
+    if (body.category === 'feeding') {
+      createAutoFeedingReminder(body.babyId).catch(() => {});
+    }
   } catch (err) {
     if (err instanceof z.ZodError) {
       res.status(400).json({ success: false, error: err.errors[0].message });

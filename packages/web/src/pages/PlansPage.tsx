@@ -5,8 +5,9 @@ import { api } from '../lib/api';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Calendar, CheckCircle, Clock, Plus } from 'lucide-react';
+import { Calendar, CheckCircle, Clock, Plus, CalendarPlus } from 'lucide-react';
 import { Button, Card, CardContent, Badge } from '../components/ui';
+import { addPlanToCalendar } from '../lib/calendar';
 
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
@@ -17,6 +18,7 @@ interface PlanItem {
   type: string;
   scheduledAt: string;
   description?: string;
+  reminder?: string;
   status: string;
   repeat: string;
 }
@@ -139,13 +141,22 @@ export default function PlansPage() {
                   </div>
 
                   {plan.status === 'pending' && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); updateStatus(plan.id, 'completed'); }}
-                      className="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-green-500 dark:hover:text-green-400 transition-colors flex-shrink-0"
-                      title="标记完成"
-                    >
-                      <CheckCircle size={22} />
-                    </button>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); addPlanToCalendar(plan.title, plan.scheduledAt, plan.description, parseInt(plan.reminder || '30') || 30); }}
+                        className="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                        title="添加到系统日历"
+                      >
+                        <CalendarPlus size={20} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); updateStatus(plan.id, 'completed'); }}
+                        className="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-green-500 dark:hover:text-green-400 transition-colors"
+                        title="标记完成"
+                      >
+                        <CheckCircle size={22} />
+                      </button>
+                    </div>
                   )}
                 </div>
               </CardContent>

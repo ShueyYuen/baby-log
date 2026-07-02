@@ -71,6 +71,25 @@ planRouter.post('/', async (req: Request, res: Response) => {
       },
     });
 
+    // Create reminder notification for this plan
+    const scheduledTime = new Date(body.scheduledAt);
+    if (scheduledTime.getTime() > Date.now()) {
+      const reminderMinutesBefore = body.reminder ? parseInt(body.reminder) || 30 : 30;
+      const remindAt = new Date(scheduledTime.getTime() - reminderMinutesBefore * 60000);
+      if (remindAt.getTime() > Date.now()) {
+        await prisma.reminder.create({
+          data: {
+            babyId: body.babyId,
+            remindAt,
+            source: 'plan',
+            title: `📋 ${body.title}`,
+            body: `计划将在${reminderMinutesBefore}分钟后开始`,
+            refId: plan.id,
+          },
+        });
+      }
+    }
+
     res.json({ success: true, data: plan });
   } catch (err) {
     if (err instanceof z.ZodError) {

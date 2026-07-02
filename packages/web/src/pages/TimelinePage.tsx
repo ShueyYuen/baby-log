@@ -5,8 +5,10 @@ import { api } from '../lib/api';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart } from 'lucide-react';
+import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock } from 'lucide-react';
 import { ImageViewer } from '../components/ui';
+import { isPushSupported, subscribePush, isSubscribed } from '../lib/push';
+import { addFeedingReminderToCalendar } from '../lib/calendar';
 
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
@@ -112,10 +114,42 @@ export default function TimelinePage() {
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(isSubscribed());
+
+  useEffect(() => {
+    setPushEnabled(isSubscribed());
+  }, []);
 
   const handleAddType = (type: string, category: string) => {
     setShowTypePanel(false);
     navigate(`/record/new?type=${type}&category=${category}`);
+  };
+
+  const handleEnablePush = async () => {
+    if (pushEnabled) {
+      // Already enabled — set a manual reminder for the predicted time
+      if (prediction?.minutesUntilNext && prediction.minutesUntilNext > 0 && currentBaby) {
+        const remindAt = new Date(Date.now() + prediction.minutesUntilNext * 60000);
+        try {
+          await api.post('/push/reminder', {
+            babyId: currentBaby.id,
+            remindAt: remindAt.toISOString(),
+            source: 'feeding_manual',
+            title: '🍼 喂奶提醒',
+            body: '您设置的喂奶提醒时间已到',
+          });
+          alert('提醒已设置！将在预计喂奶时间通知您');
+        } catch {
+          alert('设置提醒失败');
+        }
+      }
+      return;
+    }
+    const success = await subscribePush();
+    setPushEnabled(success);
+    if (success) {
+      alert('通知已开启！喂奶提醒将自动推送');
+    }
   };
 
   useEffect(() => {
@@ -250,6 +284,28 @@ export default function TimelinePage() {
                 ? `${Math.floor(interval / 60)}h${interval % 60 > 0 ? `${interval % 60}m` : ''}`
                 : `${interval}m`}
             </span>
+            {isPushSupported() && (
+              <button
+                onClick={handleEnablePush}
+                className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
+                  pushEnabled
+                    ? 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
+                }`}
+                title={pushEnabled ? '设置提醒' : '开启推送提醒'}
+              >
+                {pushEnabled ? <Bell size={14} /> : <BellOff size={14} />}
+              </button>
+            )}
+            {min > 0 && (
+              <button
+                onClick={() => addFeedingReminderToCalendar(min)}
+                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/50 dark:hover:text-blue-400 transition-colors"
+                title="设置系统闹钟提醒"
+              >
+                <AlarmClock size={14} />
+              </button>
+            )}
           </div>
         );
       })()}

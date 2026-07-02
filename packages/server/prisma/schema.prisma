@@ -16,9 +16,10 @@ model User {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  babies       BabyMember[]
-  records      Record[]
-  plans        Plan[]
+  babies            BabyMember[]
+  records           Record[]
+  plans             Plan[]
+  pushSubscriptions PushSubscription[]
 }
 
 model Baby {
@@ -35,6 +36,7 @@ model Baby {
   plans      Plan[]
   growths    GrowthRecord[]
   milestones Milestone[]
+  reminders  Reminder[]
 }
 
 model BabyMember {
@@ -120,4 +122,34 @@ model Milestone {
   baby Baby @relation(fields: [babyId], references: [id])
 
   @@index([babyId, occurredAt])
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model Reminder {
+  id        String   @id @default(uuid())
+  babyId    String
+  remindAt  DateTime
+  source    String   @default("feeding_auto") // feeding_auto | feeding_manual | plan
+  title     String   @default("")
+  body      String   @default("")
+  refId     String?  // optional reference to plan or record ID
+  sent      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  baby Baby @relation(fields: [babyId], references: [id])
+
+  @@index([sent, remindAt])
+  @@index([babyId, source])
 }

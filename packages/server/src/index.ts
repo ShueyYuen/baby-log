@@ -9,6 +9,8 @@ import { authRouter } from './routes/auth';
 import { statsRouter } from './routes/stats';
 import { authMiddleware } from './middleware/auth';
 import { uploadRouter } from './routes/upload';
+import { pushRouter } from './routes/push';
+import { startReminderScheduler } from './scheduler';
 import { prisma } from './lib/prisma';
 
 const app = express();
@@ -27,6 +29,7 @@ app.use('/api/growth', authMiddleware, growthRouter);
 app.use('/api/milestones', authMiddleware, milestoneRouter);
 app.use('/api/stats', authMiddleware, statsRouter);
 app.use('/api/upload', authMiddleware, uploadRouter);
+app.use('/api/push', authMiddleware, pushRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -64,6 +67,7 @@ async function ensureAdmin() {
 ensureAdmin().then(() => {
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    startReminderScheduler();
   });
 }).catch((err) => {
   console.error('Failed to bootstrap admin:', err);

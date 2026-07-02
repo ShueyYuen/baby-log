@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Bell } from 'lucide-react';
 import { Button, Input, Textarea, DateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import dayjs from 'dayjs';
@@ -25,6 +25,7 @@ export default function PlanFormPage() {
   const [scheduledAt, setScheduledAt] = useState('');
   const [description, setDescription] = useState('');
   const [repeat, setRepeat] = useState('none');
+  const [reminder, setReminder] = useState('30');
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -38,6 +39,7 @@ export default function PlanFormPage() {
           setScheduledAt(dayjs(plan.scheduledAt).format('YYYY-MM-DD HH:mm'));
           setDescription(plan.description || '');
           setRepeat(plan.repeat || 'none');
+          setReminder(plan.reminder || '30');
         }
       });
     }
@@ -55,6 +57,7 @@ export default function PlanFormPage() {
           type,
           scheduledAt: new Date(scheduledAt).toISOString(),
           description: description || undefined,
+          reminder,
           repeat,
         });
       } else {
@@ -64,6 +67,7 @@ export default function PlanFormPage() {
           type,
           scheduledAt: new Date(scheduledAt).toISOString(),
           description: description || undefined,
+          reminder,
           repeat,
         });
       }
@@ -133,6 +137,25 @@ export default function PlanFormPage() {
               <SelectItem value="daily">每天</SelectItem>
               <SelectItem value="weekly">每周</SelectItem>
               <SelectItem value="monthly">每月</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <Bell size={14} className="inline mr-1" />提前提醒
+          </label>
+          <Select value={reminder} onValueChange={setReminder}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">不提醒</SelectItem>
+              <SelectItem value="10">提前10分钟</SelectItem>
+              <SelectItem value="30">提前30分钟</SelectItem>
+              <SelectItem value="60">提前1小时</SelectItem>
+              <SelectItem value="120">提前2小时</SelectItem>
+              <SelectItem value="1440">提前1天</SelectItem>
             </SelectContent>
           </Select>
         </div>
