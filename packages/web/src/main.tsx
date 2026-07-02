@@ -5,6 +5,7 @@ import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import { BabyProvider } from './contexts/BabyContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { ToastProvider } from './components/ui/toast';
 import { setupServiceWorkerMessageHandler } from './lib/push';
 import './index.css';
 
@@ -16,7 +17,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <ThemeProvider>
         <AuthProvider>
           <BabyProvider>
-            <App />
+            <ToastProvider>
+              <App />
+            </ToastProvider>
           </BabyProvider>
         </AuthProvider>
       </ThemeProvider>

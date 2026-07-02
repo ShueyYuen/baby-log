@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
 import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock } from 'lucide-react';
-import { ImageViewer } from '../components/ui';
+import { ImageViewer, useToast } from '../components/ui';
 import { isPushSupported, subscribePush, isSubscribed } from '../lib/push';
 import { addFeedingReminderToCalendar } from '../lib/calendar';
 
@@ -104,6 +104,7 @@ function formatTimeAgo(minutes: number): string {
 
 export default function TimelinePage() {
   const { currentBaby } = useBaby();
+  const { toast } = useToast();
   const navigate = useNavigate();
   const [records, setRecords] = useState<RecordItem[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -138,9 +139,9 @@ export default function TimelinePage() {
             title: '🍼 喂奶提醒',
             body: '您设置的喂奶提醒时间已到',
           });
-          alert('提醒已设置！将在预计喂奶时间通知您');
+          toast('提醒已设置！将在预计喂奶时间通知您', 'success');
         } catch {
-          alert('设置提醒失败');
+          toast('设置提醒失败', 'error');
         }
       }
       return;
@@ -148,7 +149,7 @@ export default function TimelinePage() {
     const success = await subscribePush();
     setPushEnabled(success);
     if (success) {
-      alert('通知已开启！喂奶提醒将自动推送');
+      toast('通知已开启！喂奶提醒将自动推送', 'success');
     }
   };
 

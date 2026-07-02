@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 import dayjs from 'dayjs';
 import { UserPlus, Trash2, KeyRound, Copy, Check } from 'lucide-react';
-import { Button, Input, Card, CardContent, Badge, Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui';
+import { Button, Input, Card, CardContent, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, ConfirmDialog, useToast } from '../components/ui';
 
 interface UserItem {
   id: string;
@@ -15,6 +15,7 @@ interface UserItem {
 
 export default function AdminPage() {
   const { user: currentUser } = useAuth();
+  const { toast } = useToast();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newUsername, setNewUsername] = useState('');
@@ -22,6 +23,11 @@ export default function AdminPage() {
   const [creating, setCreating] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState('');
   const [copied, setCopied] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{
+    type: 'delete' | 'reset';
+    id: string;
+    name: string;
+  } | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -49,29 +55,32 @@ export default function AdminPage() {
       setNewDisplayName('');
       loadUsers();
     } catch (err: any) {
-      alert(err.message || '创建失败');
+      toast(err.message || '创建失败', 'error');
     } finally {
       setCreating(false);
     }
   };
 
-  const deleteUser = async (id: string, name: string) => {
-    if (!confirm(`确定删除用户 "${name}"？此操作不可撤销。`)) return;
-    try {
-      await api.delete(`/auth/users/${id}`);
-      loadUsers();
-    } catch (err: any) {
-      alert(err.message || '删除失败');
-    }
-  };
+  const handleConfirm = async () => {
+    if (!confirmAction) return;
+    const { type, id } = confirmAction;
+    setConfirmAction(null);
 
-  const resetPassword = async (id: string, name: string) => {
-    if (!confirm(`确定重置用户 "${name}" 的密码？`)) return;
-    try {
-      const res = await api.post<{ success: boolean; data: { generatedPassword: string } }>(`/auth/users/${id}/reset-password`, {});
-      setGeneratedPassword(res.data.generatedPassword);
-    } catch (err: any) {
-      alert(err.message || '重置失败');
+    if (type === 'delete') {
+      try {
+        await api.delete(`/auth/users/${id}`);
+        toast('用户已删除', 'success');
+        loadUsers();
+      } catch (err: any) {
+        toast(err.message || '删除失败', 'error');
+      }
+    } else {
+      try {
+        const res = await api.post<{ success: boolean; data: { generatedPassword: string } }>(`/auth/users/${id}/reset-password`, {});
+        setGeneratedPassword(res.data.generatedPassword);
+      } catch (err: any) {
+        toast(err.message || '重置失败', 'error');
+      }
     }
   };
 
@@ -108,14 +117,14 @@ export default function AdminPage() {
               {u.id !== currentUser?.id && (
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => resetPassword(u.id, u.displayName)}
+                    onClick={() => setConfirmAction({ type: 'reset', id: u.id, name: u.displayName })}
                     className="p-2 rounded-md text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     title="重置密码"
                   >
                     <KeyRound size={16} />
                   </button>
                   <button
-                    onClick={() => deleteUser(u.id, u.displayName)}
+                    onClick={() => setConfirmAction({ type: 'delete', id: u.id, name: u.displayName })}
                     className="p-2 rounded-md text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     title="删除用户"
                   >
@@ -127,6 +136,20 @@ export default function AdminPage() {
           </Card>
         ))}
       </div>
+
+      <ConfirmDialog
+        open={!!confirmAction}
+        onOpenChange={(open) => { if (!open) setConfirmAction(null); }}
+        title={confirmAction?.type === 'delete' ? '删除用户' : '重置密码'}
+        description={
+          confirmAction?.type === 'delete'
+            ? `确定删除用户"${confirmAction?.name}"？此操作不可撤销。`
+            : `确定重置用户"${confirmAction?.name}"的密码？`
+        }
+        confirmLabel={confirmAction?.type === 'delete' ? '删除' : '重置'}
+        variant={confirmAction?.type === 'delete' ? 'danger' : 'default'}
+        onConfirm={handleConfirm}
+      />
 
       {/* Create User Dialog */}
       <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>

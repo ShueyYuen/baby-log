@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import { ArrowLeft, Bell } from 'lucide-react';
-import { Button, Input, Textarea, DateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui';
+import { Button, Input, Textarea, DateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import dayjs from 'dayjs';
 
@@ -17,6 +17,7 @@ const planTypes = [
 
 export default function PlanFormPage() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { id } = useParams();
   const isEditing = !!id;
   const { currentBaby } = useBaby();
@@ -73,7 +74,7 @@ export default function PlanFormPage() {
       }
       navigate('/plans');
     } catch {
-      alert(isEditing ? '保存失败' : '创建失败');
+      toast(isEditing ? '保存失败' : '创建失败', 'error');
     } finally {
       setLoading(false);
     }
@@ -194,7 +195,7 @@ export default function PlanFormPage() {
                   await api.delete(`/plans/${id}`);
                   navigate('/plans');
                 } catch {
-                  alert('删除失败');
+                  toast('删除失败', 'error');
                 }
               }}
             >

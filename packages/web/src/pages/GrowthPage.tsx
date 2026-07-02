@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Plus, Star, Pencil, Trash2 } from 'lucide-react';
-import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DatePicker } from '../components/ui';
+import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DatePicker, ConfirmDialog, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { Textarea } from '../components/ui';
 import { getPercentileData, PercentileData } from '../lib/growth-standards';
@@ -40,11 +40,13 @@ const milestoneLabels: Record<string, string> = {
 
 export default function GrowthPage() {
   const { currentBaby } = useBaby();
+  const { toast } = useToast();
   const [growthRecords, setGrowthRecords] = useState<GrowthItem[]>([]);
   const [milestones, setMilestones] = useState<MilestoneItem[]>([]);
   const [showGrowthForm, setShowGrowthForm] = useState(false);
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
   const [activeChart, setActiveChart] = useState<'weight' | 'height' | 'head'>('weight');
+  const [deletingMilestoneId, setDeletingMilestoneId] = useState<string | null>(null);
 
   const [gDate, setGDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [gHeight, setGHeight] = useState('');
@@ -126,9 +128,14 @@ export default function GrowthPage() {
   };
 
   const deleteMilestone = async (id: string) => {
-    if (!confirm('确定删除此里程碑？')) return;
-    await api.delete(`/milestones/${id}`);
-    loadData();
+    try {
+      await api.delete(`/milestones/${id}`);
+      toast('里程碑已删除', 'success');
+      loadData();
+    } catch {
+      toast('删除失败', 'error');
+    }
+    setDeletingMilestoneId(null);
   };
 
   const gender = (currentBaby?.gender === 'female' ? 'female' : 'male') as 'male' | 'female';
@@ -391,7 +398,7 @@ export default function GrowthPage() {
                       <Pencil size={14} />
                     </button>
                     <button
-                      onClick={() => deleteMilestone(m.id)}
+                      onClick={() => setDeletingMilestoneId(m.id)}
                       className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
                       <Trash2 size={14} />
@@ -443,6 +450,16 @@ export default function GrowthPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      <ConfirmDialog
+        open={!!deletingMilestoneId}
+        onOpenChange={(open) => { if (!open) setDeletingMilestoneId(null); }}
+        title="删除里程碑"
+        description="确定删除此里程碑？此操作不可撤销。"
+        confirmLabel="删除"
+        variant="danger"
+        onConfirm={() => deletingMilestoneId && deleteMilestone(deletingMilestoneId)}
+      />
     </div>
   );
 }

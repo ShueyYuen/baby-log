@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import { ArrowLeft, ImagePlus, X } from 'lucide-react';
-import { Button, Input, Textarea, DateTimePicker, ScrollDateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ImageViewer } from '../components/ui';
+import { Button, Input, Textarea, DateTimePicker, ScrollDateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ImageViewer, useToast } from '../components/ui';
 
 function toLocalDateTimeString(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -53,6 +53,7 @@ const quickTimes = [
 
 export default function RecordFormPage() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const isEditing = !!id;
@@ -215,7 +216,7 @@ export default function RecordFormPage() {
       }
       navigate('/');
     } catch {
-      alert(isEditing ? '修改失败' : '添加失败');
+      toast(isEditing ? '修改失败' : '添加失败', 'error');
     } finally {
       setLoading(false);
     }
@@ -545,7 +546,7 @@ export default function RecordFormPage() {
                       }
                       setImages((prev) => [...prev, ...newUrls].slice(0, 9));
                     } catch {
-                      alert('图片上传失败');
+                      toast('图片上传失败', 'error');
                     } finally {
                       setUploading(false);
                       e.target.value = '';
@@ -604,7 +605,7 @@ export default function RecordFormPage() {
                   await api.delete(`/records/${id}`);
                   navigate('/');
                 } catch {
-                  alert('删除失败');
+                  toast('删除失败', 'error');
                 }
               }}
             >
