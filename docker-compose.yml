@@ -11,6 +11,9 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/app/data/baby-log.db
+      # 管理员账号（首次部署必须配置）
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=ChangeThisStr0ngP@ss!
       # 存储配置 - 默认使用本地存储，如需 S3 请取消注释以下配置
       - STORAGE_TYPE=local
       # - STORAGE_TYPE=s3

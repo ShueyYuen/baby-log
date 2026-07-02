@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Plus, Star } from 'lucide-react';
+import { Plus, Star, Pencil, Trash2 } from 'lucide-react';
 import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DatePicker } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { Textarea } from '../components/ui';
@@ -85,6 +86,8 @@ export default function GrowthPage() {
     loadData();
   };
 
+  const [editingMilestone, setEditingMilestone] = useState<MilestoneItem | null>(null);
+
   const addMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentBaby) return;
@@ -97,6 +100,34 @@ export default function GrowthPage() {
     });
     setShowMilestoneForm(false);
     setMTitle(''); setMDesc('');
+    loadData();
+  };
+
+  const openEditMilestone = (m: MilestoneItem) => {
+    setEditingMilestone(m);
+    setMType(m.type);
+    setMTitle(m.title);
+    setMDate(dayjs(m.occurredAt).format('YYYY-MM-DD'));
+    setMDesc(m.description || '');
+  };
+
+  const saveMilestone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMilestone) return;
+    await api.put(`/milestones/${editingMilestone.id}`, {
+      type: mType,
+      title: mTitle || milestoneLabels[mType],
+      occurredAt: new Date(mDate).toISOString(),
+      description: mDesc || undefined,
+    });
+    setEditingMilestone(null);
+    setMTitle(''); setMDesc('');
+    loadData();
+  };
+
+  const deleteMilestone = async (id: string) => {
+    if (!confirm('确定删除此里程碑？')) return;
+    await api.delete(`/milestones/${id}`);
     loadData();
   };
 
@@ -221,11 +252,11 @@ export default function GrowthPage() {
                 />
                 {activeChart !== 'head' && (
                   <>
-                    <Line type="monotone" dataKey="p97" stroke="#e5e7eb" strokeWidth={1} strokeDasharray="3 3" dot={false} name="P97" />
-                    <Line type="monotone" dataKey="p85" stroke="#d1d5db" strokeWidth={1} strokeDasharray="3 3" dot={false} name="P85" />
-                    <Line type="monotone" dataKey="p50" stroke="#9ca3af" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="P50" />
-                    <Line type="monotone" dataKey="p15" stroke="#d1d5db" strokeWidth={1} strokeDasharray="3 3" dot={false} name="P15" />
-                    <Line type="monotone" dataKey="p3" stroke="#e5e7eb" strokeWidth={1} strokeDasharray="3 3" dot={false} name="P3" />
+                    <Line type="monotone" dataKey="p97" stroke="#e5e7eb" strokeWidth={1} strokeDasharray="3 3" dot={false} name="P97" animationDuration={300} />
+                    <Line type="monotone" dataKey="p85" stroke="#d1d5db" strokeWidth={1} strokeDasharray="3 3" dot={false} name="P85" animationDuration={300} />
+                    <Line type="monotone" dataKey="p50" stroke="#9ca3af" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="P50" animationDuration={300} />
+                    <Line type="monotone" dataKey="p15" stroke="#d1d5db" strokeWidth={1} strokeDasharray="3 3" dot={false} name="P15" animationDuration={300} />
+                    <Line type="monotone" dataKey="p3" stroke="#e5e7eb" strokeWidth={1} strokeDasharray="3 3" dot={false} name="P3" animationDuration={300} />
                   </>
                 )}
                 <Line
@@ -236,6 +267,7 @@ export default function GrowthPage() {
                   dot={{ r: 5, strokeWidth: 2 }}
                   connectNulls
                   name="宝宝"
+                  animationDuration={300}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -279,6 +311,13 @@ export default function GrowthPage() {
           </Dialog>
         </CardContent>
       </Card>
+
+      {/* Growth Records History Link */}
+      {growthRecords.length > 0 && (
+        <Button variant="outline" className="w-full" asChild>
+          <Link to="/growth/history">查看历史记录 ({growthRecords.length}条)</Link>
+        </Button>
+      )}
 
       {/* Milestones */}
       <div>
@@ -339,16 +378,70 @@ export default function GrowthPage() {
                   <div className="w-10 h-10 rounded-full bg-yellow-50 dark:bg-yellow-900/30 flex items-center justify-center flex-shrink-0">
                     <Star size={18} className="text-yellow-500" />
                   </div>
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <h4 className="font-medium text-sm dark:text-gray-100">{m.title}</h4>
                     <p className="text-xs text-gray-400 dark:text-gray-500">{dayjs(m.occurredAt).format('YYYY-MM-DD')}</p>
                     {m.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{m.description}</p>}
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => openEditMilestone(m)}
+                      className="p-1.5 rounded-md text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => deleteMilestone(m.id)}
+                      className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
+
+        {/* Edit Milestone Dialog */}
+        <Dialog open={!!editingMilestone} onOpenChange={(open) => { if (!open) setEditingMilestone(null); }}>
+          <DialogContent className="max-w-sm mx-4">
+            <DialogHeader>
+              <DialogTitle>编辑里程碑</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={saveMilestone} className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">类型</label>
+                <Select value={mType} onValueChange={setMType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(milestoneLabels).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">标题</label>
+                <Input value={mTitle} onChange={(e) => setMTitle(e.target.value)} placeholder="留空则使用类型名称" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">日期</label>
+                <DatePicker value={mDate} onChange={setMDate} placeholder="选择日期" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">描述</label>
+                <Textarea value={mDesc} onChange={(e) => setMDesc(e.target.value)} placeholder="可选..." />
+              </div>
+              <div className="flex gap-3">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setEditingMilestone(null)}>取消</Button>
+                <Button type="submit" className="flex-1">保存</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

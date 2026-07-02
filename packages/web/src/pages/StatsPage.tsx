@@ -119,7 +119,7 @@ export default function StatsPage() {
                 <XAxis dataKey="date" fontSize={12} tick={{ fill: 'var(--chart-axis)' }} />
                 <YAxis fontSize={12} allowDecimals={false} tick={{ fill: 'var(--chart-axis)' }} />
                 <Tooltip contentStyle={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: '8px', color: 'var(--chart-tooltip-text)' }} cursor={{ fill: 'var(--chart-cursor)' }} />
-                <Bar dataKey="喂养" fill="#f19232" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="喂养" fill="#f19232" radius={[4, 4, 0, 0]} animationDuration={300} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -133,7 +133,7 @@ export default function StatsPage() {
                 <XAxis dataKey="date" fontSize={12} tick={{ fill: 'var(--chart-axis)' }} />
                 <YAxis fontSize={12} allowDecimals={false} tick={{ fill: 'var(--chart-axis)' }} />
                 <Tooltip contentStyle={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: '8px', color: 'var(--chart-tooltip-text)' }} cursor={{ fill: 'var(--chart-cursor)' }} />
-                <Bar dataKey="换尿布" fill="#eab308" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="换尿布" fill="#eab308" radius={[4, 4, 0, 0]} animationDuration={300} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -147,7 +147,7 @@ export default function StatsPage() {
                 <XAxis dataKey="date" fontSize={12} tick={{ fill: 'var(--chart-axis)' }} />
                 <YAxis fontSize={12} tick={{ fill: 'var(--chart-axis)' }} />
                 <Tooltip contentStyle={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: '8px', color: 'var(--chart-tooltip-text)' }} cursor={{ fill: 'var(--chart-cursor)' }} />
-                <Bar dataKey="睡眠" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="睡眠" fill="#6366f1" radius={[4, 4, 0, 0]} animationDuration={300} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -190,7 +190,7 @@ export default function StatsPage() {
                     }}
                   />
                   <ReferenceLine y={37.3} stroke="#fbbf24" strokeDasharray="4 4" label={{ value: '37.3°C', position: 'right', fontSize: 10, fill: '#fbbf24' }} />
-                  <Line type="monotone" dataKey="value" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="value" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} animationDuration={300} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (

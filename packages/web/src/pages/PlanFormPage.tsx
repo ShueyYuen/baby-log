@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import { ArrowLeft } from 'lucide-react';
 import { Button, Input, Textarea, DateTimePicker } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
+import dayjs from 'dayjs';
 
 const planTypes = [
   { value: 'vaccine', label: '疫苗接种' },
@@ -16,6 +17,8 @@ const planTypes = [
 
 export default function PlanFormPage() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditing = !!id;
   const { currentBaby } = useBaby();
   const [title, setTitle] = useState('');
   const [type, setType] = useState('vaccine');
@@ -24,23 +27,48 @@ export default function PlanFormPage() {
   const [repeat, setRepeat] = useState('none');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (isEditing && currentBaby) {
+      api.get<{ success: boolean; data: any }>(`/plans?babyId=${currentBaby.id}`).then((res) => {
+        const plan = res.data.find((p: any) => p.id === id);
+        if (plan) {
+          setTitle(plan.title);
+          setType(plan.type);
+          setScheduledAt(dayjs(plan.scheduledAt).format('YYYY-MM-DD HH:mm'));
+          setDescription(plan.description || '');
+          setRepeat(plan.repeat || 'none');
+        }
+      });
+    }
+  }, [id, currentBaby]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentBaby) return;
     setLoading(true);
 
     try {
-      await api.post('/plans', {
-        babyId: currentBaby.id,
-        title,
-        type,
-        scheduledAt: new Date(scheduledAt).toISOString(),
-        description: description || undefined,
-        repeat,
-      });
+      if (isEditing) {
+        await api.put(`/plans/${id}`, {
+          title,
+          type,
+          scheduledAt: new Date(scheduledAt).toISOString(),
+          description: description || undefined,
+          repeat,
+        });
+      } else {
+        await api.post('/plans', {
+          babyId: currentBaby.id,
+          title,
+          type,
+          scheduledAt: new Date(scheduledAt).toISOString(),
+          description: description || undefined,
+          repeat,
+        });
+      }
       navigate('/plans');
     } catch {
-      alert('创建失败');
+      alert(isEditing ? '保存失败' : '创建失败');
     } finally {
       setLoading(false);
     }
@@ -52,7 +80,7 @@ export default function PlanFormPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} />
         </Button>
-        <h2 className="text-xl font-semibold dark:text-gray-100">新建计划</h2>
+        <h2 className="text-xl font-semibold dark:text-gray-100">{isEditing ? '编辑计划' : '新建计划'}</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -104,7 +132,7 @@ export default function PlanFormPage() {
         </div>
 
         <Button type="submit" disabled={loading} className="w-full">
-          {loading ? '创建中...' : '创建计划'}
+          {loading ? (isEditing ? '保存中...' : '创建中...') : (isEditing ? '保存' : '创建计划')}
         </Button>
       </form>
     </div>

@@ -5,14 +5,15 @@ interface User {
   id: string;
   username: string;
   displayName: string;
+  role: string;
 }
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string, displayName: string) => Promise<void>;
   logout: () => void;
+  isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -39,19 +40,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.data.user);
   };
 
-  const register = async (username: string, password: string, displayName: string) => {
-    const res = await api.post<{ success: boolean; data: { token: string; user: User } }>('/auth/register', { username, password, displayName });
-    localStorage.setItem('token', res.data.token);
-    setUser(res.data.user);
-  };
-
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
   };
 
+  const isAdmin = user?.role === 'admin';
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

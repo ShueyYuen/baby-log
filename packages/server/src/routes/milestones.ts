@@ -82,6 +82,43 @@ milestoneRouter.post('/', async (req: Request, res: Response) => {
   }
 });
 
+milestoneRouter.put('/:id', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const existing = await prisma.milestone.findUnique({ where: { id } });
+    if (!existing) {
+      res.status(404).json({ success: false, error: 'Not found' });
+      return;
+    }
+
+    const member = await prisma.babyMember.findFirst({
+      where: { babyId: existing.babyId, userId: req.userId!, role: { in: ['admin', 'editor'] } },
+    });
+    if (!member) {
+      res.status(403).json({ success: false, error: 'Permission denied' });
+      return;
+    }
+
+    const milestone = await prisma.milestone.update({
+      where: { id },
+      data: {
+        ...(req.body.type && { type: req.body.type }),
+        ...(req.body.title && { title: req.body.title }),
+        ...(req.body.occurredAt && { occurredAt: new Date(req.body.occurredAt) }),
+        ...(req.body.description !== undefined && { description: req.body.description }),
+        ...(req.body.images !== undefined && { images: req.body.images ? JSON.stringify(req.body.images) : null }),
+      },
+    });
+
+    res.json({
+      success: true,
+      data: { ...milestone, images: milestone.images ? JSON.parse(milestone.images) : [] },
+    });
+  } catch {
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
 milestoneRouter.delete('/:id', async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;

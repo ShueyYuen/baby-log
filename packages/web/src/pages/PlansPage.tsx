@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Calendar, CheckCircle, Clock, Plus } from 'lucide-react';
+import { Calendar, CheckCircle, Clock, Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button, Card, CardContent, Badge } from '../components/ui';
 
 dayjs.extend(relativeTime);
@@ -38,6 +38,7 @@ const statusConfig: Record<string, { label: string; variant: 'warning' | 'succes
 
 export default function PlansPage() {
   const { currentBaby } = useBaby();
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('pending');
@@ -65,6 +66,16 @@ export default function PlansPage() {
   const updateStatus = async (id: string, status: string) => {
     try {
       await api.put(`/plans/${id}`, { status });
+      loadPlans();
+    } catch {
+      // ignore
+    }
+  };
+
+  const deletePlan = async (id: string) => {
+    if (!confirm('确定删除此计划？')) return;
+    try {
+      await api.delete(`/plans/${id}`);
       loadPlans();
     } catch {
       // ignore
@@ -132,15 +143,31 @@ export default function PlansPage() {
                     </div>
                   </div>
 
-                  {plan.status === 'pending' && (
+                  <div className="flex items-center gap-1">
                     <button
-                      onClick={() => updateStatus(plan.id, 'completed')}
-                      className="p-2 text-gray-300 dark:text-gray-600 hover:text-green-500 dark:hover:text-green-400 transition-colors"
-                      title="标记完成"
+                      onClick={() => navigate(`/plan/${plan.id}/edit`)}
+                      className="p-1.5 rounded-md text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      title="编辑"
                     >
-                      <CheckCircle size={24} />
+                      <Pencil size={15} />
                     </button>
-                  )}
+                    <button
+                      onClick={() => deletePlan(plan.id)}
+                      className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      title="删除"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                    {plan.status === 'pending' && (
+                      <button
+                        onClick={() => updateStatus(plan.id, 'completed')}
+                        className="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-green-500 dark:hover:text-green-400 transition-colors"
+                        title="标记完成"
+                      >
+                        <CheckCircle size={20} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>

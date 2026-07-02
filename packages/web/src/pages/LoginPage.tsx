@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginPage() {
@@ -69,10 +69,7 @@ export default function LoginPage() {
           </button>
 
           <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-            还没有账号？
-            <Link to="/register" className="text-primary-500 hover:underline ml-1">
-              注册
-            </Link>
+            请联系管理员获取账号
           </p>
         </form>
       </div>
