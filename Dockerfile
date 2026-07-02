@@ -16,7 +16,9 @@ COPY tsconfig.base.json ./
 COPY packages/shared/ ./packages/shared/
 COPY packages/server/src/ ./packages/server/src/
 COPY packages/server/tsconfig.json ./packages/server/
-RUN pnpm --filter shared build && pnpm --filter server build
+COPY packages/server/prisma/ ./packages/server/prisma/
+RUN cd packages/server && npx prisma generate \
+    && cd /app && pnpm --filter shared build && pnpm --filter server build
 
 # ---- Build frontend ----
 FROM deps AS web-build
