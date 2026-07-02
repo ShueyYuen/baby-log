@@ -1,9 +1,13 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Clock, Calendar, TrendingUp, BarChart3, Sun, Moon, Monitor } from 'lucide-react';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { api } from '../lib/api';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, Button, Input, DatePicker } from './ui';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui';
+import dayjs from 'dayjs';
 
 interface LayoutProps {
   children: ReactNode;
@@ -42,7 +46,7 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20 md:pb-0 md:pl-64">
+    <div className="h-screen overflow-hidden bg-gray-50 dark:bg-gray-900 md:pl-64">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-col z-50">
         <div className="p-6 border-b border-gray-100 dark:border-gray-700">
@@ -116,8 +120,10 @@ export default function Layout({ children }: LayoutProps) {
       </header>
 
       {/* Main Content */}
-      <main className="pt-16 md:pt-0 px-4 md:px-8 py-6 max-w-4xl mx-auto">
-        {children}
+      <main className="h-full pt-16 pb-20 md:pt-0 md:pb-0 px-4 md:px-8 py-6 overflow-y-auto custom-scrollbar">
+        <div className="max-w-4xl mx-auto">
+          {children}
+        </div>
       </main>
 
       {/* Mobile Bottom Nav */}

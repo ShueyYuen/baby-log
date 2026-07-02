@@ -29,7 +29,7 @@ export default function BabySetupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-baby-blue to-white dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
+    <div className="h-full overflow-y-auto bg-gradient-to-b from-baby-blue to-white dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">添加宝宝</h1>

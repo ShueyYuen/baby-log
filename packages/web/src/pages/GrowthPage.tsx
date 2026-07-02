@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import dayjs from 'dayjs';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Plus, Star } from 'lucide-react';
 import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DatePicker } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { Textarea } from '../components/ui';
+import { getPercentileData, PercentileData } from '../lib/growth-standards';
 
 interface GrowthItem {
   id: string;
@@ -99,18 +100,76 @@ export default function GrowthPage() {
     loadData();
   };
 
-  const chartData = [...growthRecords]
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .map((r) => ({
-      date: dayjs(r.date).format('MM/DD'),
-      weight: r.weight,
-      height: r.height,
-      head: r.headCircumference,
-    }));
+  const gender = (currentBaby?.gender === 'female' ? 'female' : 'male') as 'male' | 'female';
+  const birthDate = currentBaby?.birthDate;
+
+  const chartData = useMemo(() => {
+    if (!birthDate) return [];
+
+    const birth = dayjs(birthDate);
+
+    if (activeChart === 'head') {
+      return [...growthRecords]
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .filter((r) => r.headCircumference != null)
+        .map((r) => {
+          const days = dayjs(r.date).diff(birth, 'day');
+          return { days, month: +(days / 30.44).toFixed(1), head: r.headCircumference };
+        });
+    }
+
+    const percentiles = getPercentileData(gender, activeChart === 'weight' ? 'weight' : 'height');
+
+    const babyPoints = [...growthRecords]
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .map((r) => {
+        const days = dayjs(r.date).diff(birth, 'day');
+        return { days, value: activeChart === 'weight' ? r.weight : r.height };
+      })
+      .filter((r) => r.value != null);
+
+    const maxDays = Math.max(...babyPoints.map((p) => p.days), 365);
+    const maxMonth = Math.ceil(maxDays / 30.44) + 1;
+    const relevantPercentiles = percentiles.filter((p) => p.month <= maxMonth);
+
+    const interpolatePercentile = (days: number, key: keyof PercentileData) => {
+      const monthAge = days / 30.44;
+      const lowerIdx = Math.floor(monthAge);
+      const upperIdx = Math.ceil(monthAge);
+      if (lowerIdx >= relevantPercentiles.length) return null;
+      if (upperIdx >= relevantPercentiles.length) return relevantPercentiles[lowerIdx]?.[key] ?? null;
+      if (lowerIdx === upperIdx) return relevantPercentiles[lowerIdx][key];
+      const fraction = monthAge - lowerIdx;
+      const lower = relevantPercentiles.find((p) => p.month === lowerIdx);
+      const upper = relevantPercentiles.find((p) => p.month === upperIdx);
+      if (!lower || !upper) return null;
+      return +(lower[key] + (upper[key] - lower[key]) * fraction).toFixed(2);
+    };
+
+    const allDays = new Set<number>();
+    relevantPercentiles.forEach((p) => allDays.add(Math.round(p.month * 30.44)));
+    babyPoints.forEach((p) => allDays.add(p.days));
+
+    const sortedDays = [...allDays].sort((a, b) => a - b);
+
+    return sortedDays.map((days) => {
+      const baby = babyPoints.find((b) => b.days === days);
+      return {
+        days,
+        label: days < 90 ? `${days}天` : `${+(days / 30.44).toFixed(1)}月`,
+        p3: interpolatePercentile(days, 'p3'),
+        p15: interpolatePercentile(days, 'p15'),
+        p50: interpolatePercentile(days, 'p50'),
+        p85: interpolatePercentile(days, 'p85'),
+        p97: interpolatePercentile(days, 'p97'),
+        value: baby?.value ?? null,
+      };
+    });
+  }, [growthRecords, activeChart, gender, birthDate]);
 
   const chartConfig = {
-    weight: { label: '体重(kg)', color: '#f19232', key: 'weight' },
-    height: { label: '身高(cm)', color: '#10b981', key: 'height' },
+    weight: { label: '体重(kg)', color: '#f19232', key: 'value' },
+    height: { label: '身高(cm)', color: '#10b981', key: 'value' },
     head: { label: '头围(cm)', color: '#6366f1', key: 'head' },
   };
 
@@ -135,24 +194,48 @@ export default function GrowthPage() {
           </div>
 
           {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid, #e5e7eb)" />
-                <XAxis dataKey="date" fontSize={12} />
-                <YAxis fontSize={12} />
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis
+                  dataKey="days"
+                  type="number"
+                  fontSize={11}
+                  tick={{ fill: 'var(--chart-axis)' }}
+                  tickFormatter={(days: number) => days < 90 ? `${days}天` : `${Math.round(days / 30.44)}月`}
+                  label={{ value: activeChart === 'head' ? '日龄' : '日龄/月龄', position: 'insideBottom', offset: -10, fontSize: 11, fill: 'var(--chart-axis)' }}
+                  domain={[0, 'dataMax']}
+                />
+                <YAxis fontSize={12} domain={['dataMin - 1', 'dataMax + 1']} tick={{ fill: 'var(--chart-axis)' }} />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: 'var(--tooltip-bg, white)',
-                    border: '1px solid var(--tooltip-border, #e5e7eb)',
+                    backgroundColor: 'var(--chart-tooltip-bg)',
+                    border: '1px solid var(--chart-tooltip-border)',
                     borderRadius: '8px',
+                    color: 'var(--chart-tooltip-text)',
+                  }}
+                  labelFormatter={(days: number) => {
+                    const months = +(days / 30.44).toFixed(1);
+                    return `${days}天 (${months}月)`;
                   }}
                 />
+                {activeChart !== 'head' && (
+                  <>
+                    <Line type="monotone" dataKey="p97" stroke="#e5e7eb" strokeWidth={1} strokeDasharray="3 3" dot={false} name="P97" />
+                    <Line type="monotone" dataKey="p85" stroke="#d1d5db" strokeWidth={1} strokeDasharray="3 3" dot={false} name="P85" />
+                    <Line type="monotone" dataKey="p50" stroke="#9ca3af" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="P50" />
+                    <Line type="monotone" dataKey="p15" stroke="#d1d5db" strokeWidth={1} strokeDasharray="3 3" dot={false} name="P15" />
+                    <Line type="monotone" dataKey="p3" stroke="#e5e7eb" strokeWidth={1} strokeDasharray="3 3" dot={false} name="P3" />
+                  </>
+                )}
                 <Line
                   type="monotone"
                   dataKey={chartConfig[activeChart].key}
                   stroke={chartConfig[activeChart].color}
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
+                  strokeWidth={2.5}
+                  dot={{ r: 5, strokeWidth: 2 }}
+                  connectNulls
+                  name="宝宝"
                 />
               </LineChart>
             </ResponsiveContainer>
