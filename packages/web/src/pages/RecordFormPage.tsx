@@ -162,7 +162,7 @@ export default function RecordFormPage() {
 
   const setQuickTime = (offsetMinutes: number) => {
     const d = new Date(Date.now() + offsetMinutes * 60 * 1000);
-    setOccurredAt(d.toISOString().slice(0, 16));
+    setOccurredAt(toLocalDateTimeString(d));
   };
 
   const buildData = (): Record<string, unknown> => {

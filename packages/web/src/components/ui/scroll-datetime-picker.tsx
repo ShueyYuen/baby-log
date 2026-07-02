@@ -6,23 +6,28 @@ interface ScrollColumnProps {
   items: { value: string; label: string }[];
   selected: string;
   onSelect: (value: string) => void;
+  circular?: boolean;
   className?: string;
 }
 
-function ScrollColumn({ items, selected, onSelect, className }: ScrollColumnProps) {
+function ScrollColumn({ items, selected, onSelect, circular = false, className }: ScrollColumnProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const itemHeight = 36;
   const isScrollingRef = React.useRef(false);
-  const scrollTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
+  const scrollTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const repeats = circular ? 3 : 1;
+  const totalItems = items.length * repeats;
+  const middleOffset = circular ? items.length : 0;
 
   React.useEffect(() => {
     if (containerRef.current && !isScrollingRef.current) {
       const idx = items.findIndex((item) => item.value === selected);
       if (idx >= 0) {
-        containerRef.current.scrollTop = idx * itemHeight;
+        containerRef.current.scrollTop = (middleOffset + idx) * itemHeight;
       }
     }
-  }, [selected, items]);
+  }, [selected, items, middleOffset]);
 
   const handleScroll = () => {
     isScrollingRef.current = true;
@@ -30,23 +35,43 @@ function ScrollColumn({ items, selected, onSelect, className }: ScrollColumnProp
     scrollTimeoutRef.current = setTimeout(() => {
       if (!containerRef.current) return;
       const scrollTop = containerRef.current.scrollTop;
-      const idx = Math.round(scrollTop / itemHeight);
-      const clampedIdx = Math.max(0, Math.min(idx, items.length - 1));
+      let idx = Math.round(scrollTop / itemHeight);
 
+      if (circular) {
+        // Wrap around logic
+        if (idx < items.length * 0.5) {
+          idx += items.length;
+          containerRef.current.scrollTop = idx * itemHeight;
+        } else if (idx >= items.length * 2.5) {
+          idx -= items.length;
+          containerRef.current.scrollTop = idx * itemHeight;
+        }
+      }
+
+      const clampedIdx = Math.max(0, Math.min(idx, totalItems - 1));
       containerRef.current.scrollTo({ top: clampedIdx * itemHeight, behavior: 'smooth' });
 
-      if (items[clampedIdx] && items[clampedIdx].value !== selected) {
-        onSelect(items[clampedIdx].value);
+      const realIdx = circular ? clampedIdx % items.length : clampedIdx;
+      if (items[realIdx] && items[realIdx].value !== selected) {
+        onSelect(items[realIdx].value);
       }
       setTimeout(() => { isScrollingRef.current = false; }, 100);
     }, 80);
   };
 
+  const renderItems = React.useMemo(() => {
+    const result: { value: string; label: string; key: string }[] = [];
+    for (let r = 0; r < repeats; r++) {
+      for (let i = 0; i < items.length; i++) {
+        result.push({ ...items[i], key: `${r}-${i}` });
+      }
+    }
+    return result;
+  }, [items, repeats]);
+
   return (
     <div className={cn('relative h-[144px] overflow-hidden', className)}>
-      {/* Highlight bar */}
       <div className="absolute top-[54px] left-1 right-1 h-[36px] rounded-md border border-primary-200 dark:border-primary-700 bg-primary-50/60 dark:bg-primary-900/20 pointer-events-none z-10" />
-      {/* Fade masks */}
       <div className="absolute top-0 left-0 right-0 h-[54px] bg-gradient-to-b from-white dark:from-gray-800 to-transparent pointer-events-none z-10" />
       <div className="absolute bottom-0 left-0 right-0 h-[54px] bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none z-10" />
 
@@ -56,9 +81,9 @@ function ScrollColumn({ items, selected, onSelect, className }: ScrollColumnProp
         className="h-full overflow-y-auto scrollbar-hide"
         style={{ paddingTop: 54, paddingBottom: 54, scrollSnapType: 'y mandatory' }}
       >
-        {items.map((item, i) => (
+        {renderItems.map((item, i) => (
           <div
-            key={item.value}
+            key={item.key}
             className={cn(
               'h-[36px] flex items-center justify-center text-sm snap-center select-none cursor-pointer transition-colors',
               item.value === selected
@@ -151,12 +176,14 @@ export function ScrollDateTimePicker({ value, onChange, className }: ScrollDateT
         items={hourItems}
         selected={selectedHour}
         onSelect={handleHourChange}
+        circular
         className="flex-1 border-r border-gray-100 dark:border-gray-700"
       />
       <ScrollColumn
         items={minuteItems}
         selected={selectedMinute}
         onSelect={handleMinuteChange}
+        circular
         className="flex-1"
       />
     </div>
