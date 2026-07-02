@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Calendar, CheckCircle, Clock, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Calendar, CheckCircle, Clock, Plus } from 'lucide-react';
 import { Button, Card, CardContent, Badge } from '../components/ui';
 
 dayjs.extend(relativeTime);
@@ -72,15 +72,6 @@ export default function PlansPage() {
     }
   };
 
-  const deletePlan = async (id: string) => {
-    if (!confirm('确定删除此计划？')) return;
-    try {
-      await api.delete(`/plans/${id}`);
-      loadPlans();
-    } catch {
-      // ignore
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -119,7 +110,11 @@ export default function PlansPage() {
       ) : (
         <div className="space-y-3">
           {plans.map((plan) => (
-            <Card key={plan.id}>
+            <Card
+              key={plan.id}
+              className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700 transition-colors"
+              onClick={() => navigate(`/plan/${plan.id}/edit`)}
+            >
               <CardContent>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -133,7 +128,7 @@ export default function PlansPage() {
                     </div>
                     <h3 className="font-medium dark:text-gray-100">{plan.title}</h3>
                     {plan.description && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{plan.description}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{plan.description}</p>
                     )}
                     <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 mt-2">
                       <Calendar size={12} />
@@ -143,31 +138,15 @@ export default function PlansPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  {plan.status === 'pending' && (
                     <button
-                      onClick={() => navigate(`/plan/${plan.id}/edit`)}
-                      className="p-1.5 rounded-md text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      title="编辑"
+                      onClick={(e) => { e.stopPropagation(); updateStatus(plan.id, 'completed'); }}
+                      className="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-green-500 dark:hover:text-green-400 transition-colors flex-shrink-0"
+                      title="标记完成"
                     >
-                      <Pencil size={15} />
+                      <CheckCircle size={22} />
                     </button>
-                    <button
-                      onClick={() => deletePlan(plan.id)}
-                      className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      title="删除"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                    {plan.status === 'pending' && (
-                      <button
-                        onClick={() => updateStatus(plan.id, 'completed')}
-                        className="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-green-500 dark:hover:text-green-400 transition-colors"
-                        title="标记完成"
-                      >
-                        <CheckCircle size={20} />
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

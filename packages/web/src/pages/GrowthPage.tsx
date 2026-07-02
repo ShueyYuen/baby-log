@@ -275,12 +275,18 @@ export default function GrowthPage() {
             <p className="text-center text-gray-400 py-8">暂无数据</p>
           )}
 
-          <Dialog open={showGrowthForm} onOpenChange={setShowGrowthForm}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="w-full mt-4">
-                <Plus size={16} /> 记录生理数据
+          <div className="flex gap-2 mt-4">
+            {growthRecords.length > 0 && (
+              <Button variant="outline" className="flex-1" asChild>
+                <Link to="/growth/history">历史 ({growthRecords.length})</Link>
               </Button>
-            </DialogTrigger>
+            )}
+            <Dialog open={showGrowthForm} onOpenChange={setShowGrowthForm}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="flex-1">
+                  <Plus size={16} /> 记录数据
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-sm mx-4">
               <DialogHeader>
                 <DialogTitle>记录生理数据</DialogTitle>
@@ -308,16 +314,10 @@ export default function GrowthPage() {
                 </div>
               </form>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
         </CardContent>
       </Card>
-
-      {/* Growth Records History Link */}
-      {growthRecords.length > 0 && (
-        <Button variant="outline" className="w-full" asChild>
-          <Link to="/growth/history">查看历史记录 ({growthRecords.length}条)</Link>
-        </Button>
-      )}
 
       {/* Milestones */}
       <div>

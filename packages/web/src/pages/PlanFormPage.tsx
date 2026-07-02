@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import { ArrowLeft } from 'lucide-react';
-import { Button, Input, Textarea, DateTimePicker } from '../components/ui';
+import { Button, Input, Textarea, DateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import dayjs from 'dayjs';
 
@@ -26,6 +26,7 @@ export default function PlanFormPage() {
   const [description, setDescription] = useState('');
   const [repeat, setRepeat] = useState('none');
   const [loading, setLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (isEditing && currentBaby) {
@@ -75,15 +76,20 @@ export default function PlanFormPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
+    <div className="fixed inset-0 md:top-0 md:bottom-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900">
+      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} />
         </Button>
-        <h2 className="text-xl font-semibold dark:text-gray-100">{isEditing ? '编辑计划' : '新建计划'}</h2>
+        <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">{isEditing ? '编辑计划' : '新建计划'}</h2>
+        {isEditing && (
+          <Button type="submit" form="plan-form" size="sm" disabled={loading}>
+            {loading ? '保存中...' : '保存'}
+          </Button>
+        )}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form id="plan-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-5">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">计划类型</label>
           <div className="flex flex-wrap gap-2">
@@ -131,10 +137,49 @@ export default function PlanFormPage() {
           </Select>
         </div>
 
-        <Button type="submit" disabled={loading} className="w-full">
-          {loading ? (isEditing ? '保存中...' : '创建中...') : (isEditing ? '保存' : '创建计划')}
-        </Button>
+        {!isEditing && (
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? '创建中...' : '创建计划'}
+          </Button>
+        )}
+        {isEditing && (
+          <button
+            type="button"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="w-full py-2.5 text-sm text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+          >
+            删除此计划
+          </button>
+        )}
       </form>
+
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>确认删除</DialogTitle>
+            <DialogDescription>确定要删除此计划吗？此操作不可撤销。</DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 mt-4">
+            <Button variant="outline" className="flex-1" onClick={() => setShowDeleteConfirm(false)}>
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={async () => {
+                try {
+                  await api.delete(`/plans/${id}`);
+                  navigate('/plans');
+                } catch {
+                  alert('删除失败');
+                }
+              }}
+            >
+              删除
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

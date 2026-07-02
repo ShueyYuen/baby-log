@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import dayjs from 'dayjs';
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
-import { Button, Input, Card, CardContent, Dialog, DialogContent, DialogHeader, DialogTitle, DatePicker } from '../components/ui';
+import { ArrowLeft } from 'lucide-react';
+import { Button, Input, Card, CardContent, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DatePicker } from '../components/ui';
 
 interface GrowthItem {
   id: string;
@@ -24,6 +24,8 @@ export default function GrowthHistoryPage() {
   const [gWeight, setGWeight] = useState('');
   const [gHeight, setGHeight] = useState('');
   const [gHead, setGHead] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentBaby) loadRecords();
@@ -56,63 +58,65 @@ export default function GrowthHistoryPage() {
     loadRecords();
   };
 
-  const deleteRecord = async (id: string) => {
-    if (!confirm('确定删除此记录？')) return;
-    await api.delete(`/growth/${id}`);
+  const confirmDelete = (id: string) => {
+    setDeleteTarget(id);
+    setShowDeleteConfirm(true);
+  };
+
+  const doDelete = async () => {
+    if (!deleteTarget) return;
+    await api.delete(`/growth/${deleteTarget}`);
+    setShowDeleteConfirm(false);
+    setDeleteTarget(null);
     loadRecords();
   };
 
   const sorted = [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
+    <div className="fixed inset-0 md:top-0 md:bottom-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900">
+      {/* Fixed Header */}
+      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
         <Button variant="ghost" size="icon" onClick={() => navigate('/growth')}>
           <ArrowLeft size={20} />
         </Button>
-        <h2 className="text-xl font-semibold dark:text-gray-100">历史记录</h2>
+        <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">成长记录历史</h2>
+        <span className="text-sm text-gray-400">{records.length}条</span>
       </div>
 
-      {sorted.length === 0 ? (
-        <p className="text-center text-gray-400 py-12">暂无记录</p>
-      ) : (
-        <div className="space-y-2">
-          {sorted.map((r) => (
-            <Card key={r.id}>
-              <CardContent className="flex items-center justify-between py-3">
-                <div className="flex-1">
-                  <p className="text-sm font-medium dark:text-gray-100">{dayjs(r.date).format('YYYY-MM-DD')}</p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                    {r.weight != null && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">体重 <span className="font-medium text-orange-500">{r.weight}</span> kg</span>
-                    )}
-                    {r.height != null && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">身高 <span className="font-medium text-green-500">{r.height}</span> cm</span>
-                    )}
-                    {r.headCircumference != null && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">头围 <span className="font-medium text-indigo-500">{r.headCircumference}</span> cm</span>
-                    )}
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4">
+        {sorted.length === 0 ? (
+          <p className="text-center text-gray-400 py-12">暂无记录</p>
+        ) : (
+          <div className="space-y-2 max-w-4xl mx-auto">
+            {sorted.map((r) => (
+              <Card
+                key={r.id}
+                className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700 transition-colors"
+                onClick={() => openEdit(r)}
+              >
+                <CardContent className="flex items-center justify-between py-3">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium dark:text-gray-100">{dayjs(r.date).format('YYYY-MM-DD')}</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                      {r.weight != null && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">体重 <span className="font-medium text-orange-500">{r.weight}</span> kg</span>
+                      )}
+                      {r.height != null && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">身高 <span className="font-medium text-green-500">{r.height}</span> cm</span>
+                      )}
+                      {r.headCircumference != null && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">头围 <span className="font-medium text-indigo-500">{r.headCircumference}</span> cm</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    onClick={() => openEdit(r)}
-                    className="p-1.5 rounded-md text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    onClick={() => deleteRecord(r.id)}
-                    className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Edit Dialog */}
       <Dialog open={!!editingRecord} onOpenChange={(open) => { if (!open) setEditingRecord(null); }}>
@@ -141,7 +145,28 @@ export default function GrowthHistoryPage() {
               <Button type="button" variant="outline" className="flex-1" onClick={() => setEditingRecord(null)}>取消</Button>
               <Button type="submit" className="flex-1">保存</Button>
             </div>
+            <button
+              type="button"
+              onClick={() => { setEditingRecord(null); confirmDelete(editingRecord!.id); }}
+              className="w-full py-2 text-sm text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+            >
+              删除此记录
+            </button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>确认删除</DialogTitle>
+            <DialogDescription>确定要删除此成长记录吗？此操作不可撤销。</DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 mt-4">
+            <Button variant="outline" className="flex-1" onClick={() => setShowDeleteConfirm(false)}>取消</Button>
+            <Button variant="destructive" className="flex-1" onClick={doDelete}>删除</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

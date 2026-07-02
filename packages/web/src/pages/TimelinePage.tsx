@@ -5,7 +5,8 @@ import { api } from '../lib/api';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Pencil, Trash2, Plus, X, Gamepad2, Thermometer } from 'lucide-react';
+import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart } from 'lucide-react';
+import { ImageViewer } from '../components/ui';
 
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
@@ -17,6 +18,7 @@ interface RecordItem {
   data: any;
   occurredAt: string;
   note?: string;
+  images?: string[];
   user?: { displayName: string };
 }
 
@@ -26,8 +28,14 @@ interface Summary {
   lastSleep: { time: string; minutesAgo: number } | null;
 }
 
+interface FeedingPrediction {
+  nextFeeding: string | null;
+  avgIntervalMinutes: number | null;
+  method: 'bottle' | 'breastfeed' | 'average' | null;
+}
+
 const typeConfig: Record<string, { label: string; icon: any; color: string }> = {
-  breastfeed: { label: '母乳', icon: Milk, color: 'text-pink-500 bg-pink-50 dark:bg-pink-950/40' },
+  breastfeed: { label: '母乳', icon: Heart, color: 'text-pink-500 bg-pink-50 dark:bg-pink-950/40' },
   bottle: { label: '瓶喂', icon: Milk, color: 'text-blue-500 bg-blue-50 dark:bg-blue-950/40' },
   solid: { label: '辅食', icon: Apple, color: 'text-green-500 bg-green-50 dark:bg-green-950/40' },
   water: { label: '喝水', icon: GlassWater, color: 'text-cyan-500 bg-cyan-50 dark:bg-cyan-950/40' },
@@ -41,7 +49,7 @@ const typeConfig: Record<string, { label: string; icon: any; color: string }> = 
 };
 
 const allRecordTypes = [
-  { type: 'breastfeed', category: 'feeding', label: '母乳', icon: Milk, color: 'text-pink-500 bg-pink-50 dark:bg-pink-950/40' },
+  { type: 'breastfeed', category: 'feeding', label: '母乳', icon: Heart, color: 'text-pink-500 bg-pink-50 dark:bg-pink-950/40' },
   { type: 'bottle', category: 'feeding', label: '瓶喂', icon: Milk, color: 'text-blue-500 bg-blue-50 dark:bg-blue-950/40' },
   { type: 'solid', category: 'feeding', label: '辅食', icon: Apple, color: 'text-green-500 bg-green-50 dark:bg-green-950/40' },
   { type: 'water', category: 'feeding', label: '喝水', icon: GlassWater, color: 'text-cyan-500 bg-cyan-50 dark:bg-cyan-950/40' },
@@ -76,6 +84,10 @@ function formatRecordDetail(record: RecordItem): string {
       const loc: Record<string, string> = { axillary: '腋下', ear: '耳温', forehead: '额温', rectal: '肛温' };
       return `${data.value}°C (${loc[data.location] || data.location})`;
     }
+    case 'play':
+      return data.durationMinutes ? `${data.durationMinutes}分钟` : '';
+    case 'bath':
+      return data.durationMinutes ? `${data.durationMinutes}分钟` : '';
     default:
       return record.note || '';
   }
@@ -93,9 +105,13 @@ export default function TimelinePage() {
   const navigate = useNavigate();
   const [records, setRecords] = useState<RecordItem[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [prediction, setPrediction] = useState<FeedingPrediction | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('');
   const [showTypePanel, setShowTypePanel] = useState(false);
+  const [viewerImages, setViewerImages] = useState<string[]>([]);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   const handleAddType = (type: string, category: string) => {
     setShowTypePanel(false);
@@ -114,13 +130,15 @@ export default function TimelinePage() {
       const params = new URLSearchParams({ babyId: currentBaby.id, pageSize: '50' });
       if (filter) params.set('category', filter);
 
-      const [recordsRes, summaryRes] = await Promise.all([
+      const [recordsRes, summaryRes, predictRes] = await Promise.all([
         api.get<{ success: boolean; data: { items: RecordItem[] } }>(`/records?${params}`),
         api.get<{ success: boolean; data: Summary }>(`/stats/summary?babyId=${currentBaby.id}`),
+        api.get<{ success: boolean; data: FeedingPrediction }>(`/stats/predict?babyId=${currentBaby.id}`),
       ]);
 
       setRecords(recordsRes.data.items);
       setSummary(summaryRes.data);
+      setPrediction(predictRes.data);
     } catch {
       // ignore
     } finally {
@@ -128,15 +146,6 @@ export default function TimelinePage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('确定删除这条记录吗？')) return;
-    try {
-      await api.delete(`/records/${id}`);
-      setRecords((prev) => prev.filter((r) => r.id !== id));
-    } catch {
-      // ignore
-    }
-  };
 
   const groupedRecords = records.reduce<Record<string, RecordItem[]>>((acc, record) => {
     const date = dayjs(record.occurredAt);
@@ -180,6 +189,39 @@ export default function TimelinePage() {
         </div>
       )}
 
+      {/* Feeding Prediction */}
+      {prediction?.nextFeeding && (
+        <div className="card flex items-center gap-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-100 dark:border-blue-900/50">
+          <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0">
+            <Milk size={16} className="text-blue-600 dark:text-blue-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+              预计下次喂奶
+              {prediction.method === 'bottle' && ' (基于奶量)'}
+              {prediction.method === 'breastfeed' && ' (基于哺乳时长)'}
+            </p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              {(() => {
+                const next = dayjs(prediction.nextFeeding);
+                const now = dayjs();
+                if (next.isBefore(now)) return '已超时，建议尽快喂奶';
+                const diffMin = next.diff(now, 'minute');
+                if (diffMin < 60) return `约 ${diffMin} 分钟后 (${next.format('HH:mm')})`;
+                return `约 ${Math.floor(diffMin / 60)}小时${diffMin % 60}分钟后 (${next.format('HH:mm')})`;
+              })()}
+            </p>
+          </div>
+          {prediction.avgIntervalMinutes && (
+            <span className="text-xs text-blue-500 dark:text-blue-400 whitespace-nowrap">
+              预计间隔 {prediction.avgIntervalMinutes >= 60
+                ? `${Math.floor(prediction.avgIntervalMinutes / 60)}h${prediction.avgIntervalMinutes % 60 > 0 ? `${prediction.avgIntervalMinutes % 60}m` : ''}`
+                : `${prediction.avgIntervalMinutes}m`}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Filter */}
       <div className="flex gap-2 overflow-x-auto pb-2">
         {[
@@ -217,8 +259,12 @@ export default function TimelinePage() {
                   const config = typeConfig[record.type] || typeConfig.other;
                   const Icon = config.icon;
                   return (
-                    <div key={record.id} className="card flex items-center gap-3 group">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${config.color}`}>
+                    <div
+                      key={record.id}
+                      className="card flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700 transition-colors"
+                      onClick={() => navigate(`/record/${record.id}/edit`)}
+                    >
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
                         <Icon size={18} />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -232,22 +278,27 @@ export default function TimelinePage() {
                           {formatRecordDetail(record)}
                         </p>
                       </div>
-                      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                        <button
-                          onClick={() => navigate(`/record/${record.id}/edit`)}
-                          className="p-1.5 text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
-                          title="编辑"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(record.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
-                          title="删除"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      {record.images && record.images.length > 0 && (
+                        <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          {record.images.slice(0, 2).map((url, i) => (
+                            <img
+                              key={i}
+                              src={url}
+                              alt=""
+                              className="w-10 h-10 rounded-lg object-cover cursor-zoom-in"
+                              onClick={() => { setViewerImages(record.images!); setViewerIndex(i); setViewerOpen(true); }}
+                            />
+                          ))}
+                          {record.images.length > 2 && (
+                            <span
+                              className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500 cursor-zoom-in"
+                              onClick={() => { setViewerImages(record.images!); setViewerIndex(2); setViewerOpen(true); }}
+                            >
+                              +{record.images.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -297,6 +348,13 @@ export default function TimelinePage() {
           </div>
         </div>
       )}
+
+      <ImageViewer
+        images={viewerImages}
+        initialIndex={viewerIndex}
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+      />
     </>
   );
 }

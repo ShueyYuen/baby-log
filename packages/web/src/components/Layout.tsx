@@ -51,6 +51,8 @@ export default function Layout({ children }: LayoutProps) {
     }
   };
 
+  const isSecondaryPage = /^\/(record|plan\/new|plan\/[^/]+\/edit|growth\/history)/.test(location.pathname);
+
   const navItems = [
     { path: '/', icon: Clock, label: '时间线' },
     { path: '/plans', icon: Calendar, label: '计划' },
@@ -143,7 +145,7 @@ export default function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* Mobile Header */}
-      <header className="md:hidden fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50 px-4 py-3 flex items-center justify-between">
+      <header className={`md:hidden fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50 px-4 py-3 flex items-center justify-between ${isSecondaryPage ? 'hidden' : ''}`}>
         <h1 className="text-lg font-bold text-primary-600">宝宝日志</h1>
         <div className="flex items-center gap-3">
           <button
@@ -163,14 +165,14 @@ export default function Layout({ children }: LayoutProps) {
       </header>
 
       {/* Main Content */}
-      <main className="h-full pt-16 pb-20 md:pt-6 md:pb-6 px-4 md:px-8 overflow-y-auto custom-scrollbar">
+      <main className={`h-full md:pt-6 md:pb-6 px-4 md:px-8 overflow-y-auto custom-scrollbar ${isSecondaryPage ? 'pt-0 pb-0' : 'pt-16 pb-20'}`}>
         <div className="max-w-4xl mx-auto">
           {children}
         </div>
       </main>
 
       {/* Mobile Bottom Nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-50 flex">
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-50 flex ${isSecondaryPage ? 'hidden' : ''}`}>
         {navItems.map((item) => {
           const active = location.pathname === item.path;
           return (

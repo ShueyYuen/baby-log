@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
-import { ArrowLeft } from 'lucide-react';
-import { Button, Input, Textarea, DateTimePicker } from '../components/ui';
+import { ArrowLeft, ImagePlus, X } from 'lucide-react';
+import { Button, Input, Textarea, DateTimePicker, ScrollDateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ImageViewer } from '../components/ui';
 
 type CategoryType = 'feeding' | 'nursing' | 'activity';
 
@@ -60,8 +60,13 @@ export default function RecordFormPage() {
   const [type, setType] = useState(urlType || 'breastfeed');
   const [occurredAt, setOccurredAt] = useState(new Date().toISOString().slice(0, 16));
   const [note, setNote] = useState('');
+  const [images, setImages] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   // Dynamic form data
   const [leftMinutes, setLeftMinutes] = useState(10);
@@ -76,6 +81,8 @@ export default function RecordFormPage() {
   const [supplementName, setSupplementName] = useState('维生素D');
   const [temperature, setTemperature] = useState(36.5);
   const [tempLocation, setTempLocation] = useState<'axillary' | 'ear' | 'forehead' | 'rectal'>('axillary');
+  const [playDuration, setPlayDuration] = useState(30);
+  const [bathDuration, setBathDuration] = useState(15);
 
   useEffect(() => {
     if (isEditing && currentBaby) {
@@ -94,6 +101,7 @@ export default function RecordFormPage() {
         setType(record.type);
         setOccurredAt(new Date(record.occurredAt).toISOString().slice(0, 16));
         setNote(record.note || '');
+        setImages(record.images || []);
         populateData(record.type, record.data);
       }
     } catch {
@@ -133,6 +141,12 @@ export default function RecordFormPage() {
         setTemperature(data.value || 36.5);
         setTempLocation(data.location || 'axillary');
         break;
+      case 'play':
+        setPlayDuration(data.durationMinutes || 30);
+        break;
+      case 'bath':
+        setBathDuration(data.durationMinutes || 15);
+        break;
     }
   };
 
@@ -159,7 +173,7 @@ export default function RecordFormPage() {
       case 'diaper':
         return { type: diaperType };
       case 'bath':
-        return {};
+        return { durationMinutes: bathDuration };
       case 'supplement':
         return { name: supplementName };
       case 'temperature':
@@ -167,7 +181,7 @@ export default function RecordFormPage() {
       case 'sleep':
         return { startTime: new Date(occurredAt).toISOString(), durationMinutes: sleepDuration };
       case 'play':
-        return {};
+        return { durationMinutes: playDuration };
       default:
         return {};
     }
@@ -186,6 +200,7 @@ export default function RecordFormPage() {
         data: buildData(),
         occurredAt: new Date(occurredAt).toISOString(),
         note: note || undefined,
+        images: images.length > 0 ? images : undefined,
       };
 
       if (isEditing) {
@@ -279,6 +294,22 @@ export default function RecordFormPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">名称</label>
             <input type="text" value={supplementName} onChange={(e) => setSupplementName(e.target.value)} className="input" placeholder="如：维生素D" />
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {['维生素D', 'DHA', '益生菌', '维生素AD', '铁剂', '钙', '锌', '乳铁蛋白', '鱼肝油'].map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setSupplementName(name)}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                    supplementName === name
+                      ? 'border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500'
+                  }`}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
           </div>
         );
       case 'temperature':
@@ -317,6 +348,52 @@ export default function RecordFormPage() {
             <input type="number" value={sleepDuration} onChange={(e) => setSleepDuration(+e.target.value)} className="input" min={0} step={5} />
           </div>
         );
+      case 'bath':
+        return (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">持续时间(分钟)</label>
+            <input type="number" value={bathDuration} onChange={(e) => setBathDuration(+e.target.value)} className="input" min={0} step={5} />
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {[5, 10, 15, 20, 30].map((min) => (
+                <button
+                  key={min}
+                  type="button"
+                  onClick={() => setBathDuration(min)}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                    bathDuration === min
+                      ? 'border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  {min}分钟
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      case 'play':
+        return (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">持续时间(分钟)</label>
+            <input type="number" value={playDuration} onChange={(e) => setPlayDuration(+e.target.value)} className="input" min={0} step={5} />
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {[10, 15, 20, 30, 45, 60].map((min) => (
+                <button
+                  key={min}
+                  type="button"
+                  onClick={() => setPlayDuration(min)}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                    playDuration === min
+                      ? 'border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  {min}分钟
+                </button>
+              ))}
+            </div>
+          </div>
+        );
       default:
         return null;
     }
@@ -327,15 +404,20 @@ export default function RecordFormPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
+    <div className="fixed inset-0 md:top-0 md:bottom-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900">
+      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} />
         </Button>
-        <h2 className="text-xl font-semibold dark:text-gray-100">{typeLabels[type] || type}</h2>
+        <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">{typeLabels[type] || type}</h2>
+        {isEditing && (
+          <Button type="submit" form="record-form" size="sm" disabled={loading}>
+            {loading ? '保存中...' : '保存'}
+          </Button>
+        )}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form id="record-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-5">
         {/* Category & Type Selection - only show when not pre-selected */}
         {!urlType && !isEditing && (
           <>
@@ -388,10 +470,16 @@ export default function RecordFormPage() {
               </Button>
             ))}
           </div>
+          <ScrollDateTimePicker
+            value={occurredAt}
+            onChange={(val) => setOccurredAt(val)}
+            className="md:hidden"
+          />
           <DateTimePicker
             value={occurredAt}
             onChange={(val) => setOccurredAt(val)}
             placeholder="选择记录时间"
+            className="hidden md:flex"
           />
         </div>
 
@@ -411,11 +499,122 @@ export default function RecordFormPage() {
           />
         </div>
 
-        {/* Submit */}
-        <Button type="submit" disabled={loading} className="w-full">
-          {loading ? '保存中...' : isEditing ? '保存修改' : '保存记录'}
-        </Button>
+        {/* Images */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">图片</label>
+          <div className="flex flex-wrap gap-2">
+            {images.map((url, idx) => (
+              <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
+                <img
+                  src={url}
+                  alt=""
+                  className="w-full h-full object-cover cursor-zoom-in"
+                  onClick={() => { setViewerIndex(idx); setViewerOpen(true); }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setImages(images.filter((_, i) => i !== idx))}
+                  className="absolute top-0.5 right-0.5 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center"
+                >
+                  <X size={12} className="text-white" />
+                </button>
+              </div>
+            ))}
+            {images.length < 9 && (
+              <label className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 transition-colors">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  multiple
+                  disabled={uploading}
+                  onChange={async (e) => {
+                    const files = e.target.files;
+                    if (!files || files.length === 0) return;
+                    setUploading(true);
+                    try {
+                      const newUrls: string[] = [];
+                      for (const file of Array.from(files)) {
+                        const res = await api.upload(file);
+                        if (res.success) newUrls.push(res.data.url);
+                      }
+                      setImages((prev) => [...prev, ...newUrls].slice(0, 9));
+                    } catch {
+                      alert('图片上传失败');
+                    } finally {
+                      setUploading(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                {uploading ? (
+                  <span className="text-xs text-gray-400">上传中</span>
+                ) : (
+                  <ImagePlus size={20} className="text-gray-400" />
+                )}
+              </label>
+            )}
+          </div>
+          {images.length > 0 && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{images.length}/9</p>
+          )}
+        </div>
+
+        {/* Submit / Delete */}
+        {!isEditing && (
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? '保存中...' : '保存记录'}
+          </Button>
+        )}
+        {isEditing && (
+          <button
+            type="button"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="w-full py-2.5 text-sm text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+          >
+            删除这条记录
+          </button>
+        )}
       </form>
+
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>确认删除</DialogTitle>
+            <DialogDescription>确定要删除这条记录吗？此操作不可撤销。</DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 mt-4">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setShowDeleteConfirm(false)}
+            >
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={async () => {
+                try {
+                  await api.delete(`/records/${id}`);
+                  navigate('/');
+                } catch {
+                  alert('删除失败');
+                }
+              }}
+            >
+              删除
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <ImageViewer
+        images={images}
+        initialIndex={viewerIndex}
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+      />
     </div>
   );
 }
