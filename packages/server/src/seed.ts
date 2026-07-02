@@ -19,6 +19,7 @@ async function main() {
       username: 'demo',
       password: 'demo123',
       displayName: '宝宝妈妈',
+      role: 'admin',
     },
   });
 

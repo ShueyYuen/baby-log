@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 import crypto from 'crypto';
+import { authMiddleware } from '../middleware/auth';
 
 export const authRouter = Router();
 
@@ -10,14 +11,31 @@ const loginSchema = z.object({
   password: z.string(),
 });
 
+const UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+const LOWER = 'abcdefghjkmnpqrstuvwxyz';
+const DIGITS = '23456789';
+const SYMBOLS = '!@#$%&*';
+const ALL_CHARS = UPPER + LOWER + DIGITS + SYMBOLS;
+
 function generatePassword(length = 16): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*';
-  const bytes = crypto.randomBytes(length);
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    password += chars[bytes[i] % chars.length];
-  }
+  let password: string;
+  do {
+    const bytes = crypto.randomBytes(length);
+    password = '';
+    for (let i = 0; i < length; i++) {
+      password += ALL_CHARS[bytes[i] % ALL_CHARS.length];
+    }
+  } while (!validatePasswordStrength(password));
   return password;
+}
+
+function validatePasswordStrength(password: string): boolean {
+  if (password.length < 8) return false;
+  if (!/[A-Z]/.test(password)) return false;
+  if (!/[a-z]/.test(password)) return false;
+  if (!/[0-9]/.test(password)) return false;
+  if (!/[!@#$%&*]/.test(password)) return false;
+  return true;
 }
 
 authRouter.post('/login', async (req: Request, res: Response) => {
@@ -71,7 +89,7 @@ authRouter.get('/me', async (req: Request, res: Response) => {
 });
 
 // Admin: create user
-authRouter.post('/users', async (req: Request, res: Response) => {
+authRouter.post('/users', authMiddleware, async (req: Request, res: Response) => {
   try {
     const admin = await prisma.user.findUnique({ where: { id: req.userId! } });
     if (!admin || admin.role !== 'admin') {
@@ -121,7 +139,7 @@ authRouter.post('/users', async (req: Request, res: Response) => {
 });
 
 // Admin: list users
-authRouter.get('/users', async (req: Request, res: Response) => {
+authRouter.get('/users', authMiddleware, async (req: Request, res: Response) => {
   try {
     const admin = await prisma.user.findUnique({ where: { id: req.userId! } });
     if (!admin || admin.role !== 'admin') {
@@ -141,7 +159,7 @@ authRouter.get('/users', async (req: Request, res: Response) => {
 });
 
 // Admin: delete user
-authRouter.delete('/users/:id', async (req: Request, res: Response) => {
+authRouter.delete('/users/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const admin = await prisma.user.findUnique({ where: { id: req.userId! } });
     if (!admin || admin.role !== 'admin') {
@@ -163,7 +181,7 @@ authRouter.delete('/users/:id', async (req: Request, res: Response) => {
 });
 
 // Admin: reset user password
-authRouter.post('/users/:id/reset-password', async (req: Request, res: Response) => {
+authRouter.post('/users/:id/reset-password', authMiddleware, async (req: Request, res: Response) => {
   try {
     const admin = await prisma.user.findUnique({ where: { id: req.userId! } });
     if (!admin || admin.role !== 'admin') {
