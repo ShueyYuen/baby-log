@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 import crypto from 'crypto';
 import { authMiddleware } from '../middleware/auth';
+import { addUserToAllBabies } from '../lib/membership';
 
 export const authRouter = Router();
 
@@ -119,6 +120,9 @@ authRouter.post('/users', authMiddleware, async (req: Request, res: Response) =>
       },
     });
 
+    // 家庭共享：新用户自动加入所有已存在的宝宝
+    await addUserToAllBabies(user.id);
+
     res.json({
       success: true,
       data: {
@@ -173,7 +177,22 @@ authRouter.delete('/users/:id', authMiddleware, async (req: Request, res: Respon
       return;
     }
 
-    await prisma.user.delete({ where: { id: targetId } });
+    const target = await prisma.user.findUnique({ where: { id: targetId } });
+    if (!target) {
+      res.status(404).json({ success: false, error: '用户不存在' });
+      return;
+    }
+
+    // 用户存在外键关联（成员关系、记录、计划、推送订阅），需先处理再删除。
+    // 记录/计划的 createdBy 转移给当前管理员，保留家庭共享数据；成员关系与订阅直接删除。
+    await prisma.$transaction([
+      prisma.babyMember.deleteMany({ where: { userId: targetId } }),
+      prisma.pushSubscription.deleteMany({ where: { userId: targetId } }),
+      prisma.record.updateMany({ where: { createdBy: targetId }, data: { createdBy: req.userId! } }),
+      prisma.plan.updateMany({ where: { createdBy: targetId }, data: { createdBy: req.userId! } }),
+      prisma.user.delete({ where: { id: targetId } }),
+    ]);
+
     res.json({ success: true });
   } catch {
     res.status(500).json({ success: false, error: 'Server error' });

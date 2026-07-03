@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
+import { addBabyToAllUsers } from '../lib/membership';
 
 export const babyRouter = Router();
 
@@ -44,6 +45,9 @@ babyRouter.post('/', async (req: Request, res: Response) => {
         },
       },
     });
+
+    // 家庭共享：新宝宝自动分享给所有已存在的用户（创建者已是 admin，会跳过）
+    await addBabyToAllUsers(baby.id);
 
     res.json({ success: true, data: baby });
   } catch (err) {

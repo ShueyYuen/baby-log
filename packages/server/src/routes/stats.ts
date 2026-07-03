@@ -181,8 +181,12 @@ statsRouter.get('/daily', async (req: Request, res: Response) => {
       return;
     }
 
-    const startOfDay = new Date(date + 'T00:00:00.000Z');
-    const endOfDay = new Date(date + 'T23:59:59.999Z');
+    // tz: 客户端 Date.getTimezoneOffset() 返回的分钟数（UTC+8 为 -480），
+    // 用它把“本地日”边界换算成 UTC 时间范围，避免跨时区把记录算到错误的日期。
+    const tzOffset = Number.parseInt(req.query.tz as string, 10) || 0;
+    const base = new Date(date + 'T00:00:00.000Z').getTime();
+    const startOfDay = new Date(base + tzOffset * 60000);
+    const endOfDay = new Date(base + tzOffset * 60000 + 24 * 60 * 60 * 1000 - 1);
 
     const records = await prisma.record.findMany({
       where: {
@@ -193,6 +197,8 @@ statsRouter.get('/daily', async (req: Request, res: Response) => {
 
     let feedingCount = 0;
     let diaperCount = 0;
+    let peeCount = 0;
+    let poopCount = 0;
     let sleepMinutes = 0;
     const feedingDetails = { breastfeed: 0, bottle: 0, solid: 0 };
 
@@ -204,6 +210,9 @@ statsRouter.get('/daily', async (req: Request, res: Response) => {
         else if (record.type === 'solid') feedingDetails.solid++;
       } else if (record.type === 'diaper') {
         diaperCount++;
+        const data = JSON.parse(record.data);
+        if (data.type === 'wet' || data.type === 'both') peeCount++;
+        if (data.type === 'dirty' || data.type === 'both') poopCount++;
       } else if (record.type === 'sleep') {
         const data = JSON.parse(record.data);
         sleepMinutes += data.durationMinutes || 0;
@@ -212,7 +221,7 @@ statsRouter.get('/daily', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: { date, feedingCount, diaperCount, sleepMinutes, feedingDetails },
+      data: { date, feedingCount, diaperCount, peeCount, poopCount, sleepMinutes, feedingDetails },
     });
   } catch {
     res.status(500).json({ success: false, error: 'Server error' });

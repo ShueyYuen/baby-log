@@ -416,11 +416,9 @@ export default function RecordFormPage() {
           <ArrowLeft size={20} />
         </Button>
         <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">{typeLabels[type] || type}</h2>
-        {isEditing && (
-          <Button type="submit" form="record-form" size="sm" disabled={loading}>
-            {loading ? '保存中...' : '保存'}
-          </Button>
-        )}
+        <Button type="submit" form="record-form" size="sm" disabled={loading}>
+          {loading ? '保存中...' : '保存'}
+        </Button>
       </div>
 
       <form id="record-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-5">
@@ -566,12 +564,7 @@ export default function RecordFormPage() {
           )}
         </div>
 
-        {/* Submit / Delete */}
-        {!isEditing && (
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading ? '保存中...' : '保存记录'}
-          </Button>
-        )}
+        {/* Delete (edit only) */}
         {isEditing && (
           <button
             type="button"

@@ -5,7 +5,7 @@ import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { api } from '../lib/api';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, Button, Input, DatePicker } from './ui';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, Button, Input, DateTimePicker } from './ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui';
 import dayjs from 'dayjs';
 
@@ -29,7 +29,7 @@ export default function Layout({ children }: LayoutProps) {
     if (!currentBaby) return;
     setEditName(currentBaby.name);
     setEditGender(currentBaby.gender);
-    setEditBirthDate(currentBaby.birthDate ? dayjs(currentBaby.birthDate).format('YYYY-MM-DD') : '');
+    setEditBirthDate(currentBaby.birthDate ? dayjs(currentBaby.birthDate).format('YYYY-MM-DDTHH:mm') : '');
     setShowBabyEdit(true);
   };
 
@@ -40,7 +40,7 @@ export default function Layout({ children }: LayoutProps) {
       await api.put(`/babies/${currentBaby.id}`, {
         name: editName.trim(),
         gender: editGender,
-        birthDate: editBirthDate || undefined,
+        birthDate: editBirthDate ? new Date(editBirthDate).toISOString() : undefined,
       });
       await refreshBabies();
       setShowBabyEdit(false);
@@ -215,7 +215,7 @@ export default function Layout({ children }: LayoutProps) {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">出生日期</label>
-              <DatePicker value={editBirthDate} onChange={(v) => setEditBirthDate(v)} />
+              <DateTimePicker value={editBirthDate} onChange={(v) => setEditBirthDate(v)} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={() => setShowBabyEdit(false)}>取消</Button>

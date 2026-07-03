@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useBaby } from '../contexts/BabyContext';
+import { DateTimePicker } from '../components/ui';
 
 export default function BabySetupPage() {
   const [name, setName] = useState('');
@@ -15,10 +16,16 @@ export default function BabySetupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!birthDate) {
+      setError('请选择出生日期和时间');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await api.post('/babies', { name, gender, birthDate });
+      await api.post('/babies', { name, gender, birthDate: new Date(birthDate).toISOString() });
       await refreshBabies();
       navigate('/');
     } catch (err: any) {
@@ -69,12 +76,10 @@ export default function BabySetupPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">出生日期</label>
-            <input
-              type="date"
+            <DateTimePicker
               value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
-              className="input"
-              required
+              onChange={setBirthDate}
+              placeholder="选择出生日期和时间"
             />
           </div>
 

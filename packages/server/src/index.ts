@@ -14,6 +14,7 @@ import { recordRouter } from './routes/records';
 import { statsRouter } from './routes/stats';
 import { uploadRouter } from './routes/upload';
 import { startReminderScheduler } from './scheduler';
+import { ensureAllMemberships } from './lib/membership';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -109,12 +110,15 @@ async function ensureAdmin() {
   }
 }
 
-ensureAdmin().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    startReminderScheduler();
+ensureAdmin()
+  .then(() => ensureAllMemberships())
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      startReminderScheduler();
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to bootstrap:', err);
+    process.exit(1);
   });
-}).catch((err) => {
-  console.error('Failed to bootstrap admin:', err);
-  process.exit(1);
-});

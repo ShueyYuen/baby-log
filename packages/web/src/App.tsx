@@ -29,6 +29,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/baby/setup" element={<ProtectedRoute><BabySetupPage /></ProtectedRoute>} />
       <Route
         path="/*"
         element={
@@ -44,7 +45,6 @@ export default function App() {
                 <Route path="/growth" element={<GrowthPage />} />
                 <Route path="/growth/history" element={<GrowthHistoryPage />} />
                 <Route path="/stats" element={<StatsPage />} />
-                <Route path="/baby/setup" element={<BabySetupPage />} />
                 <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
               </Routes>
             </Layout>

@@ -96,10 +96,15 @@ function formatRecordDetail(record: RecordItem): string {
 }
 
 function formatTimeAgo(minutes: number): string {
+  if (minutes < 1) return '刚刚';
   if (minutes < 60) return `${minutes}分钟前`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}小时${minutes % 60 > 0 ? `${minutes % 60}分钟` : ''}前`;
   return `${Math.floor(hours / 24)}天前`;
+}
+
+function minutesSince(time: string, now: number): number {
+  return Math.max(0, Math.round((now - new Date(time).getTime()) / 60000));
 }
 
 export default function TimelinePage() {
@@ -116,9 +121,16 @@ export default function TimelinePage() {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(isSubscribed());
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     setPushEnabled(isSubscribed());
+  }, []);
+
+  // 每分钟刷新一次“X分钟前”，由前端自行计算
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60 * 1000);
+    return () => clearInterval(timer);
   }, []);
 
   const handleAddType = (type: string, category: string) => {
@@ -206,19 +218,19 @@ export default function TimelinePage() {
           <div className="card text-center">
             <p className="text-xs text-gray-500 dark:text-gray-400">上次喂养</p>
             <p className="text-sm font-semibold mt-1 dark:text-gray-100">
-              {summary.lastFeeding ? formatTimeAgo(summary.lastFeeding.minutesAgo) : '--'}
+              {summary.lastFeeding ? formatTimeAgo(minutesSince(summary.lastFeeding.time, now)) : '--'}
             </p>
           </div>
           <div className="card text-center">
             <p className="text-xs text-gray-500 dark:text-gray-400">上次换尿布</p>
             <p className="text-sm font-semibold mt-1 dark:text-gray-100">
-              {summary.lastDiaper ? formatTimeAgo(summary.lastDiaper.minutesAgo) : '--'}
+              {summary.lastDiaper ? formatTimeAgo(minutesSince(summary.lastDiaper.time, now)) : '--'}
             </p>
           </div>
           <div className="card text-center">
             <p className="text-xs text-gray-500 dark:text-gray-400">上次睡眠</p>
             <p className="text-sm font-semibold mt-1 dark:text-gray-100">
-              {summary.lastSleep ? formatTimeAgo(summary.lastSleep.minutesAgo) : '--'}
+              {summary.lastSleep ? formatTimeAgo(minutesSince(summary.lastSleep.time, now)) : '--'}
             </p>
           </div>
         </div>
