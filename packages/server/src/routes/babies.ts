@@ -2,6 +2,13 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 import { addBabyToAllUsers } from '../lib/membership';
+import { toDisplayUrl, toStorageKey } from '../lib/storage';
+
+// 把 baby 的 avatar（存储 key）转成前端可展示的 URL
+async function withDisplayAvatar<T extends { avatar: string | null }>(baby: T): Promise<T> {
+  if (!baby.avatar) return baby;
+  return { ...baby, avatar: await toDisplayUrl(baby.avatar) };
+}
 
 export const babyRouter = Router();
 
@@ -24,7 +31,8 @@ babyRouter.get('/', async (req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json({ success: true, data: babies });
+    const data = await Promise.all(babies.map((b) => withDisplayAvatar(b)));
+    res.json({ success: true, data });
   } catch {
     res.status(500).json({ success: false, error: 'Server error' });
   }
@@ -39,7 +47,7 @@ babyRouter.post('/', async (req: Request, res: Response) => {
         name: body.name,
         gender: body.gender,
         birthDate: new Date(body.birthDate),
-        avatar: body.avatar,
+        avatar: body.avatar ? toStorageKey(body.avatar) : body.avatar,
         members: {
           create: { userId: req.userId!, role: 'admin' },
         },
@@ -49,7 +57,7 @@ babyRouter.post('/', async (req: Request, res: Response) => {
     // 家庭共享：新宝宝自动分享给所有已存在的用户（创建者已是 admin，会跳过）
     await addBabyToAllUsers(baby.id);
 
-    res.json({ success: true, data: baby });
+    res.json({ success: true, data: await withDisplayAvatar(baby) });
   } catch (err) {
     if (err instanceof z.ZodError) {
       res.status(400).json({ success: false, error: err.errors[0].message });
@@ -77,7 +85,7 @@ babyRouter.get('/:id', async (req: Request, res: Response) => {
       return;
     }
 
-    res.json({ success: true, data: baby });
+    res.json({ success: true, data: await withDisplayAvatar(baby) });
   } catch {
     res.status(500).json({ success: false, error: 'Server error' });
   }
@@ -100,11 +108,11 @@ babyRouter.put('/:id', async (req: Request, res: Response) => {
         ...(req.body.name && { name: req.body.name }),
         ...(req.body.gender && { gender: req.body.gender }),
         ...(req.body.birthDate && { birthDate: new Date(req.body.birthDate) }),
-        ...(req.body.avatar !== undefined && { avatar: req.body.avatar }),
+        ...(req.body.avatar !== undefined && { avatar: req.body.avatar ? toStorageKey(req.body.avatar) : req.body.avatar }),
       },
     });
 
-    res.json({ success: true, data: baby });
+    res.json({ success: true, data: await withDisplayAvatar(baby) });
   } catch {
     res.status(500).json({ success: false, error: 'Server error' });
   }

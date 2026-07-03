@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import { ensureAllMemberships } from './lib/membership';
 import { prisma } from './lib/prisma';
 import { authMiddleware } from './middleware/auth';
 import { authRouter } from './routes/auth';
@@ -14,7 +15,6 @@ import { recordRouter } from './routes/records';
 import { statsRouter } from './routes/stats';
 import { uploadRouter } from './routes/upload';
 import { startReminderScheduler } from './scheduler';
-import { ensureAllMemberships } from './lib/membership';
 
 const app = express();
 const PORT = process.env.PORT || 3001;

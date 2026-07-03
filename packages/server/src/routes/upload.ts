@@ -26,14 +26,23 @@ const upload = multer({
 
 uploadRouter.post('/', upload.single('file'), async (req: Request, res: Response) => {
   if (!req.file) {
+    console.warn('[Upload] No file in request');
     res.status(400).json({ success: false, error: 'No file uploaded' });
     return;
   }
+
+  console.log('[Upload] Received file:', {
+    originalname: req.file.originalname,
+    mimetype: req.file.mimetype,
+    size: req.file.size,
+    storage: getStorageType(),
+  });
 
   try {
     const result = await uploadFile(req.file);
     res.json({ success: true, data: result });
   } catch (err: any) {
+    console.error('[Upload] Failed:', err?.message, err?.stack);
     res.status(500).json({ success: false, error: err.message || 'Upload failed' });
   }
 });
@@ -45,10 +54,13 @@ uploadRouter.post('/multiple', upload.array('files', 9), async (req: Request, re
     return;
   }
 
+  console.log('[Upload] Received multiple files:', { count: files.length, storage: getStorageType() });
+
   try {
-    const results = await Promise.all(files.map(uploadFile));
+    const results = await Promise.all(files.map((f) => uploadFile(f)));
     res.json({ success: true, data: results });
   } catch (err: any) {
+    console.error('[Upload] Multiple failed:', err?.message, err?.stack);
     res.status(500).json({ success: false, error: err.message || 'Upload failed' });
   }
 });

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
+import { deleteFilesBestEffort, diffRemovedKeys, toDisplayUrls, toStorageKeys } from '../lib/storage';
 
 export const milestoneRouter = Router();
 
@@ -35,10 +36,10 @@ milestoneRouter.get('/', async (req: Request, res: Response) => {
       orderBy: { occurredAt: 'desc' },
     });
 
-    const parsed = milestones.map((m) => ({
+    const parsed = await Promise.all(milestones.map(async (m) => ({
       ...m,
-      images: m.images ? JSON.parse(m.images) : [],
-    }));
+      images: m.images ? await toDisplayUrls(JSON.parse(m.images)) : [],
+    })));
 
     res.json({ success: true, data: parsed });
   } catch {
@@ -65,13 +66,13 @@ milestoneRouter.post('/', async (req: Request, res: Response) => {
         title: body.title,
         occurredAt: new Date(body.occurredAt),
         description: body.description,
-        images: body.images ? JSON.stringify(body.images) : null,
+        images: body.images ? JSON.stringify(toStorageKeys(body.images)) : null,
       },
     });
 
     res.json({
       success: true,
-      data: { ...milestone, images: milestone.images ? JSON.parse(milestone.images) : [] },
+      data: { ...milestone, images: milestone.images ? await toDisplayUrls(JSON.parse(milestone.images)) : [] },
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -106,13 +107,19 @@ milestoneRouter.put('/:id', async (req: Request, res: Response) => {
         ...(req.body.title && { title: req.body.title }),
         ...(req.body.occurredAt && { occurredAt: new Date(req.body.occurredAt) }),
         ...(req.body.description !== undefined && { description: req.body.description }),
-        ...(req.body.images !== undefined && { images: req.body.images ? JSON.stringify(req.body.images) : null }),
+        ...(req.body.images !== undefined && { images: req.body.images ? JSON.stringify(toStorageKeys(req.body.images)) : null }),
       },
     });
 
+    // 编辑时清理被移除的旧图片文件（尽力而为，不阻断响应）
+    if (req.body.images !== undefined && existing.images) {
+      const removed = diffRemovedKeys(JSON.parse(existing.images), req.body.images || []);
+      if (removed.length > 0) deleteFilesBestEffort(removed).catch(() => {});
+    }
+
     res.json({
       success: true,
-      data: { ...milestone, images: milestone.images ? JSON.parse(milestone.images) : [] },
+      data: { ...milestone, images: milestone.images ? await toDisplayUrls(JSON.parse(milestone.images)) : [] },
     });
   } catch {
     res.status(500).json({ success: false, error: 'Server error' });
@@ -137,6 +144,12 @@ milestoneRouter.delete('/:id', async (req: Request, res: Response) => {
     }
 
     await prisma.milestone.delete({ where: { id } });
+
+    // 同步删除该里程碑关联的图片文件（尽力而为，不阻断响应）
+    if (existing.images) {
+      deleteFilesBestEffort(JSON.parse(existing.images)).catch(() => {});
+    }
+
     res.json({ success: true });
   } catch {
     res.status(500).json({ success: false, error: 'Server error' });

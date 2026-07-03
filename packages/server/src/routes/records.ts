@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 import { createAutoFeedingReminder } from '../lib/auto-reminder';
+import { deleteFilesBestEffort, diffRemovedKeys, toDisplayUrls, toStorageKeys } from '../lib/storage';
 
 export const recordRouter = Router();
 
@@ -65,11 +66,11 @@ recordRouter.get('/', async (req: Request, res: Response) => {
       prisma.record.count({ where }),
     ]);
 
-    const parsed = items.map((item) => ({
+    const parsed = await Promise.all(items.map(async (item) => ({
       ...item,
       data: JSON.parse(item.data),
-      images: item.images ? JSON.parse(item.images) : [],
-    }));
+      images: item.images ? await toDisplayUrls(JSON.parse(item.images)) : [],
+    })));
 
     res.json({
       success: true,
@@ -110,14 +111,14 @@ recordRouter.post('/', async (req: Request, res: Response) => {
         data: JSON.stringify(body.data),
         occurredAt: new Date(body.occurredAt),
         note: body.note,
-        images: body.images ? JSON.stringify(body.images) : null,
+        images: body.images ? JSON.stringify(toStorageKeys(body.images)) : null,
         createdBy: req.userId!,
       },
     });
 
     res.json({
       success: true,
-      data: { ...record, data: JSON.parse(record.data), images: record.images ? JSON.parse(record.images) : [] },
+      data: { ...record, data: JSON.parse(record.data), images: record.images ? await toDisplayUrls(JSON.parse(record.images)) : [] },
     });
 
     if (body.category === 'feeding') {
@@ -157,13 +158,19 @@ recordRouter.put('/:id', async (req: Request, res: Response) => {
         ...(req.body.data && { data: JSON.stringify(req.body.data) }),
         ...(req.body.occurredAt && { occurredAt: new Date(req.body.occurredAt) }),
         ...(req.body.note !== undefined && { note: req.body.note }),
-        ...(req.body.images && { images: JSON.stringify(req.body.images) }),
+        ...(req.body.images && { images: JSON.stringify(toStorageKeys(req.body.images)) }),
       },
     });
 
+    // 编辑时清理被移除的旧图片文件（尽力而为，不阻断响应）
+    if (req.body.images && existing.images) {
+      const removed = diffRemovedKeys(JSON.parse(existing.images), req.body.images);
+      if (removed.length > 0) deleteFilesBestEffort(removed).catch(() => {});
+    }
+
     res.json({
       success: true,
-      data: { ...record, data: JSON.parse(record.data), images: record.images ? JSON.parse(record.images) : [] },
+      data: { ...record, data: JSON.parse(record.data), images: record.images ? await toDisplayUrls(JSON.parse(record.images)) : [] },
     });
   } catch {
     res.status(500).json({ success: false, error: 'Server error' });
@@ -188,6 +195,12 @@ recordRouter.delete('/:id', async (req: Request, res: Response) => {
     }
 
     await prisma.record.delete({ where: { id } });
+
+    // 同步删除该记录关联的图片文件（尽力而为，不阻断响应）
+    if (existing.images) {
+      deleteFilesBestEffort(JSON.parse(existing.images)).catch(() => {});
+    }
+
     res.json({ success: true });
   } catch {
     res.status(500).json({ success: false, error: 'Server error' });
