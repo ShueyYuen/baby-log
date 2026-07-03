@@ -46,6 +46,6 @@ export const api = {
   upload: async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post('/upload', formData); // 现在可以与常规接口共用风格了
+    return api.post<{ success: boolean; data: { url: string } }>('/upload', formData);
   },
 };
