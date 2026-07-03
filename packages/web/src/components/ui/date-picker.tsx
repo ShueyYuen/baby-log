@@ -1,12 +1,12 @@
+import dayjs from 'dayjs';
+import { CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import * as React from 'react';
 import { DayPicker } from 'react-day-picker';
 import { zhCN } from 'react-day-picker/locale';
-import { CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from './popover';
-import { Button } from './button';
-import { TimePicker } from './time-picker';
 import { cn } from '../../lib/utils';
-import dayjs from 'dayjs';
+import { Button } from './button';
+import { Popover, PopoverContent, PopoverTrigger } from './popover';
+import { TimePicker } from './time-picker';
 
 const calendarClassNames = {
   months: 'flex flex-col space-y-4',
@@ -22,10 +22,10 @@ const calendarClassNames = {
   week: 'flex w-full mt-2',
   day: 'h-9 w-9 text-center text-sm p-0 relative rounded-md',
   day_button: 'h-9 w-9 p-0 font-normal rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-200 inline-flex items-center justify-center',
-  selected: '[&_.day_button]:bg-primary-500 [&_.day_button]:text-white [&_.day_button]:hover:bg-primary-600',
-  today: '[&_.day_button]:bg-gray-100 [&_.day_button]:dark:bg-gray-700',
-  outside: '[&_.day_button]:text-gray-300 [&_.day_button]:dark:text-gray-600',
-  disabled: '[&_.day_button]:text-gray-300 [&_.day_button]:dark:text-gray-600',
+  selected: 'bg-primary-500 text-white hover:bg-primary-600 hover:text-white focus:bg-primary-600 focus:text-white dark:bg-primary-500 dark:text-white dark:hover:bg-primary-600',
+  today: 'bg-gray-100 dark:bg-gray-700 font-semibold',
+  outside: 'text-gray-300 dark:text-gray-600',
+  disabled: 'text-gray-300 dark:text-gray-600 opacity-50',
 };
 
 function CustomMonth({ calendarMonth, displayIndex, children, ...props }: any) {
