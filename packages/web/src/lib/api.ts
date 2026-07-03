@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const API_BASE = '/api/v1';
 
 function getToken(): string | null {
   return localStorage.getItem('token');
@@ -7,9 +7,13 @@ function getToken(): string | null {
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
+
+  // 只有在 body 不是 FormData 时，才默认设置为 application/json
+  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -27,21 +31,21 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   get: <T>(url: string) => request<T>(url),
-  post: <T>(url: string, body: unknown) => request<T>(url, { method: 'POST', body: JSON.stringify(body) }),
-  put: <T>(url: string, body: unknown) => request<T>(url, { method: 'PUT', body: JSON.stringify(body) }),
+  post: <T>(url: string, body: unknown) =>
+    request<T>(url, {
+      method: 'POST',
+      body: body instanceof FormData ? body : JSON.stringify(body),
+    }),
+  put: <T>(url: string, body: unknown) =>
+    request<T>(url, {
+      method: 'PUT',
+      body: body instanceof FormData ? body : JSON.stringify(body),
+    }),
   delete: <T>(url: string) => request<T>(url, { method: 'DELETE' }),
 
   upload: async (file: File) => {
-    const token = getToken();
     const formData = new FormData();
     formData.append('file', file);
-
-    const res = await fetch(`${API_BASE}/upload`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    });
-
-    return res.json();
+    return api.post('/upload', formData); // 现在可以与常规接口共用风格了
   },
 };

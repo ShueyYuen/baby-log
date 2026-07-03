@@ -42,7 +42,7 @@ pnpm dev
 ### 访问
 
 - 前端: http://localhost:5173
-- 后端 API: http://localhost:3001
+- 后端 API: http://localhost:3001/api/v1
 - 演示账号: `demo` / `demo123`
 
 ## 项目结构
@@ -68,18 +68,18 @@ baby-log/
 
 | 路径 | 说明 |
 |------|------|
-| POST /api/auth/register | 注册 |
-| POST /api/auth/login | 登录 |
-| GET /api/babies | 获取宝宝列表 |
-| GET /api/records | 获取记录(分页/筛选) |
-| POST /api/records | 创建记录 |
-| GET /api/plans | 获取计划列表 |
-| POST /api/plans | 创建计划 |
-| GET /api/growth | 获取成长数据 |
-| GET /api/milestones | 获取里程碑 |
-| GET /api/stats/summary | 状态摘要 |
-| GET /api/stats/daily | 日统计 |
-| POST /api/upload | 上传图片 |
+| POST /api/v1/auth/register | 注册 |
+| POST /api/v1/auth/login | 登录 |
+| GET /api/v1/babies | 获取宝宝列表 |
+| GET /api/v1/records | 获取记录(分页/筛选) |
+| POST /api/v1/records | 创建记录 |
+| GET /api/v1/plans | 获取计划列表 |
+| POST /api/v1/plans | 创建计划 |
+| GET /api/v1/growth | 获取成长数据 |
+| GET /api/v1/milestones | 获取里程碑 |
+| GET /api/v1/stats/summary | 状态摘要 |
+| GET /api/v1/stats/daily | 日统计 |
+| POST /api/v1/upload | 上传图片 |
 
 ## Docker 部署
 
@@ -122,7 +122,7 @@ docker compose up -d
 
 ```yaml
 ports:
-  - "你的端口:80"
+  - "你的端口:3001"
 ```
 
 ### 数据持久化

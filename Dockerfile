@@ -39,7 +39,6 @@ RUN pnpm install --frozen-lockfile --prod \
 
 # ---- Final production image ----
 FROM node:22-alpine
-RUN apk add --no-cache nginx
 WORKDIR /app
 
 COPY --from=prod-deps /app/node_modules ./node_modules
@@ -54,9 +53,7 @@ COPY package.json pnpm-workspace.yaml ./
 
 COPY --from=web-build /app/packages/web/dist ./packages/web/dist
 
-COPY deploy/nginx.conf /etc/nginx/http.d/default.conf
 COPY deploy/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh && mkdir -p /app/data /app/packages/server/uploads
 
 ENV NODE_ENV=production
 ENV PORT=3001

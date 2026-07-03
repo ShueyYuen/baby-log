@@ -1,39 +1,70 @@
-import express from 'express';
 import cors from 'cors';
-import { recordRouter } from './routes/records';
-import { planRouter } from './routes/plans';
+import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { prisma } from './lib/prisma';
+import { authMiddleware } from './middleware/auth';
+import { authRouter } from './routes/auth';
+import { babyRouter } from './routes/babies';
 import { growthRouter } from './routes/growth';
 import { milestoneRouter } from './routes/milestones';
-import { babyRouter } from './routes/babies';
-import { authRouter } from './routes/auth';
-import { statsRouter } from './routes/stats';
-import { authMiddleware } from './middleware/auth';
-import { uploadRouter } from './routes/upload';
+import { planRouter } from './routes/plans';
 import { pushRouter } from './routes/push';
+import { recordRouter } from './routes/records';
+import { statsRouter } from './routes/stats';
+import { uploadRouter } from './routes/upload';
 import { startReminderScheduler } from './scheduler';
-import { prisma } from './lib/prisma';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const API_PREFIX = '/api/v1';
+
+function resolveWebDistDir(): string | null {
+  const candidates = [
+    process.env.WEB_DIST_DIR,
+    path.resolve(process.cwd(), '../web/dist'),
+    path.resolve(process.cwd(), 'packages/web/dist'),
+  ].filter(Boolean) as string[];
+
+  for (const dir of candidates) {
+    if (fs.existsSync(dir)) {
+      return dir;
+    }
+  }
+
+  return null;
+}
 
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
-app.use('/api/auth', authRouter);
+app.use(`${API_PREFIX}/auth`, authRouter);
 
-app.use('/api/babies', authMiddleware, babyRouter);
-app.use('/api/records', authMiddleware, recordRouter);
-app.use('/api/plans', authMiddleware, planRouter);
-app.use('/api/growth', authMiddleware, growthRouter);
-app.use('/api/milestones', authMiddleware, milestoneRouter);
-app.use('/api/stats', authMiddleware, statsRouter);
-app.use('/api/upload', authMiddleware, uploadRouter);
-app.use('/api/push', authMiddleware, pushRouter);
+app.use(`${API_PREFIX}/babies`, authMiddleware, babyRouter);
+app.use(`${API_PREFIX}/records`, authMiddleware, recordRouter);
+app.use(`${API_PREFIX}/plans`, authMiddleware, planRouter);
+app.use(`${API_PREFIX}/growth`, authMiddleware, growthRouter);
+app.use(`${API_PREFIX}/milestones`, authMiddleware, milestoneRouter);
+app.use(`${API_PREFIX}/stats`, authMiddleware, statsRouter);
+app.use(`${API_PREFIX}/upload`, authMiddleware, uploadRouter);
+app.use(`${API_PREFIX}/push`, authMiddleware, pushRouter);
 
-app.get('/api/health', (_req, res) => {
+app.get(`${API_PREFIX}/health`, (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+const webDistDir = resolveWebDistDir();
+if (webDistDir) {
+  app.use(express.static(webDistDir));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(webDistDir, 'index.html'));
+  });
+}
 
 async function ensureAdmin() {
   const username = process.env.ADMIN_USERNAME;

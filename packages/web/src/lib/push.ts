@@ -54,7 +54,7 @@ export async function unsubscribePush(): Promise<void> {
     if (subscription) {
       const endpoint = subscription.endpoint;
       await subscription.unsubscribe();
-      await fetch('/api/push/subscribe', {
+      await fetch('/api/v1/push/subscribe', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
