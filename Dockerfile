@@ -54,10 +54,9 @@ COPY package.json pnpm-workspace.yaml ./
 COPY --from=web-build /app/packages/web/dist ./packages/web/dist
 
 COPY deploy/entrypoint.sh /entrypoint.sh
-
 ENV NODE_ENV=production
-ENV PORT=3001
+ENV PORT=3000
 ENV DATABASE_URL="file:/app/data/baby-log.db"
 
-EXPOSE 80
+EXPOSE 3000
 ENTRYPOINT ["/entrypoint.sh"]

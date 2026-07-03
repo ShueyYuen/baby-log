@@ -4,7 +4,7 @@ services:
     container_name: baby-log
     restart: unless-stopped
     ports:
-      - "8080:3000"
+      - "10880:3000"
     volumes:
       - baby-log-data:/app/data
       - baby-log-uploads:/app/packages/server/uploads

@@ -37,7 +37,15 @@ function resolveWebDistDir(): string | null {
 
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static('uploads'));
+
+app.use((req, _res, next) => {
+  if (!req.path.startsWith('/api/')) {
+    console.log(`[HTTP] ${req.method} ${req.path}`);
+  }
+  next();
+});
+
+app.use(`${API_PREFIX}/uploads`, express.static('uploads'));
 
 app.use(`${API_PREFIX}/auth`, authRouter);
 
@@ -55,15 +63,21 @@ app.get(`${API_PREFIX}/health`, (_req, res) => {
 });
 
 const webDistDir = resolveWebDistDir();
+console.log(`[Static] Web dist dir: ${webDistDir ?? 'NOT FOUND'}`);
 if (webDistDir) {
+  const indexHtml = path.join(webDistDir, 'index.html');
+  console.log(`[Static] index.html exists: ${fs.existsSync(indexHtml)}`);
   app.use(express.static(webDistDir));
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
+    if (req.path.startsWith('/api/')) {
       next();
       return;
     }
-    res.sendFile(path.join(webDistDir, 'index.html'));
+    console.log(`[SPA] Fallback → index.html for ${req.path}`);
+    res.sendFile(indexHtml);
   });
+} else {
+  console.warn('[Static] No web dist directory found, SPA fallback disabled');
 }
 
 async function ensureAdmin() {

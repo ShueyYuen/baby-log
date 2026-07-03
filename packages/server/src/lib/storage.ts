@@ -45,7 +45,7 @@ function getConfig(): StorageConfig {
     type: 'local',
     local: {
       uploadDir: process.env.UPLOAD_DIR || 'uploads',
-      publicPath: '/uploads',
+      publicPath: '/api/v1/uploads',
     },
   };
 }
