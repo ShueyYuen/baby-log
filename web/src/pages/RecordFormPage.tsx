@@ -1,5 +1,5 @@
-import { ArrowLeft, ImagePlus, Play, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, ImagePlus, Play, X, AlertCircle } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useLocation,
   useNavigate,
@@ -22,9 +22,50 @@ import {
 } from "../components/ui";
 import { useAuth } from "../contexts/AuthContext";
 import { useBaby } from "../contexts/BabyContext";
-import { api, type RecordImage } from "../lib/api";
+import { api, type RecordImage, type UploadMomentResult } from "../lib/api";
 import { cacheRead } from "../lib/queryCache";
 import { Skeleton } from "../components/ui/skeleton";
+
+interface MediaPreview {
+  file?: File;
+  url: string;
+  result?: UploadMomentResult;
+  progress?: number;
+  error?: boolean;
+  type: 'image' | 'video';
+  existing?: RecordImage;
+}
+
+const CONCURRENT_UPLOADS = 5;
+const PROGRESS_STEP = 5;
+
+function UploadProgressRing({ progress, error }: { progress: number; error?: boolean }) {
+  const r = 18;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (progress / 100) * circumference;
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+      {error ? (
+        <AlertCircle size={20} className="text-red-400" />
+      ) : (
+        <div className="relative w-11 h-11">
+          <svg viewBox="0 0 44 44" className="w-full h-full -rotate-90">
+            <circle cx="22" cy="22" r={r} fill="none" stroke="white" strokeWidth="3" opacity={0.3} />
+            <circle
+              cx="22" cy="22" r={r}
+              fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"
+              strokeDasharray={circumference} strokeDashoffset={offset}
+              className="transition-[stroke-dashoffset] duration-200"
+            />
+          </svg>
+          <span className="absolute inset-0 flex items-center justify-center text-white text-[10px] font-semibold">
+            {progress}%
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function toLocalDateTimeString(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -82,6 +123,15 @@ function normalizeRecordImages(raw: unknown): RecordImage[] {
   return raw as RecordImage[];
 }
 
+function recordImagesToPreviews(images: RecordImage[]): MediaPreview[] {
+  return images.map((img) => ({
+    url: img.url,
+    type: (img.mediaType === 'video' ? 'video' : 'image') as 'image' | 'video',
+    existing: img,
+    result: { url: img.url, key: img.key, rawUrl: img.rawUrl, rawKey: img.rawKey, mediaType: img.mediaType || 'image' },
+  }));
+}
+
 export default function RecordFormPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -114,13 +164,21 @@ export default function RecordFormPage() {
       : toLocalDateTimeString(new Date()),
   );
   const [note, setNote] = useState(_sr?.note || "");
-  const [images, setImages] = useState<RecordImage[]>(_sr?.images || []);
+  const [previews, setPreviews] = useState<MediaPreview[]>(
+    (_sr?.images || []).map((img: RecordImage) => ({
+      url: img.url,
+      type: img.mediaType === 'video' ? 'video' : 'image',
+      existing: img,
+      result: { url: img.url, key: img.key, rawUrl: img.rawUrl, rawKey: img.rawKey, mediaType: img.mediaType || 'image' },
+    }))
+  );
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   // Dynamic form data — initialized from state record if available
   const [leftMinutes, setLeftMinutes] = useState(_d.leftMinutes ?? 10);
@@ -153,7 +211,7 @@ export default function RecordFormPage() {
         setType(stateRecord.type);
         setOccurredAt(toLocalDateTimeString(new Date(stateRecord.occurredAt)));
         setNote(stateRecord.note || "");
-        setImages(normalizeRecordImages(stateRecord.images));
+        setPreviews(recordImagesToPreviews(normalizeRecordImages(stateRecord.images)));
         populateData(stateRecord.type, stateRecord.data);
         setLoadingRecord(false);
       } else {
@@ -181,7 +239,7 @@ export default function RecordFormPage() {
         setType(record.type);
         setOccurredAt(toLocalDateTimeString(new Date(record.occurredAt)));
         setNote(record.note || "");
-        setImages(normalizeRecordImages(record.images));
+        setPreviews(recordImagesToPreviews(normalizeRecordImages(record.images)));
         populateData(record.type, record.data);
         setLoadingRecord(false);
         return;
@@ -195,7 +253,7 @@ export default function RecordFormPage() {
         setType(freshRecord.type);
         setOccurredAt(toLocalDateTimeString(new Date(freshRecord.occurredAt)));
         setNote(freshRecord.note || "");
-        setImages(normalizeRecordImages(freshRecord.images));
+        setPreviews(recordImagesToPreviews(normalizeRecordImages(freshRecord.images)));
         populateData(freshRecord.type, freshRecord.data);
       }
     } catch {
@@ -254,6 +312,81 @@ export default function RecordFormPage() {
     setOccurredAt(toLocalDateTimeString(d));
   };
 
+  const handleFiles = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const allowed = Array.from(files);
+    const startIdx = previews.length;
+
+    const placeholders: MediaPreview[] = allowed.map((f) => ({
+      file: f,
+      url: '',
+      type: f.type.startsWith('video/') ? 'video' as const : 'image' as const,
+      progress: 0,
+    }));
+    setPreviews((prev) => [...prev, ...placeholders]);
+    setUploading(true);
+
+    for (let i = 0; i < allowed.length; i++) {
+      const blobUrl = URL.createObjectURL(allowed[i]);
+      setPreviews((prev) => {
+        const next = [...prev];
+        const idx = startIdx + i;
+        if (next[idx]) next[idx] = { ...next[idx], url: blobUrl };
+        return next;
+      });
+      if (i % 3 === 2) await new Promise((r) => requestAnimationFrame(r));
+    }
+
+    let queueIdx = 0;
+    const lastReported: number[] = new Array(allowed.length).fill(-1);
+
+    const uploadNext = async (): Promise<void> => {
+      const myIdx = queueIdx++;
+      if (myIdx >= allowed.length) return;
+      const fileIdx = startIdx + myIdx;
+      try {
+        const result = await api.moments.uploadMediaSingle(
+          allowed[myIdx],
+          (percent) => {
+            const stepped = Math.floor(percent / PROGRESS_STEP) * PROGRESS_STEP;
+            if (stepped <= lastReported[myIdx]) return;
+            lastReported[myIdx] = stepped;
+            setPreviews((prev) => {
+              const next = [...prev];
+              if (next[fileIdx]) next[fileIdx] = { ...next[fileIdx], progress: stepped };
+              return next;
+            });
+          },
+        );
+        setPreviews((prev) => {
+          const next = [...prev];
+          if (next[fileIdx]) next[fileIdx] = { ...next[fileIdx], result, progress: undefined };
+          return next;
+        });
+      } catch {
+        setPreviews((prev) => {
+          const next = [...prev];
+          if (next[fileIdx]) next[fileIdx] = { ...next[fileIdx], error: true, progress: undefined };
+          return next;
+        });
+      }
+      await uploadNext();
+    };
+
+    const workers = Math.min(CONCURRENT_UPLOADS, allowed.length);
+    await Promise.all(Array.from({ length: workers }, () => uploadNext()));
+    setUploading(false);
+  }, [previews.length]);
+
+  const removePreview = useCallback((idx: number) => {
+    setPreviews((prev) => {
+      const next = [...prev];
+      const removed = next.splice(idx, 1)[0];
+      if (removed.url && removed.file) URL.revokeObjectURL(removed.url);
+      return next;
+    });
+  }, []);
+
   const buildData = (): Record<string, unknown> => {
     switch (type) {
       case "breastfeed":
@@ -290,6 +423,9 @@ export default function RecordFormPage() {
     setLoading(true);
 
     try {
+      const completedImages = previews
+        .filter((p) => p.result)
+        .map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType }));
       const payload = {
         babyId: currentBaby.id,
         category,
@@ -297,9 +433,7 @@ export default function RecordFormPage() {
         data: buildData(),
         occurredAt: new Date(occurredAt).toISOString(),
         note: note || undefined,
-        images: images.length > 0
-          ? images.map((img) => ({ key: img.key, rawKey: img.rawKey, mediaType: img.mediaType }))
-          : undefined,
+        images: completedImages.length > 0 ? completedImages : undefined,
       };
 
       if (isEditing) {
@@ -646,8 +780,8 @@ export default function RecordFormPage() {
         <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">
           {typeLabels[type] || type}
         </h2>
-        <Button type="submit" form="record-form" size="sm" disabled={loading}>
-          {loading ? "保存中..." : "保存"}
+        <Button type="submit" form="record-form" size="sm" disabled={loading || uploading}>
+          {loading ? "保存中..." : uploading ? "上传中..." : "保存"}
         </Button>
       </div>
 
@@ -749,29 +883,36 @@ export default function RecordFormPage() {
             图片 / 视频
           </label>
           <div className="flex flex-wrap gap-2">
-            {images.map((img, idx) => (
+            {previews.map((p, idx) => (
               <div
                 key={idx}
                 className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600"
               >
-                {img.mediaType === "video" ? (
+                {!p.url ? null : p.type === "video" ? (
                   <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                     <Play size={20} className="text-gray-500" />
                   </div>
                 ) : (
                   <img
-                    src={img.url}
+                    src={p.url}
                     alt=""
                     className="w-full h-full object-cover cursor-zoom-in"
+                    decoding="async"
+                    loading="lazy"
                     onClick={() => {
-                      setViewerIndex(idx);
-                      setViewerOpen(true);
+                      if (p.result) {
+                        setViewerIndex(idx);
+                        setViewerOpen(true);
+                      }
                     }}
                   />
                 )}
+                {p.file && !p.result && (
+                  <UploadProgressRing progress={p.progress ?? 0} error={p.error} />
+                )}
                 <button
                   type="button"
-                  onClick={() => setImages(images.filter((_, i) => i !== idx))}
+                  onClick={() => removePreview(idx)}
                   className="absolute top-0.5 right-0.5 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center"
                 >
                   <X size={12} className="text-white" />
@@ -780,46 +921,28 @@ export default function RecordFormPage() {
             ))}
             <label className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 transition-colors">
               <input
+                ref={fileRef}
                 type="file"
                 accept="image/*,video/*"
                 className="hidden"
                 multiple
                 disabled={uploading}
-                onChange={async (e) => {
-                  const files = e.target.files;
-                  if (!files || files.length === 0) return;
-                  setUploading(true);
-                  try {
-                    const newItems: RecordImage[] = [];
-                    for (const file of Array.from(files)) {
-                      const result = await api.moments.uploadMediaSingle(file);
-                      newItems.push({
-                        key: result.key,
-                        rawKey: result.rawKey,
-                        mediaType: result.mediaType,
-                        url: result.url,
-                        rawUrl: result.rawUrl,
-                      });
-                    }
-                    setImages((prev) => [...prev, ...newItems]);
-                  } catch {
-                    toast("上传失败", "error");
-                  } finally {
-                    setUploading(false);
-                    e.target.value = "";
-                  }
+                onChange={(e) => {
+                  handleFiles(e.target.files);
+                  e.target.value = "";
                 }}
               />
               {uploading ? (
-                <span className="text-xs text-gray-400">上传中</span>
+                <span className="text-xs text-gray-400 animate-pulse">上传中</span>
               ) : (
                 <ImagePlus size={20} className="text-gray-400" />
               )}
             </label>
           </div>
-          {images.length > 0 && (
+          {previews.length > 0 && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              已选 {images.length} 个文件
+              已选 {previews.length} 个文件
+              {previews.some(p => p.error) && <span className="text-red-400 ml-1">(部分上传失败)</span>}
             </p>
           )}
         </div>
@@ -872,7 +995,10 @@ export default function RecordFormPage() {
       </Dialog>
 
       <ImageViewer
-        images={images.map((img) => ({ url: img.url, rawUrl: img.rawUrl }))}
+        images={previews.filter((p) => p.result).map((p) => ({
+          url: p.result!.url,
+          rawUrl: p.result!.rawUrl,
+        }))}
         initialIndex={viewerIndex}
         open={viewerOpen}
         onOpenChange={setViewerOpen}

@@ -10,21 +10,16 @@ import (
 	"github.com/google/uuid"
 )
 
-// sniffMediaType reads the first 512 bytes to detect actual content type.
-func sniffMediaType(data []byte) string {
-	return http.DetectContentType(data)
-}
-
-// validateMediaType checks if the sniffed MIME matches the allowed set.
-func validateMediaType(data []byte, allowed map[string]bool) bool {
-	sniffed := sniffMediaType(data)
-	if allowed[sniffed] {
+// validateMediaType sniffs the first 512 bytes to reject obviously dangerous uploads
+// (scripts, HTML, executables) while allowing legitimate media that DetectContentType
+// may not recognize (e.g. HEIC images return application/octet-stream).
+func validateMediaType(data []byte) bool {
+	sniffed := http.DetectContentType(data)
+	switch {
+	case strings.HasPrefix(sniffed, "image/"),
+		strings.HasPrefix(sniffed, "video/"),
+		sniffed == "application/octet-stream":
 		return true
-	}
-	// http.DetectContentType may return "application/octet-stream" for valid video;
-	// fall back to client-declared type check for videos.
-	if strings.HasPrefix(sniffed, "video/") {
-		return allowed[sniffed]
 	}
 	return false
 }
@@ -79,7 +74,7 @@ func handleUploadSingle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !validateMediaType(data, allowedMimeTypes) {
+	if !validateMediaType(data) {
 		writeErr(w, http.StatusBadRequest, "文件内容与声明的类型不匹配")
 		return
 	}
@@ -133,7 +128,7 @@ func handleUploadMultiple(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusInternalServerError, "Upload failed")
 			return
 		}
-		if !validateMediaType(data, allowedMimeTypes) {
+		if !validateMediaType(data) {
 			writeErr(w, http.StatusBadRequest, "文件内容与声明的类型不匹配")
 			return
 		}
@@ -188,7 +183,7 @@ func handleUploadMomentMedia(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadRequest, "文件过大")
 			return
 		}
-		if !validateMediaType(data, momentAllowedMimeTypes) {
+		if !validateMediaType(data) {
 			writeErr(w, http.StatusBadRequest, "文件内容与声明的类型不匹配")
 			return
 		}

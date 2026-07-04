@@ -1,17 +1,60 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { api, type RecordImage } from '../lib/api';
+import { api, type RecordImage, type UploadMomentResult } from '../lib/api';
 import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Plus, Star, Pencil, Trash2, ImagePlus, Play, X } from 'lucide-react';
+import { Plus, Star, Pencil, Trash2, ImagePlus, Play, X, AlertCircle } from 'lucide-react';
 import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DatePicker, ConfirmDialog, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { Textarea } from '../components/ui';
 import { GrowthSkeleton } from '../components/ui/skeleton';
 import { getPercentileData, PercentileData } from '../lib/growth-standards';
+
+interface MilestonePreview {
+  file?: File;
+  url: string;
+  result?: UploadMomentResult;
+  progress?: number;
+  error?: boolean;
+  type: 'image' | 'video';
+  existing?: RecordImage;
+}
+
+const M_CONCURRENT = 5;
+const M_STEP = 5;
+
+function MUploadRing({ progress, error }: { progress: number; error?: boolean }) {
+  const r = 14;
+  const c = 2 * Math.PI * r;
+  const off = c - (progress / 100) * c;
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+      {error ? (
+        <AlertCircle size={14} className="text-red-400" />
+      ) : (
+        <div className="relative w-8 h-8">
+          <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+            <circle cx="18" cy="18" r={r} fill="none" stroke="white" strokeWidth="2.5" opacity={0.3} />
+            <circle cx="18" cy="18" r={r} fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} className="transition-[stroke-dashoffset] duration-200" />
+          </svg>
+          <span className="absolute inset-0 flex items-center justify-center text-white text-[8px] font-semibold">{progress}%</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function recordImageToPreview(img: RecordImage): MilestonePreview {
+  return {
+    url: img.url,
+    type: (img.mediaType === 'video' ? 'video' : 'image') as 'image' | 'video',
+    existing: img,
+    result: { url: img.url, key: img.key, rawUrl: img.rawUrl, rawKey: img.rawKey, mediaType: img.mediaType || 'image' },
+  };
+}
 
 interface GrowthItem {
   id: string;
@@ -64,7 +107,7 @@ export default function GrowthPage() {
   const [mTitle, setMTitle] = useState('');
   const [mDate, setMDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [mDesc, setMDesc] = useState('');
-  const [mImages, setMImages] = useState<RecordImage[]>([]);
+  const [mPreviews, setMPreviews] = useState<MilestonePreview[]>([]);
   const [mUploading, setMUploading] = useState(false);
 
   useEffect(() => {
@@ -129,16 +172,17 @@ export default function GrowthPage() {
   const addMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentBaby || mUploading) return;
+    const completed = mPreviews.filter((p) => p.result).map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType }));
     await api.post('/milestones', {
       babyId: currentBaby.id,
       type: mType,
       title: mTitle || milestoneLabels[mType],
       occurredAt: new Date(mDate).toISOString(),
       description: mDesc || undefined,
-      images: mImages.length > 0 ? mImages.map((img) => ({ key: img.key, rawKey: img.rawKey, mediaType: img.mediaType })) : undefined,
+      images: completed.length > 0 ? completed : undefined,
     });
     setShowMilestoneForm(false);
-    setMTitle(''); setMDesc(''); setMImages([]);
+    setMTitle(''); setMDesc(''); setMPreviews([]);
     loadData(true);
   };
 
@@ -148,21 +192,22 @@ export default function GrowthPage() {
     setMTitle(m.title);
     setMDate(dayjs(m.occurredAt).format('YYYY-MM-DD'));
     setMDesc(m.description || '');
-    setMImages(m.images || []);
+    setMPreviews((m.images || []).map(recordImageToPreview));
   };
 
   const saveMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMilestone || mUploading) return;
+    const completed = mPreviews.filter((p) => p.result).map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType }));
     await api.put(`/milestones/${editingMilestone.id}`, {
       type: mType,
       title: mTitle || milestoneLabels[mType],
       occurredAt: new Date(mDate).toISOString(),
       description: mDesc || undefined,
-      images: mImages.map((img) => ({ key: img.key, rawKey: img.rawKey, mediaType: img.mediaType })),
+      images: completed,
     });
     setEditingMilestone(null);
-    setMTitle(''); setMDesc(''); setMImages([]);
+    setMTitle(''); setMDesc(''); setMPreviews([]);
     loadData(true);
   };
 
@@ -177,22 +222,56 @@ export default function GrowthPage() {
     setDeletingMilestoneId(null);
   };
 
-  const handleMilestoneUpload = async (files: FileList | null) => {
+  const handleMilestoneUpload = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    const allowed = Array.from(files);
+    const startIdx = mPreviews.length;
+
+    const placeholders: MilestonePreview[] = allowed.map((f) => ({
+      file: f, url: '', type: f.type.startsWith('video/') ? 'video' as const : 'image' as const, progress: 0,
+    }));
+    setMPreviews((prev) => [...prev, ...placeholders]);
     setMUploading(true);
-    try {
-      const newItems: RecordImage[] = [];
-      for (const file of Array.from(files)) {
-        const result = await api.moments.uploadMediaSingle(file);
-        newItems.push({ key: result.key, rawKey: result.rawKey, mediaType: result.mediaType, url: result.url, rawUrl: result.rawUrl });
-      }
-      setMImages((prev) => [...prev, ...newItems]);
-    } catch {
-      toast('上传失败', 'error');
-    } finally {
-      setMUploading(false);
+
+    for (let i = 0; i < allowed.length; i++) {
+      const blobUrl = URL.createObjectURL(allowed[i]);
+      setMPreviews((prev) => {
+        const next = [...prev]; const idx = startIdx + i;
+        if (next[idx]) next[idx] = { ...next[idx], url: blobUrl };
+        return next;
+      });
     }
-  };
+
+    let queueIdx = 0;
+    const lastR: number[] = new Array(allowed.length).fill(-1);
+    const uploadNext = async (): Promise<void> => {
+      const myIdx = queueIdx++;
+      if (myIdx >= allowed.length) return;
+      const fileIdx = startIdx + myIdx;
+      try {
+        const result = await api.moments.uploadMediaSingle(allowed[myIdx], (pct) => {
+          const stepped = Math.floor(pct / M_STEP) * M_STEP;
+          if (stepped <= lastR[myIdx]) return;
+          lastR[myIdx] = stepped;
+          setMPreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], progress: stepped }; return n; });
+        });
+        setMPreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], result, progress: undefined }; return n; });
+      } catch {
+        setMPreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], error: true, progress: undefined }; return n; });
+      }
+      await uploadNext();
+    };
+    await Promise.all(Array.from({ length: Math.min(M_CONCURRENT, allowed.length) }, () => uploadNext()));
+    setMUploading(false);
+  }, [mPreviews.length]);
+
+  const removeMPreview = useCallback((idx: number) => {
+    setMPreviews((prev) => {
+      const next = [...prev]; const removed = next.splice(idx, 1)[0];
+      if (removed.url && removed.file) URL.revokeObjectURL(removed.url);
+      return next;
+    });
+  }, []);
 
   const gender = (currentBaby?.gender === 'female' ? 'female' : 'male') as 'male' | 'female';
   const birthDate = currentBaby?.birthDate;
@@ -438,26 +517,27 @@ export default function GrowthPage() {
                 <div>
                   <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">图片 / 视频</label>
                   <div className="flex flex-wrap gap-2">
-                    {mImages.map((img, idx) => (
+                    {mPreviews.map((p, idx) => (
                       <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
-                        {img.mediaType === 'video' ? (
+                        {!p.url ? null : p.type === 'video' ? (
                           <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
                         ) : (
-                          <img src={img.url} alt="" className="w-full h-full object-cover" />
+                          <img src={p.url} alt="" className="w-full h-full object-cover" decoding="async" loading="lazy" />
                         )}
-                        <button type="button" onClick={() => setMImages((prev) => prev.filter((_, i) => i !== idx))} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center">
+                        {p.file && !p.result && <MUploadRing progress={p.progress ?? 0} error={p.error} />}
+                        <button type="button" onClick={() => removeMPreview(idx)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center">
                           <X size={10} className="text-white" />
                         </button>
                       </div>
                     ))}
                     <label className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 transition-colors">
                       <input type="file" accept="image/*,video/*" className="hidden" multiple disabled={mUploading} onChange={(e) => { handleMilestoneUpload(e.target.files); e.target.value = ''; }} />
-                      {mUploading ? <span className="text-[10px] text-gray-400">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
+                      {mUploading ? <span className="text-[10px] text-gray-400 animate-pulse">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
                     </label>
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowMilestoneForm(false); setMImages([]); }}>取消</Button>
+                  <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowMilestoneForm(false); setMPreviews([]); }}>取消</Button>
                   <Button type="submit" className="flex-1" disabled={mUploading}>保存</Button>
                 </div>
               </form>
@@ -553,26 +633,27 @@ export default function GrowthPage() {
               <div>
                 <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">图片 / 视频</label>
                 <div className="flex flex-wrap gap-2">
-                  {mImages.map((img, idx) => (
+                  {mPreviews.map((p, idx) => (
                     <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
-                      {img.mediaType === 'video' ? (
+                      {!p.url ? null : p.type === 'video' ? (
                         <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
                       ) : (
-                        <img src={img.url} alt="" className="w-full h-full object-cover" />
+                        <img src={p.url} alt="" className="w-full h-full object-cover" decoding="async" loading="lazy" />
                       )}
-                      <button type="button" onClick={() => setMImages((prev) => prev.filter((_, i) => i !== idx))} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center">
+                      {p.file && !p.result && <MUploadRing progress={p.progress ?? 0} error={p.error} />}
+                      <button type="button" onClick={() => removeMPreview(idx)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center">
                         <X size={10} className="text-white" />
                       </button>
                     </div>
                   ))}
                   <label className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 transition-colors">
                     <input type="file" accept="image/*,video/*" className="hidden" multiple disabled={mUploading} onChange={(e) => { handleMilestoneUpload(e.target.files); e.target.value = ''; }} />
-                    {mUploading ? <span className="text-[10px] text-gray-400">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
+                    {mUploading ? <span className="text-[10px] text-gray-400 animate-pulse">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
                   </label>
                 </div>
               </div>
               <div className="flex gap-3">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => { setEditingMilestone(null); setMImages([]); }}>取消</Button>
+                <Button type="button" variant="outline" className="flex-1" onClick={() => { setEditingMilestone(null); setMPreviews([]); }}>取消</Button>
                 <Button type="submit" className="flex-1" disabled={mUploading}>保存</Button>
               </div>
             </form>

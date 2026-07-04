@@ -9,7 +9,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
 import { Calendar, CheckCircle, Clock, Plus, CalendarPlus } from 'lucide-react';
-import { Button, Card, CardContent, Badge } from '../components/ui';
+import { Button, Card, CardContent, Badge, ConfirmDialog } from '../components/ui';
 import { addPlanToCalendar } from '../lib/calendar';
 import { PlansSkeleton } from '../components/ui/skeleton';
 
@@ -124,6 +124,7 @@ export default function PlansPage() {
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('pending');
+  const [completingId, setCompletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentBaby) return;
@@ -212,12 +213,27 @@ export default function PlansPage() {
               key={plan.id}
               plan={plan}
               isViewer={isViewer}
-              onComplete={(id) => updateStatus(id, 'completed')}
+              onComplete={(id) => setCompletingId(id)}
               onCalendar={(title, scheduledAt, description, reminder) => addPlanToCalendar(title, scheduledAt, description, reminder)}
             />
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!completingId}
+        onOpenChange={(open) => { if (!open) setCompletingId(null); }}
+        title="标记完成"
+        description="确定将此计划标记为已完成？"
+        confirmLabel="完成"
+        variant="default"
+        onConfirm={() => {
+          if (completingId) {
+            updateStatus(completingId, 'completed');
+            setCompletingId(null);
+          }
+        }}
+      />
     </div>
   );
 }
