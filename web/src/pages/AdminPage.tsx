@@ -33,23 +33,11 @@ export default function AdminPage() {
   const [roleChangeTarget, setRoleChangeTarget] = useState<UserItem | null>(null);
   const [newRole, setNewRole] = useState('');
   const [cleanupResult, setCleanupResult] = useState<{
-    dryRun: boolean;
-    s3Total?: number;
-    referenced?: number;
-    orphanCount?: number;
-    orphans?: string[];
-    deleted?: number;
+    found: number;
+    deleted: number;
     errors?: string[];
   } | null>(null);
   const [cleaningUp, setCleaningUp] = useState(false);
-  const [cacheControlResult, setCacheControlResult] = useState<{
-    dryRun: boolean;
-    total: number;
-    updated?: number;
-    skipped?: number;
-    errors?: string[];
-  } | null>(null);
-  const [settingCache, setSettingCache] = useState(false);
 
   useEffect(() => {
     loadUsers();
@@ -126,35 +114,16 @@ export default function AdminPage() {
     }
   };
 
-  const runCleanup = async (dryRun: boolean, _all?: boolean) => {
+  const runCleanup = async () => {
     setCleaningUp(true);
     try {
-      const params = dryRun ? '?dry-run=true' : '';
-      const res = await api.post<{ success: boolean; data: typeof cleanupResult }>(`/admin/cleanup${params}`, {});
+      const res = await api.post<{ success: boolean; data: typeof cleanupResult }>('/admin/cleanup', {});
       setCleanupResult(res.data);
-      if (!dryRun) {
-        toast(`已清理 ${res.data?.deleted ?? 0} 个文件`, 'success');
-      }
+      toast(`已清理 ${res.data?.deleted ?? 0} 个孤立文件`, 'success');
     } catch (err: any) {
       toast(err.message || '清理失败', 'error');
     } finally {
       setCleaningUp(false);
-    }
-  };
-
-  const runSetCacheControl = async (dryRun: boolean) => {
-    setSettingCache(true);
-    try {
-      const params = dryRun ? '?dry-run=true' : '';
-      const res = await api.post<{ success: boolean; data: typeof cacheControlResult }>(`/admin/s3-cache-control${params}`, {});
-      setCacheControlResult(res.data);
-      if (!dryRun) {
-        toast(`已更新 ${res.data?.updated ?? 0} 个文件的 Cache-Control`, 'success');
-      }
-    } catch (err: any) {
-      toast(err.message || '操作失败', 'error');
-    } finally {
-      setSettingCache(false);
     }
   };
 
@@ -328,122 +297,36 @@ export default function AdminPage() {
           </div>
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          扫描 S3 存储中的所有文件，对比数据库中的引用关系，找出并清理无引用的孤立文件。同时重建文件追踪表。
+          清理上传超过 24 小时但未被任何记录引用的孤立文件。此操作与定时清理任务执行相同的逻辑。
         </p>
 
         <div className="flex flex-wrap gap-2 mb-4">
           <Button
             size="sm"
-            variant="outline"
-            disabled={cleaningUp}
-            onClick={() => runCleanup(true, false)}
-          >
-            {cleaningUp ? '扫描中...' : '扫描孤立文件'}
-          </Button>
-          <Button
-            size="sm"
             variant="destructive"
             disabled={cleaningUp}
-            onClick={() => runCleanup(false, false)}
+            onClick={runCleanup}
           >
-            执行清理
+            {cleaningUp ? '清理中...' : '立即清理'}
           </Button>
         </div>
 
         {cleanupResult && (
           <Card>
             <CardContent className="space-y-2">
-              <div className="grid grid-cols-3 gap-3 text-center text-sm">
+              <div className="grid grid-cols-2 gap-3 text-center text-sm">
                 <div>
-                  <p className="text-lg font-bold text-primary-500">{cleanupResult.s3Total ?? 0}</p>
-                  <p className="text-xs text-gray-500">S3 文件总数</p>
+                  <p className="text-lg font-bold text-primary-500">{cleanupResult.found}</p>
+                  <p className="text-xs text-gray-500">发现孤立文件</p>
                 </div>
                 <div>
-                  <p className="text-lg font-bold text-green-500">{cleanupResult.referenced ?? 0}</p>
-                  <p className="text-xs text-gray-500">数据库引用</p>
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-red-500">{cleanupResult.orphanCount ?? 0}</p>
-                  <p className="text-xs text-gray-500">孤立文件</p>
+                  <p className="text-lg font-bold text-green-500">{cleanupResult.deleted}</p>
+                  <p className="text-xs text-gray-500">已删除</p>
                 </div>
               </div>
-
-              {cleanupResult.dryRun ? (
-                cleanupResult.orphans && cleanupResult.orphans.length > 0 && (
-                  <div className="max-h-48 overflow-y-auto text-xs space-y-1 mt-2 border-t pt-2 dark:border-gray-700">
-                    {cleanupResult.orphans.map((key, i) => (
-                      <div key={i} className="flex items-center gap-2 text-gray-500 dark:text-gray-400 font-mono">
-                        <span className="text-gray-400 w-6 text-right">{i + 1}.</span>
-                        <span className="truncate">{key}</span>
-                      </div>
-                    ))}
-                  </div>
-                )
-              ) : (
-                <>
-                  <p className="text-sm font-medium dark:text-gray-100 mt-2 border-t pt-2 dark:border-gray-700">
-                    已删除 <span className="text-green-500 font-bold">{cleanupResult.deleted}</span> / {cleanupResult.orphanCount} 个孤立文件，文件追踪表已重建
-                  </p>
-                  {cleanupResult.errors && cleanupResult.errors.length > 0 && (
-                    <div className="text-xs text-red-500 space-y-0.5">
-                      {cleanupResult.errors.map((e, i) => (
-                        <p key={i}>{e}</p>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* S3 Cache-Control */}
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mt-2">
-        <div className="flex items-center gap-2 mb-3">
-          <HardDrive size={18} className="text-gray-500" />
-          <h2 className="text-xl font-semibold dark:text-gray-100">S3 缓存设置</h2>
-        </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          为 S3 中所有已上传文件设置 <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">Cache-Control: public, max-age=31536000, immutable</code>。
-          新上传的文件已自动设置，此操作用于更新历史文件。
-        </p>
-
-        <div className="flex flex-wrap gap-2 mb-4">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={settingCache}
-            onClick={() => runSetCacheControl(true)}
-          >
-            {settingCache ? '扫描中...' : '扫描文件数量'}
-          </Button>
-          <Button
-            size="sm"
-            disabled={settingCache}
-            onClick={() => runSetCacheControl(false)}
-          >
-            {settingCache ? '更新中...' : '执行更新'}
-          </Button>
-        </div>
-
-        {cacheControlResult && (
-          <Card>
-            <CardContent className="space-y-1">
-              <p className="text-sm dark:text-gray-100">
-                {cacheControlResult.dryRun ? (
-                  <>共 <span className="font-bold text-primary-500">{cacheControlResult.total}</span> 个文件</>
-                ) : (
-                  <>
-                    共 {cacheControlResult.total} 个文件，
-                    已更新 <span className="font-bold text-green-500">{cacheControlResult.updated}</span>，
-                    跳过 <span className="text-gray-400">{cacheControlResult.skipped}</span>（已是最新）
-                  </>
-                )}
-              </p>
-              {cacheControlResult.errors && cacheControlResult.errors.length > 0 && (
-                <div className="text-xs text-red-500 space-y-0.5 mt-1">
-                  {cacheControlResult.errors.map((e, i) => (
+              {cleanupResult.errors && cleanupResult.errors.length > 0 && (
+                <div className="text-xs text-red-500 space-y-0.5 mt-2 border-t pt-2 dark:border-gray-700">
+                  {cleanupResult.errors.map((e, i) => (
                     <p key={i}>{e}</p>
                   ))}
                 </div>
