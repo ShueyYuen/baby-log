@@ -11,6 +11,7 @@ import 'dayjs/locale/zh-cn';
 import { Calendar, CheckCircle, Clock, Plus, CalendarPlus } from 'lucide-react';
 import { Button, Card, CardContent, Badge } from '../components/ui';
 import { addPlanToCalendar } from '../lib/calendar';
+import { PlansSkeleton } from '../components/ui/skeleton';
 
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
@@ -199,7 +200,7 @@ export default function PlansPage() {
 
       {/* Plans List */}
       {loading ? (
-        <div className="text-center py-12 text-gray-400">加载中...</div>
+        <PlansSkeleton />
       ) : plans.length === 0 ? (
         <div className="text-center py-12 text-gray-400">暂无计划</div>
       ) : (

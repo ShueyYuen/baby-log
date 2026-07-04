@@ -23,6 +23,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useBaby } from "../contexts/BabyContext";
 import { api, type RecordImage } from "../lib/api";
 import { cacheRead } from "../lib/queryCache";
+import { Skeleton } from "../components/ui/skeleton";
 
 function toLocalDateTimeString(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -620,7 +621,15 @@ export default function RecordFormPage() {
   };
 
   if (loadingRecord) {
-    return <div className="text-center py-12 text-gray-400">加载中...</div>;
+    return (
+      <div className="space-y-4 p-4">
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-12 rounded-xl" />
+        <Skeleton className="h-12 rounded-xl" />
+        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-12 rounded-xl" />
+      </div>
+    );
   }
 
   return (

@@ -10,6 +10,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
 import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock, Square, Play } from 'lucide-react';
 import { ImageViewer, useToast } from '../components/ui';
+import { TimelineSkeleton } from '../components/ui/skeleton';
 import { TwoPhaseTypeButton } from '../components/TwoPhaseTypeButton';
 import { isPushSupported, subscribePush, isSubscribed } from '../lib/push';
 import { addFeedingReminderToCalendar } from '../lib/calendar';
@@ -562,7 +563,7 @@ export default function TimelinePage() {
 
       {/* Timeline */}
       {loading ? (
-        <div className="text-center py-12 text-gray-400">加载中...</div>
+        <TimelineSkeleton />
       ) : records.length === 0 ? (
         <div className="text-center py-12 text-gray-400">暂无记录，点击 + 添加</div>
       ) : (

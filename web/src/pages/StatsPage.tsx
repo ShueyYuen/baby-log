@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getAgeDays, evaluatePee, evaluatePoop, evaluateFeeding, evaluateSleep, type DiaperStatus } from '../lib/diaper-standards';
+import { StatsSkeleton } from '../components/ui/skeleton';
 
 interface DailyData {
   date: string;
@@ -202,7 +203,7 @@ export default function StatsPage() {
       <h2 className="text-xl font-semibold dark:text-gray-100">数据统计</h2>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">加载中...</div>
+        <StatsSkeleton />
       ) : (
         <>
           {/* Today Summary */}

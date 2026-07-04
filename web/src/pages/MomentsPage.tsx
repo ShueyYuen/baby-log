@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui";
+import { MomentsSkeleton } from "../components/ui/skeleton";
 import { useAuth } from "../contexts/AuthContext";
 import {
   api,
@@ -1027,7 +1028,9 @@ export default function MomentsPage() {
           </div>
         )}
 
-        {loading && (
+        {loading && moments.length === 0 && <MomentsSkeleton />}
+
+        {loading && moments.length > 0 && (
           <div className="flex justify-center py-6">
             <div className="w-6 h-6 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
           </div>

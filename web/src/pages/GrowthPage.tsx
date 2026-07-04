@@ -10,6 +10,7 @@ import { Plus, Star, Pencil, Trash2, ImagePlus, Play, X } from 'lucide-react';
 import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DatePicker, ConfirmDialog, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { Textarea } from '../components/ui';
+import { GrowthSkeleton } from '../components/ui/skeleton';
 import { getPercentileData, PercentileData } from '../lib/growth-standards';
 
 interface GrowthItem {
@@ -52,6 +53,8 @@ export default function GrowthPage() {
   const [activeChart, setActiveChart] = useState<'weight' | 'height' | 'head'>('weight');
   const [deletingMilestoneId, setDeletingMilestoneId] = useState<string | null>(null);
 
+  const [loading, setLoading] = useState(true);
+
   const [gDate, setGDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [gHeight, setGHeight] = useState('');
   const [gWeight, setGWeight] = useState('');
@@ -79,22 +82,26 @@ export default function GrowthPage() {
       cacheInvalidate(cKeyMilestones);
     }
 
-    // Show stale data immediately
     const cachedGrowth = cacheRead<{ success: boolean; data: GrowthItem[] }>(cKeyGrowth);
     const cachedMilestones = cacheRead<{ success: boolean; data: MilestoneItem[] }>(cKeyMilestones);
     if (cachedGrowth && cachedMilestones) {
       setGrowthRecords(cachedGrowth.data);
       setMilestones(cachedMilestones.data);
+      setLoading(false);
     }
 
-    const [growthRes, milestonesRes] = await Promise.all([
-      api.get<{ success: boolean; data: GrowthItem[] }>(cKeyGrowth),
-      api.get<{ success: boolean; data: MilestoneItem[] }>(cKeyMilestones),
-    ]);
-    cacheWrite(cKeyGrowth, growthRes);
-    cacheWrite(cKeyMilestones, milestonesRes);
-    setGrowthRecords(growthRes.data);
-    setMilestones(milestonesRes.data);
+    try {
+      const [growthRes, milestonesRes] = await Promise.all([
+        api.get<{ success: boolean; data: GrowthItem[] }>(cKeyGrowth),
+        api.get<{ success: boolean; data: MilestoneItem[] }>(cKeyMilestones),
+      ]);
+      cacheWrite(cKeyGrowth, growthRes);
+      cacheWrite(cKeyMilestones, milestonesRes);
+      setGrowthRecords(growthRes.data);
+      setMilestones(milestonesRes.data);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const addGrowth = async (e: React.FormEvent) => {
@@ -254,6 +261,15 @@ export default function GrowthPage() {
     height: { label: '身高(cm)', color: '#10b981', key: 'value' },
     head: { label: '头围(cm)', color: '#6366f1', key: 'head' },
   };
+
+  if (loading && growthRecords.length === 0 && milestones.length === 0) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold dark:text-gray-100">成长记录</h2>
+        <GrowthSkeleton />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
