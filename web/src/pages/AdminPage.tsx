@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 import dayjs from 'dayjs';
-import { UserPlus, Trash2, KeyRound, Copy, Check, ShieldCheck, Eye, User as UserIcon, HardDrive } from 'lucide-react';
+import { UserPlus, Trash2, KeyRound, Copy, Check, ShieldCheck, Eye, User as UserIcon, HardDrive, Camera } from 'lucide-react';
 import { Button, Input, Card, CardContent, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, ConfirmDialog, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 
@@ -12,6 +12,7 @@ interface UserItem {
   displayName: string;
   role: string;
   createdAt: string;
+  avatar?: string | null;
 }
 
 export default function AdminPage() {
@@ -38,6 +39,12 @@ export default function AdminPage() {
     errors?: string[];
   } | null>(null);
   const [cleaningUp, setCleaningUp] = useState(false);
+  const [avatarTarget, setAvatarTarget] = useState<UserItem | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarFileRef = useRef<HTMLInputElement>(null);
+  const createAvatarFileRef = useRef<HTMLInputElement>(null);
+  const [newAvatarPreview, setNewAvatarPreview] = useState<string | null>(null);
+  const [newAvatarKey, setNewAvatarKey] = useState<string | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -56,15 +63,20 @@ export default function AdminPage() {
     e.preventDefault();
     setCreating(true);
     try {
-      const res = await api.post<{ success: boolean; data: { generatedPassword: string } }>('/auth/users', {
+      const res = await api.post<{ success: boolean; data: { id: string; generatedPassword: string } }>('/auth/users', {
         username: newUsername,
         displayName: newDisplayName,
         role: newUserRole,
       });
+      if (newAvatarPreview) {
+        await api.put(`/auth/users/${res.data.id}/avatar`, { avatar: newAvatarPreview });
+      }
       setGeneratedPassword(res.data.generatedPassword);
       setNewUsername('');
       setNewDisplayName('');
       setNewUserRole('user');
+      setNewAvatarPreview(null);
+      setNewAvatarKey(null);
       loadUsers();
     } catch (err: any) {
       toast(err.message || '创建失败', 'error');
@@ -127,6 +139,30 @@ export default function AdminPage() {
     }
   };
 
+  const handleAvatarUpload = useCallback(async (file: File, userId?: string) => {
+    setAvatarUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploadRes = await api.post<{ success: boolean; data: { url: string; key: string } }>('/upload', formData);
+      const { url, key } = uploadRes.data;
+
+      if (userId) {
+        await api.put(`/auth/users/${userId}/avatar`, { avatar: url });
+        toast('头像已更新', 'success');
+        setAvatarTarget(null);
+        loadUsers();
+      } else {
+        setNewAvatarPreview(url);
+        setNewAvatarKey(key);
+      }
+    } catch (err: any) {
+      toast(err.message || '上传失败', 'error');
+    } finally {
+      setAvatarUploading(false);
+    }
+  }, []);
+
   const roleBadge = (role: string) => {
     if (role === 'admin') return <Badge variant="info">管理员</Badge>;
     if (role === 'viewer') return <Badge variant="secondary">只读</Badge>;
@@ -152,14 +188,30 @@ export default function AdminPage() {
         {users.map((u) => (
           <Card key={u.id}>
             <CardContent className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium dark:text-gray-100">{u.displayName}</span>
-                  {roleBadge(u.role)}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setAvatarTarget(u)}
+                  className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-gray-700 flex items-center justify-center group"
+                  title="修改头像"
+                >
+                  {u.avatar ? (
+                    <img src={u.avatar} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <UserIcon size={18} className="text-gray-400" />
+                  )}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <Camera size={14} className="text-white" />
+                  </div>
+                </button>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium dark:text-gray-100">{u.displayName}</span>
+                    {roleBadge(u.role)}
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    @{u.username} · 创建于 {dayjs(u.createdAt).format('YYYY-MM-DD')}
+                  </p>
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  @{u.username} · 创建于 {dayjs(u.createdAt).format('YYYY-MM-DD')}
-                </p>
               </div>
               {u.id !== currentUser?.id && (
                 <div className="flex items-center gap-1">
@@ -231,7 +283,7 @@ export default function AdminPage() {
       </Dialog>
 
       {/* Create User Dialog */}
-      <Dialog open={showCreateForm} onOpenChange={(open) => { setShowCreateForm(open); if (!open) setGeneratedPassword(''); }}>
+      <Dialog open={showCreateForm} onOpenChange={(open) => { setShowCreateForm(open); if (!open) { setGeneratedPassword(''); setNewAvatarPreview(null); setNewAvatarKey(null); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>新建用户</DialogTitle>
@@ -257,6 +309,40 @@ export default function AdminPage() {
                     <SelectItem value="viewer">只读用户（仅可查看 + 发朋友圈）</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">头像（可选）</label>
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                    {newAvatarPreview ? (
+                      <img src={newAvatarPreview} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <UserIcon size={24} className="text-gray-400" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={avatarUploading}
+                      onClick={() => createAvatarFileRef.current?.click()}
+                    >
+                      {avatarUploading ? '上传中...' : newAvatarPreview ? '更换' : '选择图片'}
+                    </Button>
+                    <input
+                      ref={createAvatarFileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleAvatarUpload(f);
+                        e.target.value = '';
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400">系统将自动生成强密码，创建后请妥善保存。</p>
               <div className="flex gap-3">
@@ -363,6 +449,60 @@ export default function AdminPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Avatar Edit Dialog */}
+      <Dialog open={!!avatarTarget} onOpenChange={(open) => { if (!open) setAvatarTarget(null); }}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>修改头像 — {avatarTarget?.displayName}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 pt-2">
+            <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+              {avatarTarget?.avatar ? (
+                <img src={avatarTarget.avatar} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <UserIcon size={40} className="text-gray-400" />
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={avatarUploading}
+                onClick={() => avatarFileRef.current?.click()}
+              >
+                {avatarUploading ? '上传中...' : '选择图片'}
+              </Button>
+              {avatarTarget?.avatar && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    if (!avatarTarget) return;
+                    await api.put(`/auth/users/${avatarTarget.id}/avatar`, { avatar: null });
+                    toast('头像已移除', 'success');
+                    setAvatarTarget(null);
+                    loadUsers();
+                  }}
+                >
+                  移除
+                </Button>
+              )}
+            </div>
+            <input
+              ref={avatarFileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f && avatarTarget) handleAvatarUpload(f, avatarTarget.id);
+                e.target.value = '';
+              }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

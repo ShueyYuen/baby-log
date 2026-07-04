@@ -204,8 +204,9 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	var id, username, storedHash, displayName, role string
 	var tokenVersion int
-	err := db.QueryRow(`SELECT id, username, password, displayName, role, "tokenVersion" FROM "User" WHERE username = ?`, *body.Username).
-		Scan(&id, &username, &storedHash, &displayName, &role, &tokenVersion)
+	var avatar *string
+	err := db.QueryRow(`SELECT id, username, password, displayName, role, "tokenVersion", avatar FROM "User" WHERE username = ?`, *body.Username).
+		Scan(&id, &username, &storedHash, &displayName, &role, &tokenVersion, &avatar)
 	if err != nil || !checkPassword(storedHash, *body.Password) {
 		if body.Username != nil {
 			recordLoginFailure(*body.Username)
@@ -230,7 +231,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	writeOK(w, map[string]interface{}{
 		"token": token,
-		"user":  userPublic{ID: id, Username: username, DisplayName: displayName, Role: role},
+		"user":  userPublic{ID: id, Username: username, DisplayName: displayName, Role: role, Avatar: avatar},
 	})
 }
 
@@ -257,14 +258,15 @@ func handleMe(w http.ResponseWriter, r *http.Request) {
 	role := getUserRole(r)
 
 	var username, displayName string
-	err := db.QueryRow(`SELECT username, displayName FROM "User" WHERE id = ?`, userID).
-		Scan(&username, &displayName)
+	var avatar *string
+	err := db.QueryRow(`SELECT username, displayName, avatar FROM "User" WHERE id = ?`, userID).
+		Scan(&username, &displayName, &avatar)
 	if err != nil {
 		writeErr(w, http.StatusUnauthorized, "Invalid token")
 		return
 	}
 
-	writeOK(w, userPublic{ID: userID, Username: username, DisplayName: displayName, Role: role})
+	writeOK(w, userPublic{ID: userID, Username: username, DisplayName: displayName, Role: role, Avatar: avatar})
 }
 
 // requireEditorRole middleware: denies write access for "viewer"-role users.
@@ -339,7 +341,7 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := db.Query(`SELECT id, username, displayName, role, createdAt FROM "User" ORDER BY createdAt ASC`)
+	rows, err := db.Query(`SELECT id, username, displayName, role, createdAt, avatar FROM "User" ORDER BY createdAt ASC`)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
@@ -347,18 +349,19 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type userListItem struct {
-		ID          string `json:"id"`
-		Username    string `json:"username"`
-		DisplayName string `json:"displayName"`
-		Role        string `json:"role"`
-		CreatedAt   Millis `json:"createdAt"`
+		ID          string  `json:"id"`
+		Username    string  `json:"username"`
+		DisplayName string  `json:"displayName"`
+		Role        string  `json:"role"`
+		CreatedAt   Millis  `json:"createdAt"`
+		Avatar      *string `json:"avatar"`
 	}
 
 	list := []userListItem{}
 	for rows.Next() {
 		var it userListItem
 		var created int64
-		if err := rows.Scan(&it.ID, &it.Username, &it.DisplayName, &it.Role, &created); err != nil {
+		if err := rows.Scan(&it.ID, &it.Username, &it.DisplayName, &it.Role, &created, &it.Avatar); err != nil {
 			writeErr(w, http.StatusInternalServerError, "Server error")
 			return
 		}
@@ -480,6 +483,36 @@ func handleSetUserRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, map[string]string{"id": targetID, "role": body.Role})
+}
+
+// PUT /auth/users/{id}/avatar （管理员）
+func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
+	if !isAdminCtx(r) {
+		writeErr(w, http.StatusForbidden, "仅管理员可操作")
+		return
+	}
+
+	targetID := chiURLParam(r, "id")
+
+	var body struct {
+		Avatar *string `json:"avatar"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, http.StatusBadRequest, "Invalid input")
+		return
+	}
+
+	now := int64(nowMillis())
+	res, err := db.Exec(`UPDATE "User" SET avatar = ?, updatedAt = ? WHERE id = ?`, body.Avatar, now, targetID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeErr(w, http.StatusNotFound, "User not found")
+		return
+	}
+	writeOK(w, map[string]interface{}{"id": targetID, "avatar": body.Avatar})
 }
 
 var _ = sql.ErrNoRows

@@ -72,6 +72,7 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				r.Delete("/users/{id}", handleDeleteUser)
 				r.Post("/users/{id}/reset-password", handleResetPassword)
 				r.Put("/users/{id}/role", handleSetUserRole)
+				r.Put("/users/{id}/avatar", handleSetUserAvatar)
 			})
 		})
 

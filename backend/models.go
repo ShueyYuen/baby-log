@@ -3,10 +3,11 @@ package main
 import "encoding/json"
 
 type userPublic struct {
-	ID          string `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
-	Role        string `json:"role"`
+	ID          string  `json:"id"`
+	Username    string  `json:"username"`
+	DisplayName string  `json:"displayName"`
+	Role        string  `json:"role"`
+	Avatar      *string `json:"avatar"`
 }
 
 type memberUser struct {

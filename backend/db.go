@@ -66,6 +66,7 @@ func initDB() {
 func runMigrations() {
 	migrations := []string{
 		`ALTER TABLE "User" ADD COLUMN "tokenVersion" INTEGER NOT NULL DEFAULT 1`,
+		`ALTER TABLE "User" ADD COLUMN "avatar" TEXT`,
 	}
 	for _, m := range migrations {
 		if _, err := db.Exec(m); err != nil {
@@ -85,6 +86,7 @@ CREATE TABLE IF NOT EXISTS "User" (
     "displayName" TEXT NOT NULL,
     "role" TEXT NOT NULL DEFAULT 'user',
     "tokenVersion" INTEGER NOT NULL DEFAULT 1,
+    "avatar" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
