@@ -22,3 +22,4 @@ export { ScrollDateTimePicker } from './scroll-datetime-picker';
 export { ImageViewer, type ViewerImage } from './image-viewer';
 export { ConfirmDialog } from './confirm-dialog';
 export { ToastProvider, useToast } from './toast';
+export { Slider } from './slider';

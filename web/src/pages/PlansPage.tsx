@@ -127,7 +127,10 @@ export default function PlansPage() {
   const [completingId, setCompletingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!currentBaby) return;
+    if (!currentBaby) {
+      setLoading(false);
+      return;
+    }
     loadPlans();
   }, [currentBaby, statusFilter]);
 

@@ -231,7 +231,7 @@ export default function AdminPage() {
       </Dialog>
 
       {/* Create User Dialog */}
-      <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+      <Dialog open={showCreateForm} onOpenChange={(open) => { setShowCreateForm(open); if (!open) setGeneratedPassword(''); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>新建用户</DialogTitle>

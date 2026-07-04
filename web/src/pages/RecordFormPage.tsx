@@ -1,4 +1,4 @@
-import { ArrowLeft, ImagePlus, Play, X, AlertCircle } from "lucide-react";
+import { AlertCircle, ArrowLeft, ImagePlus, Play, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useLocation,
@@ -6,7 +6,6 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import { cacheInvalidate } from '../lib/queryCache';
 import {
   Button,
   DateTimePicker,
@@ -17,14 +16,20 @@ import {
   DialogTitle,
   ImageViewer,
   ScrollDateTimePicker,
+  Slider,
   Textarea,
   useToast,
 } from "../components/ui";
+import { Skeleton } from "../components/ui/skeleton";
 import { useAuth } from "../contexts/AuthContext";
 import { useBaby } from "../contexts/BabyContext";
-import { api, generateIdempotencyKey, type RecordImage, type UploadMomentResult } from "../lib/api";
-import { cacheRead } from "../lib/queryCache";
-import { Skeleton } from "../components/ui/skeleton";
+import {
+  api,
+  generateIdempotencyKey,
+  type RecordImage,
+  type UploadMomentResult,
+} from "../lib/api";
+import { cacheInvalidate, cacheRead } from "../lib/queryCache";
 
 interface MediaPreview {
   file?: File;
@@ -32,14 +37,20 @@ interface MediaPreview {
   result?: UploadMomentResult;
   progress?: number;
   error?: boolean;
-  type: 'image' | 'video';
+  type: "image" | "video";
   existing?: RecordImage;
 }
 
 const CONCURRENT_UPLOADS = 5;
 const PROGRESS_STEP = 5;
 
-function UploadProgressRing({ progress, error }: { progress: number; error?: boolean }) {
+function UploadProgressRing({
+  progress,
+  error,
+}: {
+  progress: number;
+  error?: boolean;
+}) {
   const r = 18;
   const circumference = 2 * Math.PI * r;
   const offset = circumference - (progress / 100) * circumference;
@@ -50,11 +61,25 @@ function UploadProgressRing({ progress, error }: { progress: number; error?: boo
       ) : (
         <div className="relative w-11 h-11">
           <svg viewBox="0 0 44 44" className="w-full h-full -rotate-90">
-            <circle cx="22" cy="22" r={r} fill="none" stroke="white" strokeWidth="3" opacity={0.3} />
             <circle
-              cx="22" cy="22" r={r}
-              fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"
-              strokeDasharray={circumference} strokeDashoffset={offset}
+              cx="22"
+              cy="22"
+              r={r}
+              fill="none"
+              stroke="white"
+              strokeWidth="3"
+              opacity={0.3}
+            />
+            <circle
+              cx="22"
+              cy="22"
+              r={r}
+              fill="none"
+              stroke="white"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
               className="transition-[stroke-dashoffset] duration-200"
             />
           </svg>
@@ -126,9 +151,15 @@ function normalizeRecordImages(raw: unknown): RecordImage[] {
 function recordImagesToPreviews(images: RecordImage[]): MediaPreview[] {
   return images.map((img) => ({
     url: img.url,
-    type: (img.mediaType === 'video' ? 'video' : 'image') as 'image' | 'video',
+    type: (img.mediaType === "video" ? "video" : "image") as "image" | "video",
     existing: img,
-    result: { url: img.url, key: img.key, rawUrl: img.rawUrl, rawKey: img.rawKey, mediaType: img.mediaType || 'image' },
+    result: {
+      url: img.url,
+      key: img.key,
+      rawUrl: img.rawUrl,
+      rawKey: img.rawKey,
+      mediaType: img.mediaType || "image",
+    },
   }));
 }
 
@@ -167,10 +198,16 @@ export default function RecordFormPage() {
   const [previews, setPreviews] = useState<MediaPreview[]>(
     (_sr?.images || []).map((img: RecordImage) => ({
       url: img.url,
-      type: img.mediaType === 'video' ? 'video' : 'image',
+      type: img.mediaType === "video" ? "video" : "image",
       existing: img,
-      result: { url: img.url, key: img.key, rawUrl: img.rawUrl, rawKey: img.rawKey, mediaType: img.mediaType || 'image' },
-    }))
+      result: {
+        url: img.url,
+        key: img.key,
+        rawUrl: img.rawUrl,
+        rawKey: img.rawKey,
+        mediaType: img.mediaType || "image",
+      },
+    })),
   );
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -212,7 +249,9 @@ export default function RecordFormPage() {
         setType(stateRecord.type);
         setOccurredAt(toLocalDateTimeString(new Date(stateRecord.occurredAt)));
         setNote(stateRecord.note || "");
-        setPreviews(recordImagesToPreviews(normalizeRecordImages(stateRecord.images)));
+        setPreviews(
+          recordImagesToPreviews(normalizeRecordImages(stateRecord.images)),
+        );
         populateData(stateRecord.type, stateRecord.data);
         setLoadingRecord(false);
       } else {
@@ -240,7 +279,9 @@ export default function RecordFormPage() {
         setType(record.type);
         setOccurredAt(toLocalDateTimeString(new Date(record.occurredAt)));
         setNote(record.note || "");
-        setPreviews(recordImagesToPreviews(normalizeRecordImages(record.images)));
+        setPreviews(
+          recordImagesToPreviews(normalizeRecordImages(record.images)),
+        );
         populateData(record.type, record.data);
         setLoadingRecord(false);
         return;
@@ -254,7 +295,9 @@ export default function RecordFormPage() {
         setType(freshRecord.type);
         setOccurredAt(toLocalDateTimeString(new Date(freshRecord.occurredAt)));
         setNote(freshRecord.note || "");
-        setPreviews(recordImagesToPreviews(normalizeRecordImages(freshRecord.images)));
+        setPreviews(
+          recordImagesToPreviews(normalizeRecordImages(freshRecord.images)),
+        );
         populateData(freshRecord.type, freshRecord.data);
       }
     } catch {
@@ -313,71 +356,84 @@ export default function RecordFormPage() {
     setOccurredAt(toLocalDateTimeString(d));
   };
 
-  const handleFiles = useCallback(async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const allowed = Array.from(files);
-    const startIdx = previews.length;
+  const handleFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      const allowed = Array.from(files);
+      const startIdx = previews.length;
 
-    const placeholders: MediaPreview[] = allowed.map((f) => ({
-      file: f,
-      url: '',
-      type: f.type.startsWith('video/') ? 'video' as const : 'image' as const,
-      progress: 0,
-    }));
-    setPreviews((prev) => [...prev, ...placeholders]);
-    setUploading(true);
+      const placeholders: MediaPreview[] = allowed.map((f) => ({
+        file: f,
+        url: "",
+        type: f.type.startsWith("video/")
+          ? ("video" as const)
+          : ("image" as const),
+        progress: 0,
+      }));
+      setPreviews((prev) => [...prev, ...placeholders]);
+      setUploading(true);
 
-    for (let i = 0; i < allowed.length; i++) {
-      const blobUrl = URL.createObjectURL(allowed[i]);
-      setPreviews((prev) => {
-        const next = [...prev];
-        const idx = startIdx + i;
-        if (next[idx]) next[idx] = { ...next[idx], url: blobUrl };
-        return next;
-      });
-      if (i % 3 === 2) await new Promise((r) => requestAnimationFrame(r));
-    }
-
-    let queueIdx = 0;
-    const lastReported: number[] = new Array(allowed.length).fill(-1);
-
-    const uploadNext = async (): Promise<void> => {
-      const myIdx = queueIdx++;
-      if (myIdx >= allowed.length) return;
-      const fileIdx = startIdx + myIdx;
-      try {
-        const result = await api.moments.uploadMediaSingle(
-          allowed[myIdx],
-          (percent) => {
-            const stepped = Math.floor(percent / PROGRESS_STEP) * PROGRESS_STEP;
-            if (stepped <= lastReported[myIdx]) return;
-            lastReported[myIdx] = stepped;
-            setPreviews((prev) => {
-              const next = [...prev];
-              if (next[fileIdx]) next[fileIdx] = { ...next[fileIdx], progress: stepped };
-              return next;
-            });
-          },
-        );
+      for (let i = 0; i < allowed.length; i++) {
+        const blobUrl = URL.createObjectURL(allowed[i]);
         setPreviews((prev) => {
           const next = [...prev];
-          if (next[fileIdx]) next[fileIdx] = { ...next[fileIdx], result, progress: undefined };
+          const idx = startIdx + i;
+          if (next[idx]) next[idx] = { ...next[idx], url: blobUrl };
           return next;
         });
-      } catch {
-        setPreviews((prev) => {
-          const next = [...prev];
-          if (next[fileIdx]) next[fileIdx] = { ...next[fileIdx], error: true, progress: undefined };
-          return next;
-        });
+        if (i % 3 === 2) await new Promise((r) => requestAnimationFrame(r));
       }
-      await uploadNext();
-    };
 
-    const workers = Math.min(CONCURRENT_UPLOADS, allowed.length);
-    await Promise.all(Array.from({ length: workers }, () => uploadNext()));
-    setUploading(false);
-  }, [previews.length]);
+      let queueIdx = 0;
+      const lastReported: number[] = new Array(allowed.length).fill(-1);
+
+      const uploadNext = async (): Promise<void> => {
+        const myIdx = queueIdx++;
+        if (myIdx >= allowed.length) return;
+        const fileIdx = startIdx + myIdx;
+        try {
+          const result = await api.moments.uploadMediaSingle(
+            allowed[myIdx],
+            (percent) => {
+              const stepped =
+                Math.floor(percent / PROGRESS_STEP) * PROGRESS_STEP;
+              if (stepped <= lastReported[myIdx]) return;
+              lastReported[myIdx] = stepped;
+              setPreviews((prev) => {
+                const next = [...prev];
+                if (next[fileIdx])
+                  next[fileIdx] = { ...next[fileIdx], progress: stepped };
+                return next;
+              });
+            },
+          );
+          setPreviews((prev) => {
+            const next = [...prev];
+            if (next[fileIdx])
+              next[fileIdx] = { ...next[fileIdx], result, progress: undefined };
+            return next;
+          });
+        } catch {
+          setPreviews((prev) => {
+            const next = [...prev];
+            if (next[fileIdx])
+              next[fileIdx] = {
+                ...next[fileIdx],
+                error: true,
+                progress: undefined,
+              };
+            return next;
+          });
+        }
+        await uploadNext();
+      };
+
+      const workers = Math.min(CONCURRENT_UPLOADS, allowed.length);
+      await Promise.all(Array.from({ length: workers }, () => uploadNext()));
+      setUploading(false);
+    },
+    [previews.length],
+  );
 
   const removePreview = useCallback((idx: number) => {
     setPreviews((prev) => {
@@ -426,7 +482,11 @@ export default function RecordFormPage() {
     try {
       const completedImages = previews
         .filter((p) => p.result)
-        .map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType }));
+        .map((p) => ({
+          key: p.result!.key,
+          rawKey: p.result!.rawKey,
+          mediaType: p.result!.mediaType,
+        }));
       const payload = {
         babyId: currentBaby.id,
         category,
@@ -442,7 +502,7 @@ export default function RecordFormPage() {
       } else {
         await api.post("/records", payload, idempotencyKeyRef.current);
       }
-      cacheInvalidate('/timeline');
+      cacheInvalidate("/timeline");
       navigate("/", { replace: true });
     } catch {
       toast(isEditing ? "修改失败" : "添加失败", "error");
@@ -458,26 +518,28 @@ export default function RecordFormPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                左侧(分钟)
+                左侧
               </label>
-              <input
-                type="number"
+              <Slider
                 value={leftMinutes}
-                onChange={(e) => setLeftMinutes(+e.target.value)}
-                className="input"
+                onChange={setLeftMinutes}
                 min={0}
+                max={60}
+                step={1}
+                unit="分钟"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                右侧(分钟)
+                右侧
               </label>
-              <input
-                type="number"
+              <Slider
                 value={rightMinutes}
-                onChange={(e) => setRightMinutes(+e.target.value)}
-                className="input"
+                onChange={setRightMinutes}
                 min={0}
+                max={60}
+                step={1}
+                unit="分钟"
               />
             </div>
           </div>
@@ -508,15 +570,15 @@ export default function RecordFormPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                奶量(ml)
+                奶量
               </label>
-              <input
-                type="number"
+              <Slider
                 value={amountMl}
-                onChange={(e) => setAmountMl(+e.target.value)}
-                className="input"
+                onChange={setAmountMl}
                 min={0}
-                step={10}
+                max={300}
+                step={5}
+                unit="ml"
               />
             </div>
           </div>
@@ -554,15 +616,15 @@ export default function RecordFormPage() {
         return (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              水量(ml)
+              水量
             </label>
-            <input
-              type="number"
+            <Slider
               value={waterMl}
-              onChange={(e) => setWaterMl(+e.target.value)}
-              className="input"
+              onChange={setWaterMl}
               min={0}
+              max={200}
               step={5}
+              unit="ml"
             />
           </div>
         );
@@ -636,16 +698,15 @@ export default function RecordFormPage() {
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                温度(°C)
+                温度
               </label>
-              <input
-                type="number"
+              <Slider
                 value={temperature}
-                onChange={(e) => setTemperature(+e.target.value)}
-                className="input"
+                onChange={setTemperature}
                 min={35}
                 max={42}
                 step={0.1}
+                unit="°C"
               />
             </div>
             <div>
@@ -676,15 +737,15 @@ export default function RecordFormPage() {
         return (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              持续时间(分钟)
+              持续时间
             </label>
-            <input
-              type="number"
+            <Slider
               value={sleepDuration}
-              onChange={(e) => setSleepDuration(+e.target.value)}
-              className="input"
+              onChange={setSleepDuration}
               min={0}
-              step={1}
+              max={240}
+              step={5}
+              unit="分钟"
             />
           </div>
         );
@@ -692,15 +753,15 @@ export default function RecordFormPage() {
         return (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              持续时间(分钟)
+              持续时间
             </label>
-            <input
-              type="number"
+            <Slider
               value={bathDuration}
-              onChange={(e) => setBathDuration(+e.target.value)}
-              className="input"
+              onChange={setBathDuration}
               min={0}
+              max={60}
               step={1}
+              unit="分钟"
             />
             <div className="flex flex-wrap gap-1.5 mt-2">
               {[5, 10, 15, 20, 30].map((min) => (
@@ -724,15 +785,15 @@ export default function RecordFormPage() {
         return (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              持续时间(分钟)
+              持续时间
             </label>
-            <input
-              type="number"
+            <Slider
               value={playDuration}
-              onChange={(e) => setPlayDuration(+e.target.value)}
-              className="input"
+              onChange={setPlayDuration}
               min={0}
-              step={1}
+              max={120}
+              step={5}
+              unit="分钟"
             />
             <div className="flex flex-wrap gap-1.5 mt-2">
               {[10, 15, 20, 30, 45, 60].map((min) => (
@@ -781,7 +842,12 @@ export default function RecordFormPage() {
         <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">
           {typeLabels[type] || type}
         </h2>
-        <Button type="submit" form="record-form" size="sm" disabled={loading || uploading}>
+        <Button
+          type="submit"
+          form="record-form"
+          size="sm"
+          disabled={loading || uploading}
+        >
           {loading ? "保存中..." : uploading ? "上传中..." : "保存"}
         </Button>
       </div>
@@ -909,7 +975,10 @@ export default function RecordFormPage() {
                   />
                 )}
                 {p.file && !p.result && (
-                  <UploadProgressRing progress={p.progress ?? 0} error={p.error} />
+                  <UploadProgressRing
+                    progress={p.progress ?? 0}
+                    error={p.error}
+                  />
                 )}
                 <button
                   type="button"
@@ -934,7 +1003,9 @@ export default function RecordFormPage() {
                 }}
               />
               {uploading ? (
-                <span className="text-xs text-gray-400 animate-pulse">上传中</span>
+                <span className="text-xs text-gray-400 animate-pulse">
+                  上传中
+                </span>
               ) : (
                 <ImagePlus size={20} className="text-gray-400" />
               )}
@@ -943,7 +1014,9 @@ export default function RecordFormPage() {
           {previews.length > 0 && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
               已选 {previews.length} 个文件
-              {previews.some(p => p.error) && <span className="text-red-400 ml-1">(部分上传失败)</span>}
+              {previews.some((p) => p.error) && (
+                <span className="text-red-400 ml-1">(部分上传失败)</span>
+              )}
             </p>
           )}
         </div>
@@ -982,7 +1055,7 @@ export default function RecordFormPage() {
               onClick={async () => {
                 try {
                   await api.delete(`/records/${id}`);
-                  cacheInvalidate('/timeline');
+                  cacheInvalidate("/timeline");
                   navigate("/", { replace: true });
                 } catch {
                   toast("删除失败", "error");
@@ -996,10 +1069,12 @@ export default function RecordFormPage() {
       </Dialog>
 
       <ImageViewer
-        images={previews.filter((p) => p.result).map((p) => ({
-          url: p.result!.url,
-          rawUrl: p.result!.rawUrl,
-        }))}
+        images={previews
+          .filter((p) => p.result)
+          .map((p) => ({
+            url: p.result!.url,
+            rawUrl: p.result!.rawUrl,
+          }))}
         initialIndex={viewerIndex}
         open={viewerOpen}
         onOpenChange={setViewerOpen}

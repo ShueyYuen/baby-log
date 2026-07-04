@@ -111,7 +111,10 @@ export default function GrowthPage() {
   const [mUploading, setMUploading] = useState(false);
 
   useEffect(() => {
-    if (!currentBaby) return;
+    if (!currentBaby) {
+      setLoading(false);
+      return;
+    }
     loadData(true);
   }, [currentBaby]);
 
@@ -440,7 +443,7 @@ export default function GrowthPage() {
                 </Button>
               </DialogTrigger>
               )}
-            <DialogContent className="w-[calc(100%-2rem)] max-w-sm">
+            <DialogContent className="max-w-sm">
               <DialogHeader>
                 <DialogTitle>记录生理数据</DialogTitle>
               </DialogHeader>
@@ -484,7 +487,7 @@ export default function GrowthPage() {
               </Button>
             </DialogTrigger>
             )}
-            <DialogContent className="w-[calc(100%-2rem)] max-w-sm">
+            <DialogContent className="max-w-sm">
               <DialogHeader>
                 <DialogTitle>记录里程碑</DialogTitle>
               </DialogHeader>
@@ -600,7 +603,7 @@ export default function GrowthPage() {
 
         {/* Edit Milestone Dialog */}
         <Dialog open={!!editingMilestone} onOpenChange={(open) => { if (!open) setEditingMilestone(null); }}>
-          <DialogContent className="w-[calc(100%-2rem)] max-w-sm">
+          <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle>编辑里程碑</DialogTitle>
             </DialogHeader>
