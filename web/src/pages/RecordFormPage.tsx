@@ -71,11 +71,15 @@ export default function RecordFormPage() {
   const urlType = searchParams.get('type');
   const urlCategory = searchParams.get('category') as CategoryType | null;
 
-  const [category, setCategory] = useState<CategoryType>(urlCategory || 'feeding');
-  const [type, setType] = useState(urlType || 'breastfeed');
-  const [occurredAt, setOccurredAt] = useState(toLocalDateTimeString(new Date()));
-  const [note, setNote] = useState('');
-  const [images, setImages] = useState<string[]>([]);
+  // Derive initial values from location state (passed when navigating from list) for instant render
+  const _sr = isEditing ? (location.state as any)?.record : null;
+  const _d = _sr?.data || {};
+
+  const [category, setCategory] = useState<CategoryType>(_sr?.category || urlCategory || 'feeding');
+  const [type, setType] = useState(_sr?.type || urlType || 'breastfeed');
+  const [occurredAt, setOccurredAt] = useState(_sr ? toLocalDateTimeString(new Date(_sr.occurredAt)) : toLocalDateTimeString(new Date()));
+  const [note, setNote] = useState(_sr?.note || '');
+  const [images, setImages] = useState<string[]>(_sr?.images || []);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -83,21 +87,21 @@ export default function RecordFormPage() {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
 
-  // Dynamic form data
-  const [leftMinutes, setLeftMinutes] = useState(10);
-  const [rightMinutes, setRightMinutes] = useState(10);
-  const [milkType, setMilkType] = useState<'breast_milk' | 'formula'>('formula');
-  const [amountMl, setAmountMl] = useState(120);
-  const [solidName, setSolidName] = useState('');
-  const [solidAmount, setSolidAmount] = useState('');
-  const [waterMl, setWaterMl] = useState(30);
-  const [diaperType, setDiaperType] = useState<'wet' | 'dirty' | 'both'>('wet');
-  const [sleepDuration, setSleepDuration] = useState(60);
-  const [supplementName, setSupplementName] = useState('维生素D');
-  const [temperature, setTemperature] = useState(36.5);
-  const [tempLocation, setTempLocation] = useState<'axillary' | 'ear' | 'forehead' | 'rectal'>('axillary');
-  const [playDuration, setPlayDuration] = useState(30);
-  const [bathDuration, setBathDuration] = useState(15);
+  // Dynamic form data — initialized from state record if available
+  const [leftMinutes, setLeftMinutes] = useState(_d.leftMinutes ?? 10);
+  const [rightMinutes, setRightMinutes] = useState(_d.rightMinutes ?? 10);
+  const [milkType, setMilkType] = useState<'breast_milk' | 'formula'>(_d.milkType || 'formula');
+  const [amountMl, setAmountMl] = useState(_d.amountMl ?? 120);
+  const [solidName, setSolidName] = useState(_d.name || '');
+  const [solidAmount, setSolidAmount] = useState(_d.amount || '');
+  const [waterMl, setWaterMl] = useState(_d.amountMl ?? 30);
+  const [diaperType, setDiaperType] = useState<'wet' | 'dirty' | 'both'>(_d.type || 'wet');
+  const [sleepDuration, setSleepDuration] = useState(_d.durationMinutes ?? 60);
+  const [supplementName, setSupplementName] = useState(_d.name || '维生素D');
+  const [temperature, setTemperature] = useState(_d.value ?? 36.5);
+  const [tempLocation, setTempLocation] = useState<'axillary' | 'ear' | 'forehead' | 'rectal'>(_d.location || 'axillary');
+  const [playDuration, setPlayDuration] = useState(_d.durationMinutes ?? 30);
+  const [bathDuration, setBathDuration] = useState(_d.durationMinutes ?? 15);
 
   useEffect(() => {
     if (isEditing && currentBaby) {
@@ -250,7 +254,7 @@ export default function RecordFormPage() {
       } else {
         await api.post('/records', payload);
       }
-      navigate('/');
+      navigate('/', { replace: true });
     } catch {
       toast(isEditing ? '修改失败' : '添加失败', 'error');
     } finally {
@@ -448,7 +452,7 @@ export default function RecordFormPage() {
   return (
     <div
       style={{ viewTransitionName: id ? `record-card-${id}` : undefined }}
-      className="fixed inset-0 md:top-0 md:bottom-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900"
+      className="fixed inset-0 md:top-0 md:bottom-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900 form-expand-in"
     >
       <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -635,7 +639,7 @@ export default function RecordFormPage() {
               onClick={async () => {
                 try {
                   await api.delete(`/records/${id}`);
-                  navigate('/');
+                  navigate('/', { replace: true });
                 } catch {
                   toast('删除失败', 'error');
                 }

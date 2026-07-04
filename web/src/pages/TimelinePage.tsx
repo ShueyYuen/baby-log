@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useViewTransitionState } from 'react-router-dom';
+import { flushSync } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
@@ -133,15 +134,25 @@ interface RecordCardItemProps {
 function RecordCardItem({ record, isViewer, onImageClick }: RecordCardItemProps) {
   const navigate = useNavigate();
   const href = `/record/${record.id}/edit`;
-  const isTransitioning = useViewTransitionState(href);
   const config = typeConfig[record.type] || typeConfig.other;
   const Icon = config.icon;
+
+  const handleClick = () => {
+    if (isViewer) return;
+    const doNavigate = () => navigate(href, { state: { record } });
+    if (document.startViewTransition) {
+      document.startViewTransition(() => { flushSync(doNavigate); });
+    } else {
+      doNavigate();
+    }
+  };
+
   return (
     <div
       key={record.id}
-      style={{ viewTransitionName: isTransitioning ? `record-card-${record.id}` : undefined }}
+      style={{ viewTransitionName: `record-card-${record.id}` }}
       className={`card flex items-center gap-3 transition-colors ${!isViewer ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700' : ''}`}
-      onClick={() => !isViewer && navigate(href, { viewTransition: true, state: { record } })}
+      onClick={handleClick}
     >
       <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
         <Icon size={18} />

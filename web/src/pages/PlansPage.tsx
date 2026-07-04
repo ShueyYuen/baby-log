@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate, useViewTransitionState } from 'react-router-dom';
+import { flushSync } from 'react-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
@@ -50,12 +51,22 @@ interface PlanCardItemProps {
 function PlanCardItem({ plan, isViewer, onComplete, onCalendar }: PlanCardItemProps) {
   const navigate = useNavigate();
   const href = `/plan/${plan.id}/edit`;
-  const isTransitioning = useViewTransitionState(href);
+
+  const handleClick = () => {
+    if (isViewer) return;
+    const doNavigate = () => navigate(href, { state: { plan } });
+    if (document.startViewTransition) {
+      document.startViewTransition(() => { flushSync(doNavigate); });
+    } else {
+      doNavigate();
+    }
+  };
+
   return (
     <Card
-      style={{ viewTransitionName: isTransitioning ? `plan-card-${plan.id}` : undefined }}
+      style={{ viewTransitionName: `plan-card-${plan.id}` }}
       className={`transition-colors ${!isViewer ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700' : ''}`}
-      onClick={() => !isViewer && navigate(href, { viewTransition: true, state: { plan } })}
+      onClick={handleClick}
     >
       <CardContent>
         <div className="flex items-start justify-between">

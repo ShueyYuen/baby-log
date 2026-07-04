@@ -110,7 +110,7 @@
 
 /* ─── View Transitions ─────────────────────────────────────── */
 
-/* Default page crossfade */
+/* Default page crossfade — used by document.startViewTransition */
 @keyframes vt-fade-in {
   from { opacity: 0; }
 }
@@ -119,15 +119,34 @@
 }
 
 ::view-transition-old(root) {
-  animation: 0.2s ease vt-fade-out;
+  animation: 0.25s ease vt-fade-out;
 }
 ::view-transition-new(root) {
-  animation: 0.2s ease vt-fade-in;
+  animation: 0.25s ease vt-fade-in;
 }
 
-/* Shared-element card → form expansion: browser morphs automatically,
-   just set duration and easing for smooth feel */
-::view-transition-group(*) {
-  animation-duration: 0.3s;
+/* Shared element card → form: browser morphs between matching view-transition-name */
+/* Duration for named pseudo-elements */
+::view-transition-old(record-card),
+::view-transition-new(record-card),
+::view-transition-old(plan-card),
+::view-transition-new(plan-card) {
+  animation-duration: 0.35s;
   animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Form page enter animation (CSS fallback & visual polish) ─────── */
+@keyframes form-expand-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.form-expand-in {
+  animation: form-expand-in 0.25s cubic-bezier(0.34, 1.2, 0.64, 1);
 }
