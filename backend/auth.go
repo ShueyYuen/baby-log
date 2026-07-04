@@ -91,10 +91,6 @@ func hashPassword(plain string) string {
 }
 
 func checkPassword(hashed, plain string) bool {
-	if !strings.HasPrefix(hashed, "$2") {
-		// Legacy plain-text password — compare directly and upgrade in-place
-		return hashed == plain
-	}
 	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(plain)) == nil
 }
 
@@ -124,17 +120,6 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil || !checkPassword(storedHash, *body.Password) {
 		writeErr(w, http.StatusUnauthorized, "用户名或密码错误")
 		return
-	}
-
-	if !strings.HasPrefix(storedHash, "$2") {
-		conn := db
-		pwd := *body.Password
-		uid := id
-		go func() {
-			if conn != nil {
-				conn.Exec(`UPDATE "User" SET password = ? WHERE id = ?`, hashPassword(pwd), uid)
-			}
-		}()
 	}
 
 	writeOK(w, map[string]interface{}{

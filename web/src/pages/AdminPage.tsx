@@ -34,10 +34,11 @@ export default function AdminPage() {
   const [newRole, setNewRole] = useState('');
   const [cleanupResult, setCleanupResult] = useState<{
     dryRun: boolean;
-    count?: number;
-    found?: number;
+    s3Total?: number;
+    referenced?: number;
+    orphanCount?: number;
+    orphans?: string[];
     deleted?: number;
-    files?: Array<{ key: string; rawKey?: string; createdAt: number }>;
     errors?: string[];
   } | null>(null);
   const [cleaningUp, setCleaningUp] = useState(false);
@@ -125,13 +126,11 @@ export default function AdminPage() {
     }
   };
 
-  const runCleanup = async (dryRun: boolean, all: boolean) => {
+  const runCleanup = async (dryRun: boolean, _all?: boolean) => {
     setCleaningUp(true);
     try {
-      const params = new URLSearchParams();
-      if (dryRun) params.set('dry-run', 'true');
-      if (all) params.set('all', 'true');
-      const res = await api.post<{ success: boolean; data: typeof cleanupResult }>(`/admin/cleanup?${params}`, {});
+      const params = dryRun ? '?dry-run=true' : '';
+      const res = await api.post<{ success: boolean; data: typeof cleanupResult }>(`/admin/cleanup${params}`, {});
       setCleanupResult(res.data);
       if (!dryRun) {
         toast(`已清理 ${res.data?.deleted ?? 0} 个文件`, 'success');
@@ -329,7 +328,7 @@ export default function AdminPage() {
           </div>
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          清理已上传但未被任何记录引用的孤立文件。定时任务每小时自动清理超过 24 小时的孤立文件。
+          扫描 S3 存储中的所有文件，对比数据库中的引用关系，找出并清理无引用的孤立文件。同时重建文件追踪表。
         </p>
 
         <div className="flex flex-wrap gap-2 mb-4">
@@ -339,15 +338,7 @@ export default function AdminPage() {
             disabled={cleaningUp}
             onClick={() => runCleanup(true, false)}
           >
-            {cleaningUp ? '扫描中...' : '扫描 (>24h)'}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={cleaningUp}
-            onClick={() => runCleanup(true, true)}
-          >
-            {cleaningUp ? '扫描中...' : '扫描 (全部)'}
+            {cleaningUp ? '扫描中...' : '扫描孤立文件'}
           </Button>
           <Button
             size="sm"
@@ -355,44 +346,43 @@ export default function AdminPage() {
             disabled={cleaningUp}
             onClick={() => runCleanup(false, false)}
           >
-            清理 (&gt;24h)
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            disabled={cleaningUp}
-            onClick={() => runCleanup(false, true)}
-          >
-            清理 (全部)
+            执行清理
           </Button>
         </div>
 
         {cleanupResult && (
           <Card>
             <CardContent className="space-y-2">
+              <div className="grid grid-cols-3 gap-3 text-center text-sm">
+                <div>
+                  <p className="text-lg font-bold text-primary-500">{cleanupResult.s3Total ?? 0}</p>
+                  <p className="text-xs text-gray-500">S3 文件总数</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-green-500">{cleanupResult.referenced ?? 0}</p>
+                  <p className="text-xs text-gray-500">数据库引用</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-red-500">{cleanupResult.orphanCount ?? 0}</p>
+                  <p className="text-xs text-gray-500">孤立文件</p>
+                </div>
+              </div>
+
               {cleanupResult.dryRun ? (
-                <>
-                  <p className="text-sm font-medium dark:text-gray-100">
-                    发现 <span className="text-primary-500 font-bold">{cleanupResult.count ?? 0}</span> 个孤立文件
-                  </p>
-                  {cleanupResult.files && cleanupResult.files.length > 0 && (
-                    <div className="max-h-48 overflow-y-auto text-xs space-y-1">
-                      {cleanupResult.files.map((f, i) => (
-                        <div key={i} className="flex items-center gap-2 text-gray-500 dark:text-gray-400 font-mono">
-                          <span className="text-gray-400 w-6 text-right">{i + 1}.</span>
-                          <span className="truncate">{f.key}</span>
-                          <span className="text-gray-400 flex-shrink-0">
-                            {dayjs(f.createdAt).format('MM-DD HH:mm')}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
+                cleanupResult.orphans && cleanupResult.orphans.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto text-xs space-y-1 mt-2 border-t pt-2 dark:border-gray-700">
+                    {cleanupResult.orphans.map((key, i) => (
+                      <div key={i} className="flex items-center gap-2 text-gray-500 dark:text-gray-400 font-mono">
+                        <span className="text-gray-400 w-6 text-right">{i + 1}.</span>
+                        <span className="truncate">{key}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
               ) : (
                 <>
-                  <p className="text-sm font-medium dark:text-gray-100">
-                    已清理 <span className="text-green-500 font-bold">{cleanupResult.deleted}</span> / {cleanupResult.found} 个文件
+                  <p className="text-sm font-medium dark:text-gray-100 mt-2 border-t pt-2 dark:border-gray-700">
+                    已删除 <span className="text-green-500 font-bold">{cleanupResult.deleted}</span> / {cleanupResult.orphanCount} 个孤立文件，文件追踪表已重建
                   </p>
                   {cleanupResult.errors && cleanupResult.errors.length > 0 && (
                     <div className="text-xs text-red-500 space-y-0.5">

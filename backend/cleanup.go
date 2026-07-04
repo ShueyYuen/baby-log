@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -85,87 +86,192 @@ func runCleanupTick() {
 	log.Printf("[Cleanup] Cleaned up %d orphan file(s)", deleted)
 }
 
-// POST /admin/cleanup — manually trigger cleanup of unused uploaded files.
+// collectReferencedKeys scans all data tables and returns a set of all file keys
+// actually referenced by Moments, Records, Milestones, and Baby avatars.
+func collectReferencedKeys() (map[string]bool, error) {
+	keys := make(map[string]bool)
+	addKey := func(k string) {
+		if k != "" {
+			keys[k] = true
+		}
+	}
+
+	// 1. Moment.mediaItems
+	rows, err := db.Query(`SELECT "mediaItems" FROM "Moment" WHERE "mediaItems" IS NOT NULL AND "mediaItems" != ''`)
+	if err != nil {
+		return nil, fmt.Errorf("query moments: %w", err)
+	}
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			continue
+		}
+		var items []MediaItem
+		if err := json.Unmarshal([]byte(raw), &items); err == nil {
+			for _, item := range items {
+				addKey(item.Key)
+				addKey(item.RawKey)
+			}
+		}
+	}
+	rows.Close()
+
+	// 2. Record.images
+	rows, err = db.Query(`SELECT "images" FROM "Record" WHERE "images" IS NOT NULL AND "images" != '' AND "images" != '[]'`)
+	if err != nil {
+		return nil, fmt.Errorf("query records: %w", err)
+	}
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			continue
+		}
+		var items []RecordImageStore
+		if err := json.Unmarshal([]byte(raw), &items); err == nil {
+			for _, item := range items {
+				addKey(item.Key)
+				addKey(item.RawKey)
+			}
+		}
+	}
+	rows.Close()
+
+	// 3. Milestone.images
+	rows, err = db.Query(`SELECT "images" FROM "Milestone" WHERE "images" IS NOT NULL AND "images" != '' AND "images" != '[]'`)
+	if err != nil {
+		return nil, fmt.Errorf("query milestones: %w", err)
+	}
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			continue
+		}
+		var items []RecordImageStore
+		if err := json.Unmarshal([]byte(raw), &items); err == nil {
+			for _, item := range items {
+				addKey(item.Key)
+				addKey(item.RawKey)
+			}
+		}
+	}
+	rows.Close()
+
+	// 4. Baby.avatar
+	rows, err = db.Query(`SELECT "avatar" FROM "Baby" WHERE "avatar" IS NOT NULL AND "avatar" != ''`)
+	if err != nil {
+		return nil, fmt.Errorf("query babies: %w", err)
+	}
+	for rows.Next() {
+		var avatar string
+		if err := rows.Scan(&avatar); err != nil {
+			continue
+		}
+		addKey(avatar)
+	}
+	rows.Close()
+
+	return keys, nil
+}
+
+// POST /admin/cleanup — scan S3 vs DB references, find and delete orphaned files.
+// Also rebuilds the UploadedFile tracking table.
 // Query params:
-//   - all=true  → delete all unused files regardless of age (default: only >24h)
-//   - dry-run=true → list files without deleting
+//   - dry-run=true → list orphans without deleting
 func handleManualCleanup(w http.ResponseWriter, r *http.Request) {
 	if !isAdmin(getUserID(r)) {
 		writeErr(w, http.StatusForbidden, "仅管理员可操作")
 		return
 	}
 
-	includeAll := r.URL.Query().Get("all") == "true"
 	dryRun := r.URL.Query().Get("dry-run") == "true"
 
-	query := `SELECT "key", "rawKey", "createdAt" FROM "UploadedFile" WHERE "used" = 0`
-	if !includeAll {
-		cutoff := int64(nowMillis()) - 24*60*60*1000
-		query += fmt.Sprintf(` AND "createdAt" < %d`, cutoff)
-	}
-	query += ` ORDER BY "createdAt" ASC`
-
-	rows, err := db.Query(query)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Query error")
+	cfg := getStorageConfig()
+	if cfg.typ != storageS3 || cfg.s3 == nil {
+		writeErr(w, http.StatusBadRequest, "当前未使用 S3 存储，此功能仅适用于 S3")
 		return
 	}
-	defer rows.Close()
 
-	type orphan struct {
-		Key       string `json:"key"`
-		RawKey    string `json:"rawKey,omitempty"`
-		CreatedAt int64  `json:"createdAt"`
+	referencedKeys, err := collectReferencedKeys()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, fmt.Sprintf("scan DB: %v", err))
+		return
 	}
-	var orphans []orphan
-	for rows.Next() {
-		var o orphan
-		var rawKey *string
-		if err := rows.Scan(&o.Key, &rawKey, &o.CreatedAt); err != nil {
-			continue
+
+	client := getS3Client()
+	if client == nil {
+		writeErr(w, http.StatusInternalServerError, "S3 client not available")
+		return
+	}
+
+	ctx := context.Background()
+	bucket := cfg.s3.bucket
+
+	var s3Keys []string
+	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucket),
+	})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, fmt.Sprintf("list S3: %v", err))
+			return
 		}
-		if rawKey != nil {
-			o.RawKey = *rawKey
+		for _, obj := range page.Contents {
+			s3Keys = append(s3Keys, aws.ToString(obj.Key))
 		}
-		orphans = append(orphans, o)
+	}
+
+	var orphanKeys []string
+	for _, k := range s3Keys {
+		if !referencedKeys[k] {
+			orphanKeys = append(orphanKeys, k)
+		}
 	}
 
 	if dryRun {
 		writeOK(w, map[string]interface{}{
-			"dryRun": true,
-			"count":  len(orphans),
-			"files":  orphans,
+			"dryRun":      true,
+			"s3Total":     len(s3Keys),
+			"referenced":  len(referencedKeys),
+			"orphanCount": len(orphanKeys),
+			"orphans":     orphanKeys,
 		})
 		return
 	}
 
 	deleted := 0
 	var errors []string
-	for _, o := range orphans {
-		if o.Key != "" {
-			if err := deleteFile(o.Key); err != nil {
-				errors = append(errors, fmt.Sprintf("delete %s: %v", o.Key, err))
-			}
-		}
-		if o.RawKey != "" && o.RawKey != o.Key {
-			if err := deleteFile(o.RawKey); err != nil {
-				errors = append(errors, fmt.Sprintf("delete raw %s: %v", o.RawKey, err))
-			}
-		}
-		if _, err := db.Exec(`DELETE FROM "UploadedFile" WHERE "key" = ?`, o.Key); err != nil {
-			errors = append(errors, fmt.Sprintf("db delete %s: %v", o.Key, err))
+	for _, k := range orphanKeys {
+		if err := deleteFile(k); err != nil {
+			errors = append(errors, fmt.Sprintf("delete %s: %v", k, err))
 		} else {
 			deleted++
 		}
 	}
 
-	log.Printf("[Cleanup] Manual cleanup: deleted %d/%d file(s)", deleted, len(orphans))
+	// Rebuild UploadedFile table: mark all referenced keys as used
+	if _, err := db.Exec(`DELETE FROM "UploadedFile"`); err != nil {
+		errors = append(errors, fmt.Sprintf("clear UploadedFile table: %v", err))
+	} else {
+		now := int64(nowMillis())
+		for key := range referencedKeys {
+			db.Exec(
+				`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used") VALUES (?, '', ?, 1)`,
+				key, now,
+			)
+		}
+	}
+
+	log.Printf("[Cleanup] Deep cleanup: S3 total=%d, referenced=%d, orphans=%d, deleted=%d",
+		len(s3Keys), len(referencedKeys), len(orphanKeys), deleted)
 
 	writeOK(w, map[string]interface{}{
-		"dryRun":  false,
-		"found":   len(orphans),
-		"deleted": deleted,
-		"errors":  errors,
+		"dryRun":      false,
+		"s3Total":     len(s3Keys),
+		"referenced":  len(referencedKeys),
+		"orphanCount": len(orphanKeys),
+		"deleted":     deleted,
+		"errors":      errors,
 	})
 }
 

@@ -127,7 +127,7 @@ func insertUser(t *testing.T, username, displayName, role string) string {
 	id := uuid.NewString()
 	now := int64(nowMillis())
 	_, err := db.Exec(`INSERT INTO "User" (id, username, password, displayName, role, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		id, username, "password123", displayName, role, now, now)
+		id, username, hashPassword("password123"), displayName, role, now, now)
 	if err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
