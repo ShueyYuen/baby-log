@@ -375,7 +375,27 @@ func handleDeleteMoment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mark media files for deferred cleanup
+	tx, err := db.Begin()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`DELETE FROM "MomentComment" WHERE momentId = ?`, id); err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	if _, err := tx.Exec(`DELETE FROM "Moment" WHERE id = ?`, id); err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+
+	// Mark media files for deferred cleanup (after commit, non-critical)
 	if mediaJSON.Valid && mediaJSON.String != "" {
 		var items []MediaItem
 		if err := json.Unmarshal([]byte(mediaJSON.String), &items); err == nil {
@@ -387,8 +407,6 @@ func handleDeleteMoment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	db.Exec(`DELETE FROM "MomentComment" WHERE momentId = ?`, id)
-	db.Exec(`DELETE FROM "Moment" WHERE id = ?`, id)
 	writeOK(w, map[string]string{"id": id})
 }
 

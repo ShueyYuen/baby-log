@@ -82,23 +82,28 @@ export default function GrowthPage() {
       cacheInvalidate(cKeyMilestones);
     }
 
-    const cachedGrowth = cacheRead<{ success: boolean; data: GrowthItem[] }>(cKeyGrowth);
-    const cachedMilestones = cacheRead<{ success: boolean; data: MilestoneItem[] }>(cKeyMilestones);
+    type GRes = { success: boolean; data: { items: GrowthItem[] } | GrowthItem[] };
+    type MRes = { success: boolean; data: { items: MilestoneItem[] } | MilestoneItem[] };
+    const extractG = (d: GRes['data']) => Array.isArray(d) ? d : d.items;
+    const extractM = (d: MRes['data']) => Array.isArray(d) ? d : d.items;
+
+    const cachedGrowth = cacheRead<GRes>(cKeyGrowth);
+    const cachedMilestones = cacheRead<MRes>(cKeyMilestones);
     if (cachedGrowth && cachedMilestones) {
-      setGrowthRecords(cachedGrowth.data);
-      setMilestones(cachedMilestones.data);
+      setGrowthRecords(extractG(cachedGrowth.data));
+      setMilestones(extractM(cachedMilestones.data));
       setLoading(false);
     }
 
     try {
       const [growthRes, milestonesRes] = await Promise.all([
-        api.get<{ success: boolean; data: GrowthItem[] }>(cKeyGrowth),
-        api.get<{ success: boolean; data: MilestoneItem[] }>(cKeyMilestones),
+        api.get<GRes>(cKeyGrowth),
+        api.get<MRes>(cKeyMilestones),
       ]);
       cacheWrite(cKeyGrowth, growthRes);
       cacheWrite(cKeyMilestones, milestonesRes);
-      setGrowthRecords(growthRes.data);
-      setMilestones(milestonesRes.data);
+      setGrowthRecords(extractG(growthRes.data));
+      setMilestones(extractM(milestonesRes.data));
     } finally {
       setLoading(false);
     }

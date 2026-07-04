@@ -50,13 +50,28 @@ func handleListPlans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := `SELECT ` + planCols + ` FROM "Plan" WHERE babyId = ?`
+	q := r.URL.Query()
+	page := parseIntDefault(q.Get("page"), 1)
+	pageSize := parseIntDefault(q.Get("pageSize"), 50)
+	if pageSize < 1 {
+		pageSize = 50
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	where := `WHERE babyId = ?`
 	args := []interface{}{babyID}
 	if status != "" {
-		query += ` AND status = ?`
+		where += ` AND status = ?`
 		args = append(args, status)
 	}
-	query += ` ORDER BY scheduledAt ASC`
+
+	var total int
+	db.QueryRow(`SELECT COUNT(*) FROM "Plan" `+where, args...).Scan(&total)
+
+	query := `SELECT ` + planCols + ` FROM "Plan" ` + where + ` ORDER BY scheduledAt ASC LIMIT ? OFFSET ?`
+	args = append(args, pageSize, (page-1)*pageSize)
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -75,7 +90,13 @@ func handleListPlans(w http.ResponseWriter, r *http.Request) {
 		plans = append(plans, *p)
 	}
 
-	writeOK(w, plans)
+	writeOK(w, map[string]interface{}{
+		"items":    plans,
+		"total":    total,
+		"page":     page,
+		"pageSize": pageSize,
+		"hasMore":  page*pageSize < total,
+	})
 }
 
 // POST /plans
@@ -288,7 +309,20 @@ func handleDeletePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := db.Exec(`DELETE FROM "Plan" WHERE id = ?`, id); err != nil {
+	tx, err := db.Begin()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	defer tx.Rollback()
+
+	tx.Exec(`DELETE FROM "ReminderDelivered" WHERE reminderId IN (SELECT id FROM "Reminder" WHERE refId = ? AND source = 'plan')`, id)
+	tx.Exec(`DELETE FROM "Reminder" WHERE refId = ? AND source = 'plan'`, id)
+	if _, err := tx.Exec(`DELETE FROM "Plan" WHERE id = ?`, id); err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	if err := tx.Commit(); err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
 	}

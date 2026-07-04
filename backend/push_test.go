@@ -121,8 +121,8 @@ func TestDueReminders(t *testing.T) {
 		t.Fatalf("expected 1 due notif, got %+v", notifs)
 	}
 
-	// 领取后应被标记 sent，再次调用返回空
-	e2 := mustOK(t, s.do(http.MethodGet, "/push/due-reminders", uid, nil))
+	// 领取后再次调用应返回空（已记录为已投递）
+	e2 := mustOK(t, s.do(http.MethodPost, "/push/due-reminders", uid, nil))
 	var notifs2 []interface{}
 	jsonUnmarshal(e2.Data, &notifs2)
 	if len(notifs2) != 0 {

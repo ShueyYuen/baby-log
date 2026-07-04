@@ -69,13 +69,18 @@ func handleUploadSingle(w http.ResponseWriter, r *http.Request) {
 
 	contentType := header.Header.Get("Content-Type")
 	if !allowedMimeTypes[contentType] {
-		writeErr(w, http.StatusInternalServerError, "不支持的文件类型，仅允许 JPG/PNG/GIF/WebP")
+		writeErr(w, http.StatusBadRequest, "不支持的文件类型，仅允许 JPG/PNG/GIF/WebP")
 		return
 	}
 
 	data, err := io.ReadAll(io.LimitReader(file, maxUploadSize+1))
 	if err != nil || len(data) > maxUploadSize {
 		writeErr(w, http.StatusInternalServerError, "Upload failed")
+		return
+	}
+
+	if !validateMediaType(data, allowedMimeTypes) {
+		writeErr(w, http.StatusBadRequest, "文件内容与声明的类型不匹配")
 		return
 	}
 
@@ -119,13 +124,17 @@ func handleUploadMultiple(w http.ResponseWriter, r *http.Request) {
 		contentType := header.Header.Get("Content-Type")
 		if !allowedMimeTypes[contentType] {
 			f.Close()
-			writeErr(w, http.StatusInternalServerError, "不支持的文件类型，仅允许 JPG/PNG/GIF/WebP")
+			writeErr(w, http.StatusBadRequest, "不支持的文件类型，仅允许 JPG/PNG/GIF/WebP")
 			return
 		}
 		data, err := io.ReadAll(io.LimitReader(f, maxUploadSize+1))
 		f.Close()
 		if err != nil || len(data) > maxUploadSize {
 			writeErr(w, http.StatusInternalServerError, "Upload failed")
+			return
+		}
+		if !validateMediaType(data, allowedMimeTypes) {
+			writeErr(w, http.StatusBadRequest, "文件内容与声明的类型不匹配")
 			return
 		}
 		result, err := uploadFile(header.Filename, contentType, data)
@@ -177,6 +186,10 @@ func handleUploadMomentMedia(w http.ResponseWriter, r *http.Request) {
 		f.Close()
 		if err != nil || len(data) > maxMomentUploadSize {
 			writeErr(w, http.StatusBadRequest, "文件过大")
+			return
+		}
+		if !validateMediaType(data, momentAllowedMimeTypes) {
+			writeErr(w, http.StatusBadRequest, "文件内容与声明的类型不匹配")
 			return
 		}
 

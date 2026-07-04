@@ -63,14 +63,14 @@ func TestListPlansWithStatusFilter(t *testing.T) {
 
 	e := mustOK(t, s.do(http.MethodGet, "/plans/?babyId="+bid+"&status=completed", uid, nil))
 	var list []planOut
-	jsonUnmarshal(e.Data, &list)
+	jsonUnmarshal(extractItems(e.Data), &list)
 	if len(list) != 1 || list[0].Status != "completed" {
 		t.Fatalf("status filter wrong: %+v", list)
 	}
 
 	ePending := mustOK(t, s.do(http.MethodGet, "/plans/?babyId="+bid+"&status=pending", uid, nil))
 	var pending []planOut
-	jsonUnmarshal(ePending.Data, &pending)
+	jsonUnmarshal(extractItems(ePending.Data), &pending)
 	if len(pending) != 0 {
 		t.Errorf("expected 0 pending, got %d", len(pending))
 	}

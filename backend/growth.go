@@ -50,7 +50,21 @@ func handleListGrowth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := db.Query(`SELECT `+growthCols+` FROM "GrowthRecord" WHERE babyId = ? ORDER BY date DESC`, babyID)
+	q := r.URL.Query()
+	page := parseIntDefault(q.Get("page"), 1)
+	pageSize := parseIntDefault(q.Get("pageSize"), 50)
+	if pageSize < 1 {
+		pageSize = 50
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	var total int
+	db.QueryRow(`SELECT COUNT(*) FROM "GrowthRecord" WHERE babyId = ?`, babyID).Scan(&total)
+
+	rows, err := db.Query(`SELECT `+growthCols+` FROM "GrowthRecord" WHERE babyId = ? ORDER BY date DESC LIMIT ? OFFSET ?`,
+		babyID, pageSize, (page-1)*pageSize)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
@@ -66,7 +80,13 @@ func handleListGrowth(w http.ResponseWriter, r *http.Request) {
 		}
 		records = append(records, *g)
 	}
-	writeOK(w, records)
+	writeOK(w, map[string]interface{}{
+		"items":    records,
+		"total":    total,
+		"page":     page,
+		"pageSize": pageSize,
+		"hasMore":  page*pageSize < total,
+	})
 }
 
 // POST /growth

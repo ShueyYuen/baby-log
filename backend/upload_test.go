@@ -25,12 +25,18 @@ func multipartImage(t *testing.T, field, filename, contentType string, data []by
 	return buf, w.FormDataContentType()
 }
 
+// minimal PNG header (8 bytes magic + IHDR chunk for http.DetectContentType)
+var fakePNG = append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 64)...)
+
+// minimal JPEG header
+var fakeJPEG = append([]byte("\xff\xd8\xff\xe0"), make([]byte, 64)...)
+
 func TestUploadSingle(t *testing.T) {
 	t.Setenv("UPLOAD_DIR", t.TempDir())
 	s := newTestServer(t)
 	uid := insertUser(t, "u", "U", "user")
 
-	buf, ct := multipartImage(t, "file", "pic.png", "image/png", []byte("fakepngdata"))
+	buf, ct := multipartImage(t, "file", "pic.png", "image/png", fakePNG)
 	req := httptest.NewRequest(http.MethodPost, apiPrefix+"/upload/", buf)
 	req.Header.Set("Content-Type", ct)
 	req.Header.Set("Authorization", "Bearer "+uid)
@@ -51,19 +57,22 @@ func TestUploadMultiple(t *testing.T) {
 
 	buf := &bytes.Buffer{}
 	w := multipart.NewWriter(buf)
-	for _, name := range []string{"a.png", "b.jpg"} {
-		ct := "image/png"
-		if name == "b.jpg" {
-			ct = "image/jpeg"
-		}
+	for _, tc := range []struct {
+		name string
+		ct   string
+		data []byte
+	}{
+		{"a.png", "image/png", fakePNG},
+		{"b.jpg", "image/jpeg", fakeJPEG},
+	} {
 		h := make(textproto.MIMEHeader)
-		h.Set("Content-Disposition", `form-data; name="files"; filename="`+name+`"`)
-		h.Set("Content-Type", ct)
+		h.Set("Content-Disposition", `form-data; name="files"; filename="`+tc.name+`"`)
+		h.Set("Content-Type", tc.ct)
 		part, err := w.CreatePart(h)
 		if err != nil {
 			t.Fatalf("create part: %v", err)
 		}
-		part.Write([]byte("data-" + name))
+		part.Write(tc.data)
 	}
 	w.Close()
 
@@ -108,8 +117,8 @@ func TestUploadRejectsBadMime(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+uid)
 
 	r := s.rawRequest(req)
-	if r.status != http.StatusInternalServerError {
-		t.Fatalf("bad mime expected 500, got %d; body=%s", r.status, string(r.body))
+	if r.status != http.StatusBadRequest {
+		t.Fatalf("bad mime expected 400, got %d; body=%s", r.status, string(r.body))
 	}
 }
 

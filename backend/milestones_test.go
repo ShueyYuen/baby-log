@@ -54,7 +54,7 @@ func TestListMilestones(t *testing.T) {
 
 	e := mustOK(t, s.do(http.MethodGet, "/milestones/?babyId="+bid, uid, nil))
 	var list []milestoneOut
-	jsonUnmarshal(e.Data, &list)
+	jsonUnmarshal(extractItems(e.Data), &list)
 	if len(list) != 2 {
 		t.Fatalf("expected 2, got %d", len(list))
 	}

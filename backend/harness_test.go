@@ -167,6 +167,18 @@ func jsonUnmarshal(data []byte, v interface{}) error {
 	return json.Unmarshal(data, v)
 }
 
+// extractItems extracts the "items" field from a paginated response data blob,
+// or returns the data as-is if it's already an array (backward compat).
+func extractItems(data []byte) []byte {
+	var wrapper struct {
+		Items json.RawMessage `json:"items"`
+	}
+	if json.Unmarshal(data, &wrapper) == nil && wrapper.Items != nil {
+		return wrapper.Items
+	}
+	return data
+}
+
 // insertReminder 直接向库中写入一条未发送提醒，remindAt 用 ISO 字符串。
 func insertReminder(t *testing.T, babyID, remindAtISO, title, body string) string {
 	t.Helper()

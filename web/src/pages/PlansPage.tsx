@@ -138,18 +138,20 @@ export default function PlansPage() {
 
     if (invalidate) cacheInvalidate(`/plans`);
 
-    const cached = cacheRead<{ success: boolean; data: PlanItem[] }>(cKey);
+    type PlansRes = { success: boolean; data: { items: PlanItem[] } | PlanItem[] };
+    const cached = cacheRead<PlansRes>(cKey);
+    const extract = (d: PlansRes['data']) => Array.isArray(d) ? d : d.items;
     if (cached) {
-      setPlans(cached.data);
+      setPlans(extract(cached.data));
       setLoading(false);
     } else {
       setLoading(true);
     }
 
     try {
-      const res = await api.get<{ success: boolean; data: PlanItem[] }>(cKey);
+      const res = await api.get<PlansRes>(cKey);
       cacheWrite(cKey, res);
-      setPlans(res.data);
+      setPlans(extract(res.data));
     } catch {
       // ignore
     } finally {

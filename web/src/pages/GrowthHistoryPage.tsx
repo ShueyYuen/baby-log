@@ -35,8 +35,8 @@ export default function GrowthHistoryPage() {
 
   const loadRecords = async () => {
     if (!currentBaby) return;
-    const res = await api.get<{ success: boolean; data: GrowthItem[] }>(`/growth?babyId=${currentBaby.id}`);
-    setRecords(res.data);
+    const res = await api.get<{ success: boolean; data: { items: GrowthItem[] } | GrowthItem[] }>(`/growth?babyId=${currentBaby.id}`);
+    setRecords(Array.isArray(res.data) ? res.data : res.data.items);
   };
 
   const openEdit = (r: GrowthItem) => {

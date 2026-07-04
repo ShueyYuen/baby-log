@@ -87,8 +87,9 @@ export default function PlanFormPage() {
     }
 
     // Fallback: fetch from backend
-    api.get<{ success: boolean; data: any[] }>(`/plans?babyId=${currentBaby.id}`).then((res) => {
-      const plan = res.data.find((p: any) => p.id === id);
+    api.get<{ success: boolean; data: { items: any[] } | any[] }>(`/plans?babyId=${currentBaby.id}`).then((res) => {
+      const items = Array.isArray(res.data) ? res.data : res.data.items;
+      const plan = items.find((p: any) => p.id === id);
       if (plan) populatePlan(plan);
     });
   }, [id, currentBaby]);
