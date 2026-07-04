@@ -1,56 +1,78 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
-import { useBaby } from '../contexts/BabyContext';
-import { useAuth } from '../contexts/AuthContext';
-import { api } from '../lib/api';
-import { cacheRead } from '../lib/queryCache';
-import { ArrowLeft, ImagePlus, X } from 'lucide-react';
-import { Button, Input, Textarea, DateTimePicker, ScrollDateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ImageViewer, useToast } from '../components/ui';
+import { ArrowLeft, ImagePlus, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
+import {
+  Button,
+  DateTimePicker,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  ImageViewer,
+  ScrollDateTimePicker,
+  Textarea,
+  useToast,
+} from "../components/ui";
+import { useAuth } from "../contexts/AuthContext";
+import { useBaby } from "../contexts/BabyContext";
+import { api } from "../lib/api";
+import { cacheRead } from "../lib/queryCache";
 
 function toLocalDateTimeString(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
+  const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-type CategoryType = 'feeding' | 'nursing' | 'activity';
+type CategoryType = "feeding" | "nursing" | "activity";
 
 const categories: { value: CategoryType; label: string }[] = [
-  { value: 'feeding', label: '喂养' },
-  { value: 'nursing', label: '护理' },
-  { value: 'activity', label: '活动' },
+  { value: "feeding", label: "喂养" },
+  { value: "nursing", label: "护理" },
+  { value: "activity", label: "活动" },
 ];
 
 const subTypes: Record<CategoryType, { value: string; label: string }[]> = {
   feeding: [
-    { value: 'breastfeed', label: '母乳' },
-    { value: 'bottle', label: '瓶喂' },
-    { value: 'solid', label: '辅食' },
-    { value: 'water', label: '喝水' },
+    { value: "breastfeed", label: "母乳" },
+    { value: "bottle", label: "瓶喂" },
+    { value: "solid", label: "辅食" },
+    { value: "water", label: "喝水" },
   ],
   nursing: [
-    { value: 'diaper', label: '换尿布' },
-    { value: 'bath', label: '洗澡' },
-    { value: 'supplement', label: '营养补充' },
-    { value: 'temperature', label: '体温' },
+    { value: "diaper", label: "换尿布" },
+    { value: "bath", label: "洗澡" },
+    { value: "supplement", label: "营养补充" },
+    { value: "temperature", label: "体温" },
   ],
   activity: [
-    { value: 'sleep', label: '睡眠' },
-    { value: 'play', label: '玩耍' },
-    { value: 'other', label: '其他' },
+    { value: "sleep", label: "睡眠" },
+    { value: "play", label: "玩耍" },
+    { value: "other", label: "其他" },
   ],
 };
 
-const typeLabels: Record<string, string> = Object.values(subTypes).flat().reduce((acc, item) => {
-  acc[item.value] = item.label;
-  return acc;
-}, {} as Record<string, string>);
+const typeLabels: Record<string, string> = Object.values(subTypes)
+  .flat()
+  .reduce(
+    (acc, item) => {
+      acc[item.value] = item.label;
+      return acc;
+    },
+    {} as Record<string, string>,
+  );
 
 const quickTimes = [
-  { label: '现在', offset: 0 },
-  { label: '5分钟前', offset: -5 },
-  { label: '10分钟前', offset: -10 },
-  { label: '30分钟前', offset: -30 },
-  { label: '1小时前', offset: -60 },
+  { label: "现在", offset: 0 },
+  { label: "5分钟前", offset: -5 },
+  { label: "10分钟前", offset: -10 },
+  { label: "30分钟前", offset: -30 },
+  { label: "1小时前", offset: -60 },
 ];
 
 export default function RecordFormPage() {
@@ -65,20 +87,26 @@ export default function RecordFormPage() {
 
   // Viewers cannot create or edit records
   useEffect(() => {
-    if (isViewer) navigate('/', { replace: true });
+    if (isViewer) navigate("/", { replace: true });
   }, [isViewer, navigate]);
 
-  const urlType = searchParams.get('type');
-  const urlCategory = searchParams.get('category') as CategoryType | null;
+  const urlType = searchParams.get("type");
+  const urlCategory = searchParams.get("category") as CategoryType | null;
 
   // Derive initial values from location state (passed when navigating from list) for instant render
   const _sr = isEditing ? (location.state as any)?.record : null;
   const _d = _sr?.data || {};
 
-  const [category, setCategory] = useState<CategoryType>(_sr?.category || urlCategory || 'feeding');
-  const [type, setType] = useState(_sr?.type || urlType || 'breastfeed');
-  const [occurredAt, setOccurredAt] = useState(_sr ? toLocalDateTimeString(new Date(_sr.occurredAt)) : toLocalDateTimeString(new Date()));
-  const [note, setNote] = useState(_sr?.note || '');
+  const [category, setCategory] = useState<CategoryType>(
+    _sr?.category || urlCategory || "feeding",
+  );
+  const [type, setType] = useState(_sr?.type || urlType || "breastfeed");
+  const [occurredAt, setOccurredAt] = useState(
+    _sr
+      ? toLocalDateTimeString(new Date(_sr.occurredAt))
+      : toLocalDateTimeString(new Date()),
+  );
+  const [note, setNote] = useState(_sr?.note || "");
   const [images, setImages] = useState<string[]>(_sr?.images || []);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -90,16 +118,22 @@ export default function RecordFormPage() {
   // Dynamic form data — initialized from state record if available
   const [leftMinutes, setLeftMinutes] = useState(_d.leftMinutes ?? 10);
   const [rightMinutes, setRightMinutes] = useState(_d.rightMinutes ?? 10);
-  const [milkType, setMilkType] = useState<'breast_milk' | 'formula'>(_d.milkType || 'formula');
+  const [milkType, setMilkType] = useState<"breast_milk" | "formula">(
+    _d.milkType || "formula",
+  );
   const [amountMl, setAmountMl] = useState(_d.amountMl ?? 120);
-  const [solidName, setSolidName] = useState(_d.name || '');
-  const [solidAmount, setSolidAmount] = useState(_d.amount || '');
+  const [solidName, setSolidName] = useState(_d.name || "");
+  const [solidAmount, setSolidAmount] = useState(_d.amount || "");
   const [waterMl, setWaterMl] = useState(_d.amountMl ?? 30);
-  const [diaperType, setDiaperType] = useState<'wet' | 'dirty' | 'both'>(_d.type || 'wet');
+  const [diaperType, setDiaperType] = useState<"wet" | "dirty" | "both">(
+    _d.type || "wet",
+  );
   const [sleepDuration, setSleepDuration] = useState(_d.durationMinutes ?? 60);
-  const [supplementName, setSupplementName] = useState(_d.name || '维生素D');
+  const [supplementName, setSupplementName] = useState(_d.name || "维生素D");
   const [temperature, setTemperature] = useState(_d.value ?? 36.5);
-  const [tempLocation, setTempLocation] = useState<'axillary' | 'ear' | 'forehead' | 'rectal'>(_d.location || 'axillary');
+  const [tempLocation, setTempLocation] = useState<
+    "axillary" | "ear" | "forehead" | "rectal"
+  >(_d.location || "axillary");
   const [playDuration, setPlayDuration] = useState(_d.durationMinutes ?? 30);
   const [bathDuration, setBathDuration] = useState(_d.durationMinutes ?? 15);
 
@@ -111,7 +145,7 @@ export default function RecordFormPage() {
         setCategory(stateRecord.category as CategoryType);
         setType(stateRecord.type);
         setOccurredAt(toLocalDateTimeString(new Date(stateRecord.occurredAt)));
-        setNote(stateRecord.note || '');
+        setNote(stateRecord.note || "");
         setImages(stateRecord.images || []);
         populateData(stateRecord.type, stateRecord.data);
         setLoadingRecord(false);
@@ -126,27 +160,34 @@ export default function RecordFormPage() {
     setLoadingRecord(true);
     try {
       // Try cache first
-      const params = new URLSearchParams({ babyId: currentBaby.id, pageSize: '50' });
+      const params = new URLSearchParams({
+        babyId: currentBaby.id,
+        pageSize: "50",
+      });
       const cKey = `/records?${params}`;
-      const cached = cacheRead<{ success: boolean; data: { items: any[] } }>(cKey);
+      const cached = cacheRead<{ success: boolean; data: { items: any[] } }>(
+        cKey,
+      );
       const record = cached?.data?.items?.find((r: any) => r.id === id);
       if (record) {
         setCategory(record.category as CategoryType);
         setType(record.type);
         setOccurredAt(toLocalDateTimeString(new Date(record.occurredAt)));
-        setNote(record.note || '');
+        setNote(record.note || "");
         setImages(record.images || []);
         populateData(record.type, record.data);
         setLoadingRecord(false);
         return;
       }
-      const res = await api.get<{ success: boolean; data: { items: any[] } }>(`/records?babyId=${currentBaby.id}&pageSize=100`);
+      const res = await api.get<{ success: boolean; data: { items: any[] } }>(
+        `/records?babyId=${currentBaby.id}&pageSize=100`,
+      );
       const freshRecord = res.data.items.find((r: any) => r.id === id);
       if (freshRecord) {
         setCategory(freshRecord.category as CategoryType);
         setType(freshRecord.type);
         setOccurredAt(toLocalDateTimeString(new Date(freshRecord.occurredAt)));
-        setNote(freshRecord.note || '');
+        setNote(freshRecord.note || "");
         setImages(freshRecord.images || []);
         populateData(freshRecord.type, freshRecord.data);
       }
@@ -159,38 +200,38 @@ export default function RecordFormPage() {
 
   const populateData = (recordType: string, data: any) => {
     switch (recordType) {
-      case 'breastfeed':
+      case "breastfeed":
         setLeftMinutes(data.leftMinutes || 0);
         setRightMinutes(data.rightMinutes || 0);
         break;
-      case 'bottle':
-        setMilkType(data.milkType || 'formula');
+      case "bottle":
+        setMilkType(data.milkType || "formula");
         setAmountMl(data.amountMl || 0);
         break;
-      case 'solid':
-        setSolidName(data.name || '');
-        setSolidAmount(data.amount || '');
+      case "solid":
+        setSolidName(data.name || "");
+        setSolidAmount(data.amount || "");
         break;
-      case 'water':
+      case "water":
         setWaterMl(data.amountMl || 0);
         break;
-      case 'diaper':
-        setDiaperType(data.type || 'wet');
+      case "diaper":
+        setDiaperType(data.type || "wet");
         break;
-      case 'supplement':
-        setSupplementName(data.name || '');
+      case "supplement":
+        setSupplementName(data.name || "");
         break;
-      case 'sleep':
+      case "sleep":
         setSleepDuration(data.durationMinutes || 0);
         break;
-      case 'temperature':
+      case "temperature":
         setTemperature(data.value || 36.5);
-        setTempLocation(data.location || 'axillary');
+        setTempLocation(data.location || "axillary");
         break;
-      case 'play':
+      case "play":
         setPlayDuration(data.durationMinutes || 30);
         break;
-      case 'bath':
+      case "bath":
         setBathDuration(data.durationMinutes || 15);
         break;
     }
@@ -208,25 +249,28 @@ export default function RecordFormPage() {
 
   const buildData = (): Record<string, unknown> => {
     switch (type) {
-      case 'breastfeed':
+      case "breastfeed":
         return { leftMinutes, rightMinutes };
-      case 'bottle':
+      case "bottle":
         return { milkType, amountMl };
-      case 'solid':
+      case "solid":
         return { name: solidName, amount: solidAmount };
-      case 'water':
+      case "water":
         return { amountMl: waterMl };
-      case 'diaper':
+      case "diaper":
         return { type: diaperType };
-      case 'bath':
+      case "bath":
         return { durationMinutes: bathDuration };
-      case 'supplement':
+      case "supplement":
         return { name: supplementName };
-      case 'temperature':
+      case "temperature":
         return { value: temperature, location: tempLocation };
-      case 'sleep':
-        return { startTime: new Date(occurredAt).toISOString(), durationMinutes: sleepDuration };
-      case 'play':
+      case "sleep":
+        return {
+          startTime: new Date(occurredAt).toISOString(),
+          durationMinutes: sleepDuration,
+        };
+      case "play":
         return { durationMinutes: playDuration };
       default:
         return {};
@@ -252,11 +296,11 @@ export default function RecordFormPage() {
       if (isEditing) {
         await api.put(`/records/${id}`, payload);
       } else {
-        await api.post('/records', payload);
+        await api.post("/records", payload);
       }
-      navigate('/', { replace: true });
+      navigate("/", { replace: true });
     } catch {
-      toast(isEditing ? '修改失败' : '添加失败', 'error');
+      toast(isEditing ? "修改失败" : "添加失败", "error");
     } finally {
       setLoading(false);
     }
@@ -264,70 +308,136 @@ export default function RecordFormPage() {
 
   const renderDataFields = () => {
     switch (type) {
-      case 'breastfeed':
+      case "breastfeed":
         return (
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">左侧(分钟)</label>
-              <input type="number" value={leftMinutes} onChange={(e) => setLeftMinutes(+e.target.value)} className="input" min={0} />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                左侧(分钟)
+              </label>
+              <input
+                type="number"
+                value={leftMinutes}
+                onChange={(e) => setLeftMinutes(+e.target.value)}
+                className="input"
+                min={0}
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">右侧(分钟)</label>
-              <input type="number" value={rightMinutes} onChange={(e) => setRightMinutes(+e.target.value)} className="input" min={0} />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                右侧(分钟)
+              </label>
+              <input
+                type="number"
+                value={rightMinutes}
+                onChange={(e) => setRightMinutes(+e.target.value)}
+                className="input"
+                min={0}
+              />
             </div>
           </div>
         );
-      case 'bottle':
+      case "bottle":
         return (
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">奶类型</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                奶类型
+              </label>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setMilkType('formula')} className={`flex-1 py-2 rounded-lg border-2 text-sm ${milkType === 'formula' ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300' : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'}`}>配方奶</button>
-                <button type="button" onClick={() => setMilkType('breast_milk')} className={`flex-1 py-2 rounded-lg border-2 text-sm ${milkType === 'breast_milk' ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300' : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'}`}>母乳</button>
+                <button
+                  type="button"
+                  onClick={() => setMilkType("formula")}
+                  className={`flex-1 py-2 rounded-lg border-2 text-sm ${milkType === "formula" ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
+                >
+                  配方奶
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMilkType("breast_milk")}
+                  className={`flex-1 py-2 rounded-lg border-2 text-sm ${milkType === "breast_milk" ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
+                >
+                  母乳
+                </button>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">奶量(ml)</label>
-              <input type="number" value={amountMl} onChange={(e) => setAmountMl(+e.target.value)} className="input" min={0} step={10} />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                奶量(ml)
+              </label>
+              <input
+                type="number"
+                value={amountMl}
+                onChange={(e) => setAmountMl(+e.target.value)}
+                className="input"
+                min={0}
+                step={10}
+              />
             </div>
           </div>
         );
-      case 'solid':
+      case "solid":
         return (
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">食物名称</label>
-              <input type="text" value={solidName} onChange={(e) => setSolidName(e.target.value)} className="input" placeholder="如：米糊" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                食物名称
+              </label>
+              <input
+                type="text"
+                value={solidName}
+                onChange={(e) => setSolidName(e.target.value)}
+                className="input"
+                placeholder="如：米糊"
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">食用量</label>
-              <input type="text" value={solidAmount} onChange={(e) => setSolidAmount(e.target.value)} className="input" placeholder="如：半碗" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                食用量
+              </label>
+              <input
+                type="text"
+                value={solidAmount}
+                onChange={(e) => setSolidAmount(e.target.value)}
+                className="input"
+                placeholder="如：半碗"
+              />
             </div>
           </div>
         );
-      case 'water':
+      case "water":
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">水量(ml)</label>
-            <input type="number" value={waterMl} onChange={(e) => setWaterMl(+e.target.value)} className="input" min={0} step={5} />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              水量(ml)
+            </label>
+            <input
+              type="number"
+              value={waterMl}
+              onChange={(e) => setWaterMl(+e.target.value)}
+              className="input"
+              min={0}
+              step={5}
+            />
           </div>
         );
-      case 'diaper':
+      case "diaper":
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">类型</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              类型
+            </label>
             <div className="flex gap-3">
               {[
-                { value: 'wet' as const, label: '尿' },
-                { value: 'dirty' as const, label: '便' },
-                { value: 'both' as const, label: '尿+便' },
+                { value: "wet" as const, label: "尿" },
+                { value: "dirty" as const, label: "便" },
+                { value: "both" as const, label: "尿+便" },
               ].map((item) => (
                 <button
                   key={item.value}
                   type="button"
                   onClick={() => setDiaperType(item.value)}
-                  className={`flex-1 py-2 rounded-lg border-2 text-sm ${diaperType === item.value ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300' : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'}`}
+                  className={`flex-1 py-2 rounded-lg border-2 text-sm ${diaperType === item.value ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
                 >
                   {item.label}
                 </button>
@@ -335,21 +445,39 @@ export default function RecordFormPage() {
             </div>
           </div>
         );
-      case 'supplement':
+      case "supplement":
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">名称</label>
-            <input type="text" value={supplementName} onChange={(e) => setSupplementName(e.target.value)} className="input" placeholder="如：维生素D" />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              名称
+            </label>
+            <input
+              type="text"
+              value={supplementName}
+              onChange={(e) => setSupplementName(e.target.value)}
+              className="input"
+              placeholder="如：维生素D"
+            />
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {['维生素D', 'DHA', '益生菌', '维生素AD', '铁剂', '钙', '锌', '乳铁蛋白', '鱼肝油'].map((name) => (
+              {[
+                "维生素D",
+                "DHA",
+                "益生菌",
+                "维生素AD",
+                "铁剂",
+                "钙",
+                "锌",
+                "乳铁蛋白",
+                "鱼肝油",
+              ].map((name) => (
                 <button
                   key={name}
                   type="button"
                   onClick={() => setSupplementName(name)}
                   className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
                     supplementName === name
-                      ? 'border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500'
+                      ? "border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400"
+                      : "border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500"
                   }`}
                 >
                   {name}
@@ -358,27 +486,39 @@ export default function RecordFormPage() {
             </div>
           </div>
         );
-      case 'temperature':
+      case "temperature":
         return (
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">温度(°C)</label>
-              <input type="number" value={temperature} onChange={(e) => setTemperature(+e.target.value)} className="input" min={35} max={42} step={0.1} />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                温度(°C)
+              </label>
+              <input
+                type="number"
+                value={temperature}
+                onChange={(e) => setTemperature(+e.target.value)}
+                className="input"
+                min={35}
+                max={42}
+                step={0.1}
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">测量部位</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                测量部位
+              </label>
               <div className="flex gap-2">
-                {([
-                  { value: 'axillary' as const, label: '腋下' },
-                  { value: 'ear' as const, label: '耳温' },
-                  { value: 'forehead' as const, label: '额温' },
-                  { value: 'rectal' as const, label: '肛温' },
-                ]).map((item) => (
+                {[
+                  { value: "axillary" as const, label: "腋下" },
+                  { value: "ear" as const, label: "耳温" },
+                  { value: "forehead" as const, label: "额温" },
+                  { value: "rectal" as const, label: "肛温" },
+                ].map((item) => (
                   <button
                     key={item.value}
                     type="button"
                     onClick={() => setTempLocation(item.value)}
-                    className={`flex-1 py-2 rounded-lg border-2 text-sm ${tempLocation === item.value ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300' : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'}`}
+                    className={`flex-1 py-2 rounded-lg border-2 text-sm ${tempLocation === item.value ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
                   >
                     {item.label}
                   </button>
@@ -387,18 +527,36 @@ export default function RecordFormPage() {
             </div>
           </div>
         );
-      case 'sleep':
+      case "sleep":
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">持续时间(分钟)</label>
-            <input type="number" value={sleepDuration} onChange={(e) => setSleepDuration(+e.target.value)} className="input" min={0} step={5} />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              持续时间(分钟)
+            </label>
+            <input
+              type="number"
+              value={sleepDuration}
+              onChange={(e) => setSleepDuration(+e.target.value)}
+              className="input"
+              min={0}
+              step={1}
+            />
           </div>
         );
-      case 'bath':
+      case "bath":
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">持续时间(分钟)</label>
-            <input type="number" value={bathDuration} onChange={(e) => setBathDuration(+e.target.value)} className="input" min={0} step={5} />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              持续时间(分钟)
+            </label>
+            <input
+              type="number"
+              value={bathDuration}
+              onChange={(e) => setBathDuration(+e.target.value)}
+              className="input"
+              min={0}
+              step={1}
+            />
             <div className="flex flex-wrap gap-1.5 mt-2">
               {[5, 10, 15, 20, 30].map((min) => (
                 <button
@@ -407,8 +565,8 @@ export default function RecordFormPage() {
                   onClick={() => setBathDuration(min)}
                   className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
                     bathDuration === min
-                      ? 'border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400'
+                      ? "border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400"
+                      : "border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400"
                   }`}
                 >
                   {min}分钟
@@ -417,11 +575,20 @@ export default function RecordFormPage() {
             </div>
           </div>
         );
-      case 'play':
+      case "play":
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">持续时间(分钟)</label>
-            <input type="number" value={playDuration} onChange={(e) => setPlayDuration(+e.target.value)} className="input" min={0} step={5} />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              持续时间(分钟)
+            </label>
+            <input
+              type="number"
+              value={playDuration}
+              onChange={(e) => setPlayDuration(+e.target.value)}
+              className="input"
+              min={0}
+              step={1}
+            />
             <div className="flex flex-wrap gap-1.5 mt-2">
               {[10, 15, 20, 30, 45, 60].map((min) => (
                 <button
@@ -430,8 +597,8 @@ export default function RecordFormPage() {
                   onClick={() => setPlayDuration(min)}
                   className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
                     playDuration === min
-                      ? 'border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400'
+                      ? "border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400"
+                      : "border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400"
                   }`}
                 >
                   {min}分钟
@@ -458,13 +625,19 @@ export default function RecordFormPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} />
         </Button>
-        <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">{typeLabels[type] || type}</h2>
+        <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">
+          {typeLabels[type] || type}
+        </h2>
         <Button type="submit" form="record-form" size="sm" disabled={loading}>
-          {loading ? '保存中...' : '保存'}
+          {loading ? "保存中..." : "保存"}
         </Button>
       </div>
 
-      <form id="record-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-5">
+      <form
+        id="record-form"
+        onSubmit={handleSubmit}
+        className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-5"
+      >
         {/* Category & Type Selection - only show when not pre-selected */}
         {!urlType && !isEditing && (
           <>
@@ -475,7 +648,9 @@ export default function RecordFormPage() {
                   type="button"
                   onClick={() => handleCategoryChange(cat.value)}
                   className={`flex-1 py-2 rounded-lg font-medium text-sm transition-colors ${
-                    category === cat.value ? 'bg-primary-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
+                    category === cat.value
+                      ? "bg-primary-500 text-white"
+                      : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
                   }`}
                 >
                   {cat.label}
@@ -490,7 +665,9 @@ export default function RecordFormPage() {
                   type="button"
                   onClick={() => setType(st.value)}
                   className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
-                    type === st.value ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-300 dark:border-primary-700' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
+                    type === st.value
+                      ? "bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-300 dark:border-primary-700"
+                      : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
                   }`}
                 >
                   {st.label}
@@ -502,7 +679,9 @@ export default function RecordFormPage() {
 
         {/* Quick Time */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">时间</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            时间
+          </label>
           <div className="flex flex-wrap gap-2 mb-2">
             {quickTimes.map((qt) => (
               <Button
@@ -531,13 +710,13 @@ export default function RecordFormPage() {
         </div>
 
         {/* Dynamic Data Fields */}
-        <div className="card">
-          {renderDataFields()}
-        </div>
+        <div className="card">{renderDataFields()}</div>
 
         {/* Note */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">备注</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            备注
+          </label>
           <Textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -548,15 +727,23 @@ export default function RecordFormPage() {
 
         {/* Images */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">图片</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            图片
+          </label>
           <div className="flex flex-wrap gap-2">
             {images.map((url, idx) => (
-              <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
+              <div
+                key={idx}
+                className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600"
+              >
                 <img
                   src={url}
                   alt=""
                   className="w-full h-full object-cover cursor-zoom-in"
-                  onClick={() => { setViewerIndex(idx); setViewerOpen(true); }}
+                  onClick={() => {
+                    setViewerIndex(idx);
+                    setViewerOpen(true);
+                  }}
                 />
                 <button
                   type="button"
@@ -587,10 +774,10 @@ export default function RecordFormPage() {
                       }
                       setImages((prev) => [...prev, ...newUrls].slice(0, 9));
                     } catch {
-                      toast('图片上传失败', 'error');
+                      toast("图片上传失败", "error");
                     } finally {
                       setUploading(false);
-                      e.target.value = '';
+                      e.target.value = "";
                     }
                   }}
                 />
@@ -603,7 +790,9 @@ export default function RecordFormPage() {
             )}
           </div>
           {images.length > 0 && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{images.length}/9</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              {images.length}/9
+            </p>
           )}
         </div>
 
@@ -623,7 +812,9 @@ export default function RecordFormPage() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>确认删除</DialogTitle>
-            <DialogDescription>确定要删除这条记录吗？此操作不可撤销。</DialogDescription>
+            <DialogDescription>
+              确定要删除这条记录吗？此操作不可撤销。
+            </DialogDescription>
           </DialogHeader>
           <div className="flex gap-3 mt-4">
             <Button
@@ -639,9 +830,9 @@ export default function RecordFormPage() {
               onClick={async () => {
                 try {
                   await api.delete(`/records/${id}`);
-                  navigate('/', { replace: true });
+                  navigate("/", { replace: true });
                 } catch {
-                  toast('删除失败', 'error');
+                  toast("删除失败", "error");
                 }
               }}
             >
