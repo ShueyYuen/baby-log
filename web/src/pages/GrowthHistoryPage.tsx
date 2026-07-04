@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
+import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 import dayjs from 'dayjs';
 import { ArrowLeft } from 'lucide-react';
@@ -18,6 +19,7 @@ interface GrowthItem {
 export default function GrowthHistoryPage() {
   const navigate = useNavigate();
   const { currentBaby } = useBaby();
+  const { isViewer } = useAuth();
   const [records, setRecords] = useState<GrowthItem[]>([]);
   const [editingRecord, setEditingRecord] = useState<GrowthItem | null>(null);
   const [gDate, setGDate] = useState('');
@@ -93,8 +95,8 @@ export default function GrowthHistoryPage() {
             {sorted.map((r) => (
               <Card
                 key={r.id}
-                className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700 transition-colors"
-                onClick={() => openEdit(r)}
+                className={`transition-colors ${!isViewer ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700' : ''}`}
+                onClick={() => !isViewer && openEdit(r)}
               >
                 <CardContent className="flex items-center justify-between py-3">
                   <div className="flex-1">

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
+import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
+import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -123,6 +125,7 @@ function minutesSince(time: string, now: number): number {
 
 export default function TimelinePage() {
   const { currentBaby } = useBaby();
+  const { isViewer } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [records, setRecords] = useState<RecordItem[]>([]);
@@ -182,7 +185,7 @@ export default function TimelinePage() {
       });
       setShowTypePanel(false);
       toast(`${label}已开始`, 'success');
-      loadData();
+      loadData(true);
     } catch {
       toast('开始失败', 'error');
     }
@@ -198,7 +201,7 @@ export default function TimelinePage() {
         data: { ...record.data, ongoing: undefined, startTime, endTime: endIso, durationMinutes },
       });
       toast(`${typeConfig[record.type]?.label || '活动'}已结束（${durationMinutes}分钟）`, 'success');
-      loadData();
+      loadData(true);
     } catch {
       toast('结束失败', 'error');
     }
@@ -236,19 +239,42 @@ export default function TimelinePage() {
     loadData();
   }, [currentBaby, filter]);
 
-  const loadData = async () => {
+  const loadData = async (invalidate = false) => {
     if (!currentBaby) return;
-    setLoading(true);
+    const params = new URLSearchParams({ babyId: currentBaby.id, pageSize: '50' });
+    if (filter) params.set('category', filter);
+    const cKeyRecords = `/records?${params}`;
+    const cKeySummary = `/stats/summary?babyId=${currentBaby.id}`;
+    const cKeyPredict = `/stats/predict?babyId=${currentBaby.id}`;
+
+    if (invalidate) {
+      cacheInvalidate(`/records`);
+      cacheInvalidate(cKeySummary);
+      cacheInvalidate(cKeyPredict);
+    }
+
+    // Show stale data immediately if available
+    const cachedRecords = cacheRead<{ success: boolean; data: { items: RecordItem[] } }>(cKeyRecords);
+    const cachedSummary = cacheRead<{ success: boolean; data: Summary }>(cKeySummary);
+    const cachedPredict = cacheRead<{ success: boolean; data: FeedingPrediction }>(cKeyPredict);
+    if (cachedRecords && cachedSummary && cachedPredict) {
+      setRecords(cachedRecords.data.items);
+      setSummary(cachedSummary.data);
+      setPrediction(cachedPredict.data);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     try {
-      const params = new URLSearchParams({ babyId: currentBaby.id, pageSize: '50' });
-      if (filter) params.set('category', filter);
-
       const [recordsRes, summaryRes, predictRes] = await Promise.all([
-        api.get<{ success: boolean; data: { items: RecordItem[] } }>(`/records?${params}`),
-        api.get<{ success: boolean; data: Summary }>(`/stats/summary?babyId=${currentBaby.id}`),
-        api.get<{ success: boolean; data: FeedingPrediction }>(`/stats/predict?babyId=${currentBaby.id}`),
+        api.get<{ success: boolean; data: { items: RecordItem[] } }>(cKeyRecords),
+        api.get<{ success: boolean; data: Summary }>(cKeySummary),
+        api.get<{ success: boolean; data: FeedingPrediction }>(cKeyPredict),
       ]);
-
+      cacheWrite(cKeyRecords, recordsRes);
+      cacheWrite(cKeySummary, summaryRes);
+      cacheWrite(cKeyPredict, predictRes);
       setRecords(recordsRes.data.items);
       setSummary(summaryRes.data);
       setPrediction(predictRes.data);
@@ -304,6 +330,7 @@ export default function TimelinePage() {
                   </div>
                   <p className="text-lg font-semibold tabular-nums text-indigo-600 dark:text-indigo-300">{elapsed}</p>
                 </div>
+                {!isViewer && (
                 <button
                   onClick={() => handleEndOngoing(record)}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-indigo-500 text-white text-sm font-medium hover:bg-indigo-600 active:bg-indigo-700 transition-colors flex-shrink-0"
@@ -311,6 +338,7 @@ export default function TimelinePage() {
                   <Square size={14} fill="currentColor" />
                   结束
                 </button>
+                )}
               </div>
             );
           })}
@@ -467,8 +495,8 @@ export default function TimelinePage() {
                   return (
                     <div
                       key={record.id}
-                      className="card flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700 transition-colors"
-                      onClick={() => navigate(`/record/${record.id}/edit`)}
+                      className={`card flex items-center gap-3 transition-colors ${!isViewer ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700' : ''}`}
+                      onClick={() => !isViewer && navigate(`/record/${record.id}/edit`, { state: { record } })}
                     >
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
                         <Icon size={18} />
@@ -516,12 +544,14 @@ export default function TimelinePage() {
     </div>
 
       {/* FAB */}
+      {!isViewer && (
       <button
         onClick={() => setShowTypePanel(true)}
         className="fixed right-4 bottom-24 md:bottom-8 w-14 h-14 bg-primary-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-primary-600 transition-colors z-40"
       >
         <Plus size={24} />
       </button>
+      )}
 
       {/* Type Selection Panel */}
       {showTypePanel && (

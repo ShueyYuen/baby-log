@@ -152,3 +152,5 @@ backend/uploads/*
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+dev-dist/

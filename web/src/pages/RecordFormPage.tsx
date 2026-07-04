@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
+import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
+import { cacheRead } from '../lib/queryCache';
 import { ArrowLeft, ImagePlus, X } from 'lucide-react';
 import { Button, Input, Textarea, DateTimePicker, ScrollDateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ImageViewer, useToast } from '../components/ui';
 
@@ -53,11 +55,18 @@ const quickTimes = [
 
 export default function RecordFormPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const isEditing = !!id;
   const { currentBaby } = useBaby();
+  const { isViewer } = useAuth();
+
+  // Viewers cannot create or edit records
+  useEffect(() => {
+    if (isViewer) navigate('/', { replace: true });
+  }, [isViewer, navigate]);
 
   const urlType = searchParams.get('type');
   const urlCategory = searchParams.get('category') as CategoryType | null;
@@ -92,7 +101,19 @@ export default function RecordFormPage() {
 
   useEffect(() => {
     if (isEditing && currentBaby) {
-      loadRecord();
+      // Try location state first (passed from list page) for instant render
+      const stateRecord = (location.state as any)?.record;
+      if (stateRecord) {
+        setCategory(stateRecord.category as CategoryType);
+        setType(stateRecord.type);
+        setOccurredAt(toLocalDateTimeString(new Date(stateRecord.occurredAt)));
+        setNote(stateRecord.note || '');
+        setImages(stateRecord.images || []);
+        populateData(stateRecord.type, stateRecord.data);
+        setLoadingRecord(false);
+      } else {
+        loadRecord();
+      }
     }
   }, [id, currentBaby]);
 
@@ -100,8 +121,11 @@ export default function RecordFormPage() {
     if (!currentBaby || !id) return;
     setLoadingRecord(true);
     try {
-      const res = await api.get<{ success: boolean; data: { items: any[] } }>(`/records?babyId=${currentBaby.id}&pageSize=100`);
-      const record = res.data.items.find((r: any) => r.id === id);
+      // Try cache first
+      const params = new URLSearchParams({ babyId: currentBaby.id, pageSize: '50' });
+      const cKey = `/records?${params}`;
+      const cached = cacheRead<{ success: boolean; data: { items: any[] } }>(cKey);
+      const record = cached?.data?.items?.find((r: any) => r.id === id);
       if (record) {
         setCategory(record.category as CategoryType);
         setType(record.type);
@@ -109,6 +133,18 @@ export default function RecordFormPage() {
         setNote(record.note || '');
         setImages(record.images || []);
         populateData(record.type, record.data);
+        setLoadingRecord(false);
+        return;
+      }
+      const res = await api.get<{ success: boolean; data: { items: any[] } }>(`/records?babyId=${currentBaby.id}&pageSize=100`);
+      const freshRecord = res.data.items.find((r: any) => r.id === id);
+      if (freshRecord) {
+        setCategory(freshRecord.category as CategoryType);
+        setType(freshRecord.type);
+        setOccurredAt(toLocalDateTimeString(new Date(freshRecord.occurredAt)));
+        setNote(freshRecord.note || '');
+        setImages(freshRecord.images || []);
+        populateData(freshRecord.type, freshRecord.data);
       }
     } catch {
       // ignore

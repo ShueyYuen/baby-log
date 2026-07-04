@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
+import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
+import { cacheRead } from '../lib/queryCache';
 import { ArrowLeft, Bell } from 'lucide-react';
 import { Button, Input, Textarea, DateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
@@ -36,10 +38,16 @@ const vaccineSuggestions = [
 
 export default function PlanFormPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { id } = useParams();
   const isEditing = !!id;
   const { currentBaby } = useBaby();
+  const { isViewer } = useAuth();
+
+  useEffect(() => {
+    if (isViewer) navigate('/plans', { replace: true });
+  }, [isViewer, navigate]);
   const [title, setTitle] = useState('');
   const [type, setType] = useState('vaccine');
   const [scheduledAt, setScheduledAt] = useState('');
@@ -50,19 +58,39 @@ export default function PlanFormPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
-    if (isEditing && currentBaby) {
-      api.get<{ success: boolean; data: any }>(`/plans?babyId=${currentBaby.id}`).then((res) => {
-        const plan = res.data.find((p: any) => p.id === id);
-        if (plan) {
-          setTitle(plan.title);
-          setType(plan.type);
-          setScheduledAt(dayjs(plan.scheduledAt).format('YYYY-MM-DD HH:mm'));
-          setDescription(plan.description || '');
-          setRepeat(plan.repeat || 'none');
-          setReminder(plan.reminder || '30');
-        }
-      });
+    if (!isEditing || !currentBaby) return;
+
+    const populatePlan = (plan: any) => {
+      setTitle(plan.title);
+      setType(plan.type);
+      setScheduledAt(dayjs(plan.scheduledAt).format('YYYY-MM-DD HH:mm'));
+      setDescription(plan.description || '');
+      setRepeat(plan.repeat || 'none');
+      setReminder(plan.reminder || '30');
+    };
+
+    // Try location state first (instant)
+    const statePlan = (location.state as any)?.plan;
+    if (statePlan) {
+      populatePlan(statePlan);
+      return;
     }
+
+    // Try cache second
+    const params = new URLSearchParams({ babyId: currentBaby.id });
+    const cKey = `/plans?${params}`;
+    const cached = cacheRead<{ success: boolean; data: any[] }>(cKey);
+    const cachedPlan = cached?.data?.find((p: any) => p.id === id);
+    if (cachedPlan) {
+      populatePlan(cachedPlan);
+      return;
+    }
+
+    // Fallback: fetch from backend
+    api.get<{ success: boolean; data: any[] }>(`/plans?babyId=${currentBaby.id}`).then((res) => {
+      const plan = res.data.find((p: any) => p.id === id);
+      if (plan) populatePlan(plan);
+    });
   }, [id, currentBaby]);
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -6,13 +6,27 @@ import (
 	"net/http"
 )
 
-const maxUploadSize = 10 * 1024 * 1024 // 10MB
+const maxUploadSize = 10 * 1024 * 1024 // 10MB per file (regular uploads)
+
+// maxMomentUploadSize allows larger files for moments (photos/videos).
+const maxMomentUploadSize = 200 * 1024 * 1024 // 200MB per file
 
 var allowedMimeTypes = map[string]bool{
 	"image/jpeg": true,
 	"image/png":  true,
 	"image/gif":  true,
 	"image/webp": true,
+}
+
+var momentAllowedMimeTypes = map[string]bool{
+	"image/jpeg":      true,
+	"image/png":       true,
+	"image/gif":       true,
+	"image/webp":      true,
+	"video/mp4":       true,
+	"video/quicktime": true,
+	"video/webm":      true,
+	"video/x-msvideo": true,
 }
 
 // POST /upload
@@ -98,6 +112,63 @@ func handleUploadMultiple(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[Upload] Multiple failed: %v", err)
 			writeErr(w, http.StatusInternalServerError, "Upload failed")
 			return
+		}
+		results = append(results, result)
+	}
+
+	writeOK(w, results)
+}
+
+// POST /moments/upload — upload media files for moments (images + videos).
+// Returns an array of uploadResult objects with mediaType field set.
+func handleUploadMomentMedia(w http.ResponseWriter, r *http.Request) {
+	// 32MB in memory, rest spills to temp files
+	if err := r.ParseMultipartForm(32 * 1024 * 1024); err != nil {
+		writeErr(w, http.StatusBadRequest, "No files uploaded")
+		return
+	}
+
+	if r.MultipartForm == nil || len(r.MultipartForm.File["files"]) == 0 {
+		writeErr(w, http.StatusBadRequest, "No files uploaded")
+		return
+	}
+
+	headers := r.MultipartForm.File["files"]
+	if len(headers) > 9 {
+		headers = headers[:9]
+	}
+
+	log.Printf("[Upload] Moment media: count=%d storage=%s", len(headers), getStorageType())
+
+	results := make([]*uploadResult, 0, len(headers))
+	for _, header := range headers {
+		f, err := header.Open()
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "Upload failed")
+			return
+		}
+		contentType := header.Header.Get("Content-Type")
+		if !momentAllowedMimeTypes[contentType] {
+			f.Close()
+			writeErr(w, http.StatusBadRequest, "不支持的文件类型")
+			return
+		}
+		data, err := io.ReadAll(io.LimitReader(f, maxMomentUploadSize+1))
+		f.Close()
+		if err != nil || len(data) > maxMomentUploadSize {
+			writeErr(w, http.StatusBadRequest, "文件过大")
+			return
+		}
+		result, err := uploadMomentFile(header.Filename, contentType, data)
+		if err != nil {
+			log.Printf("[Upload] Moment failed: %v", err)
+			writeErr(w, http.StatusInternalServerError, "Upload failed")
+			return
+		}
+		if isImageMIME(contentType) {
+			result.MediaType = "image"
+		} else {
+			result.MediaType = "video"
 		}
 		results = append(results, result)
 	}

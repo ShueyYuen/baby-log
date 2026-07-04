@@ -29,6 +29,58 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   return data;
 }
 
+// ─── Moments types ────────────────────────────────────────────────────────────
+
+export interface MediaItem {
+  key: string;
+  rawKey?: string;
+  mediaType: 'image' | 'video';
+}
+
+export interface MediaItemDisplay extends MediaItem {
+  url: string;
+  rawUrl?: string;
+}
+
+export interface MomentComment {
+  id: string;
+  momentId: string;
+  userId: string;
+  displayName: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface Moment {
+  id: string;
+  userId: string;
+  displayName: string;
+  content: string | null;
+  mediaItems: MediaItemDisplay[];
+  commentCount: number;
+  comments: MomentComment[];
+  createdAt: string;
+  updatedAt: string;
+  isOwner: boolean;
+}
+
+export interface MomentsListResponse {
+  items: Moment[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface UploadMomentResult {
+  url: string;
+  key: string;
+  rawUrl?: string;
+  rawKey?: string;
+  mediaType: 'image' | 'video';
+}
+
+// ─── API client ───────────────────────────────────────────────────────────────
+
 export const api = {
   get: <T>(url: string) => request<T>(url),
   post: <T>(url: string, body: unknown) =>
@@ -47,5 +99,44 @@ export const api = {
     const formData = new FormData();
     formData.append('file', file);
     return api.post<{ success: boolean; data: { url: string } }>('/upload', formData);
+  },
+
+  moments: {
+    list: (page = 1, pageSize = 10) =>
+      api.get<{ success: boolean; data: MomentsListResponse }>(
+        `/moments?page=${page}&pageSize=${pageSize}`
+      ),
+
+    create: (data: { content?: string; mediaItems?: MediaItem[] }) =>
+      api.post<{ success: boolean; data: Moment }>('/moments', data),
+
+    update: (id: string, data: { content?: string; mediaItems?: MediaItem[] }) =>
+      api.put<{ success: boolean; data: { id: string } }>(`/moments/${id}`, data),
+
+    delete: (id: string) =>
+      api.delete<{ success: boolean; data: { id: string } }>(`/moments/${id}`),
+
+    addComment: (momentId: string, content: string) =>
+      api.post<{ success: boolean; data: MomentComment }>(
+        `/moments/${momentId}/comments`,
+        { content }
+      ),
+
+    deleteComment: (momentId: string, commentId: string) =>
+      api.delete<{ success: boolean; data: { id: string } }>(
+        `/moments/${momentId}/comments/${commentId}`
+      ),
+
+    uploadMedia: async (files: File[]): Promise<UploadMomentResult[]> => {
+      const formData = new FormData();
+      for (const file of files) {
+        formData.append('files', file);
+      }
+      const res = await api.post<{ success: boolean; data: UploadMomentResult[] }>(
+        '/moments/upload',
+        formData
+      );
+      return res.data;
+    },
   },
 };

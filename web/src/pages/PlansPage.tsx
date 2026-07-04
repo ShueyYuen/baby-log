@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
+import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
+import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -40,6 +42,7 @@ const statusConfig: Record<string, { label: string; variant: 'warning' | 'succes
 
 export default function PlansPage() {
   const { currentBaby } = useBaby();
+  const { isViewer } = useAuth();
   const navigate = useNavigate();
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,13 +53,25 @@ export default function PlansPage() {
     loadPlans();
   }, [currentBaby, statusFilter]);
 
-  const loadPlans = async () => {
+  const loadPlans = async (invalidate = false) => {
     if (!currentBaby) return;
-    setLoading(true);
+    const params = new URLSearchParams({ babyId: currentBaby.id });
+    if (statusFilter) params.set('status', statusFilter);
+    const cKey = `/plans?${params}`;
+
+    if (invalidate) cacheInvalidate(`/plans`);
+
+    const cached = cacheRead<{ success: boolean; data: PlanItem[] }>(cKey);
+    if (cached) {
+      setPlans(cached.data);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     try {
-      const params = new URLSearchParams({ babyId: currentBaby.id });
-      if (statusFilter) params.set('status', statusFilter);
-      const res = await api.get<{ success: boolean; data: PlanItem[] }>(`/plans?${params}`);
+      const res = await api.get<{ success: boolean; data: PlanItem[] }>(cKey);
+      cacheWrite(cKey, res);
       setPlans(res.data);
     } catch {
       // ignore
@@ -68,7 +83,7 @@ export default function PlansPage() {
   const updateStatus = async (id: string, status: string) => {
     try {
       await api.put(`/plans/${id}`, { status });
-      loadPlans();
+      loadPlans(true);
     } catch {
       // ignore
     }
@@ -79,11 +94,13 @@ export default function PlansPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold dark:text-gray-100">计划安排</h2>
+        {!isViewer && (
         <Button asChild size="sm">
           <Link to="/plan/new">
             <Plus size={16} /> 新计划
           </Link>
         </Button>
+        )}
       </div>
 
       {/* Status Filter */}
@@ -114,8 +131,8 @@ export default function PlansPage() {
           {plans.map((plan) => (
             <Card
               key={plan.id}
-              className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700 transition-colors"
-              onClick={() => navigate(`/plan/${plan.id}/edit`)}
+              className={`transition-colors ${!isViewer ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700' : ''}`}
+              onClick={() => !isViewer && navigate(`/plan/${plan.id}/edit`, { state: { plan } })}
             >
               <CardContent>
                 <div className="flex items-start justify-between">
@@ -149,6 +166,7 @@ export default function PlansPage() {
                       >
                         <CalendarPlus size={20} />
                       </button>
+                      {!isViewer && (
                       <button
                         onClick={(e) => { e.stopPropagation(); updateStatus(plan.id, 'completed'); }}
                         className="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-green-500 dark:hover:text-green-400 transition-colors"
@@ -156,6 +174,7 @@ export default function PlansPage() {
                       >
                         <CheckCircle size={22} />
                       </button>
+                      )}
                     </div>
                   )}
                 </div>

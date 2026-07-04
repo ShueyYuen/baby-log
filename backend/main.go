@@ -70,6 +70,7 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				r.Get("/users", handleListUsers)
 				r.Delete("/users/{id}", handleDeleteUser)
 				r.Post("/users/{id}/reset-password", handleResetPassword)
+				r.Put("/users/{id}/role", handleSetUserRole)
 			})
 		})
 
@@ -79,37 +80,52 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 
 			r.Route("/babies", func(r chi.Router) {
 				r.Get("/", handleListBabies)
-				r.Post("/", handleCreateBaby)
 				r.Get("/{id}", handleGetBaby)
-				r.Put("/{id}", handleUpdateBaby)
+				r.Group(func(r chi.Router) {
+					r.Use(requireEditorRole)
+					r.Post("/", handleCreateBaby)
+					r.Put("/{id}", handleUpdateBaby)
+				})
 			})
 
 			r.Route("/records", func(r chi.Router) {
 				r.Get("/", handleListRecords)
-				r.Post("/", handleCreateRecord)
-				r.Put("/{id}", handleUpdateRecord)
-				r.Delete("/{id}", handleDeleteRecord)
+				r.Group(func(r chi.Router) {
+					r.Use(requireEditorRole)
+					r.Post("/", handleCreateRecord)
+					r.Put("/{id}", handleUpdateRecord)
+					r.Delete("/{id}", handleDeleteRecord)
+				})
 			})
 
 			r.Route("/plans", func(r chi.Router) {
 				r.Get("/", handleListPlans)
-				r.Post("/", handleCreatePlan)
-				r.Put("/{id}", handleUpdatePlan)
-				r.Delete("/{id}", handleDeletePlan)
+				r.Group(func(r chi.Router) {
+					r.Use(requireEditorRole)
+					r.Post("/", handleCreatePlan)
+					r.Put("/{id}", handleUpdatePlan)
+					r.Delete("/{id}", handleDeletePlan)
+				})
 			})
 
 			r.Route("/growth", func(r chi.Router) {
 				r.Get("/", handleListGrowth)
-				r.Post("/", handleCreateGrowth)
-				r.Put("/{id}", handleUpdateGrowth)
-				r.Delete("/{id}", handleDeleteGrowth)
+				r.Group(func(r chi.Router) {
+					r.Use(requireEditorRole)
+					r.Post("/", handleCreateGrowth)
+					r.Put("/{id}", handleUpdateGrowth)
+					r.Delete("/{id}", handleDeleteGrowth)
+				})
 			})
 
 			r.Route("/milestones", func(r chi.Router) {
 				r.Get("/", handleListMilestones)
-				r.Post("/", handleCreateMilestone)
-				r.Put("/{id}", handleUpdateMilestone)
-				r.Delete("/{id}", handleDeleteMilestone)
+				r.Group(func(r chi.Router) {
+					r.Use(requireEditorRole)
+					r.Post("/", handleCreateMilestone)
+					r.Put("/{id}", handleUpdateMilestone)
+					r.Delete("/{id}", handleDeleteMilestone)
+				})
 			})
 
 			r.Route("/stats", func(r chi.Router) {
@@ -122,6 +138,16 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 			r.Route("/upload", func(r chi.Router) {
 				r.Post("/", handleUploadSingle)
 				r.Post("/multiple", handleUploadMultiple)
+			})
+
+			r.Route("/moments", func(r chi.Router) {
+				r.Post("/upload", handleUploadMomentMedia)
+				r.Get("/", handleListMoments)
+				r.Post("/", handleCreateMoment)
+				r.Put("/{id}", handleUpdateMoment)
+				r.Delete("/{id}", handleDeleteMoment)
+				r.Post("/{id}/comments", handleCreateMomentComment)
+				r.Delete("/{id}/comments/{commentId}", handleDeleteMomentComment)
 			})
 
 			r.Route("/push", func(r chi.Router) {

@@ -11,6 +11,7 @@ import GrowthHistoryPage from './pages/GrowthHistoryPage';
 import StatsPage from './pages/StatsPage';
 import BabySetupPage from './pages/BabySetupPage';
 import AdminPage from './pages/AdminPage';
+import MomentsPage from './pages/MomentsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -37,6 +38,7 @@ export default function App() {
             <Layout>
               <Routes>
                 <Route path="/" element={<TimelinePage />} />
+                <Route path="/moments" element={<MomentsPage />} />
                 <Route path="/record/new" element={<RecordFormPage />} />
                 <Route path="/record/:id/edit" element={<RecordFormPage />} />
                 <Route path="/plans" element={<PlansPage />} />

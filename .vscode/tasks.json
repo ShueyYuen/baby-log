@@ -1,0 +1,128 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Backend: Build",
+      "type": "shell",
+      "command": "go build -o baby-log-server .",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": "$go"
+    },
+    {
+      "label": "Backend: Run",
+      "type": "shell",
+      "command": "go run .",
+      "options": {
+        "cwd": "${workspaceFolder}/backend",
+        "env": {
+          "PORT": "3001",
+          "DATABASE_URL": "file:./dev.db",
+          "STORAGE_TYPE": "local",
+          "UPLOAD_DIR": "uploads"
+        }
+      },
+      "group": "none",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "backend"
+      },
+      "problemMatcher": {
+        "owner": "go",
+        "pattern": {
+          "regexp": "^(.*):(\\d+):(\\d+):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^Server running",
+          "endsPattern": "^$"
+        }
+      }
+    },
+    {
+      "label": "Backend: Test",
+      "type": "shell",
+      "command": "go test ./... -v",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": "$go"
+    },
+    {
+      "label": "Frontend: Dev",
+      "type": "shell",
+      "command": "pnpm dev",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "group": "none",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "frontend"
+      },
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": {
+          "regexp": "^(.*):(\\d+):(\\d+):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE",
+          "endsPattern": "ready in"
+        }
+      }
+    },
+    {
+      "label": "Frontend: Build",
+      "type": "shell",
+      "command": "pnpm build",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Full Stack: Dev",
+      "dependsOn": ["Backend: Run", "Frontend: Dev"],
+      "dependsOrder": "parallel",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ]
+}

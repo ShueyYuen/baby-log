@@ -138,9 +138,13 @@ func getS3Client() *s3.Client {
 	return s3ClientInst
 }
 
+// uploadResult holds the display URL, storage key, and optional raw file info.
 type uploadResult struct {
-	URL string `json:"url"`
-	Key string `json:"key"`
+	URL       string `json:"url"`
+	Key       string `json:"key"`
+	RawURL    string `json:"rawUrl,omitempty"`
+	RawKey    string `json:"rawKey,omitempty"`
+	MediaType string `json:"mediaType,omitempty"`
 }
 
 func buildPublicURL(cfg *s3Config, s3Key string) string {
@@ -160,28 +164,46 @@ func buildPublicURL(cfg *s3Config, s3Key string) string {
 	return endpoint + "/" + cfg.bucket + "/" + s3Key
 }
 
-// uploadFile 保存上传的文件（本地或 S3），返回展示 URL 与存储 key。
+// uploadFile stores a file with compression (images) and raw backup.
+// S3: compressed → uploads/{uid}.jpg, raw → uploads/raw/{uid}{origExt}
+// Local: compressed → {uploadDir}/{uid}.jpg, raw → {uploadDir}/raw/{uid}{origExt}
 func uploadFile(filename string, contentType string, data []byte) (*uploadResult, error) {
 	cfg := getStorageConfig()
-	ext := filepath.Ext(filename)
-	key := uuid.NewString() + ext
+	uid := uuid.NewString()
+	origExt := strings.ToLower(filepath.Ext(filename))
+	if origExt == "" {
+		origExt = mimeToExt(contentType)
+	}
+
+	var compressedData []byte
+	var compressedMIME string
+	var compressedExt string
+
+	if isImageMIME(contentType) {
+		compressedData, compressedMIME = compressImage(data, contentType)
+		compressedExt = ".jpg"
+	} else {
+		compressedData = data
+		compressedMIME = contentType
+		compressedExt = origExt
+	}
 
 	if cfg.typ == storageS3 && cfg.s3 != nil {
 		client := getS3Client()
-		s3Key := "uploads/" + key
-		ct := contentType
-		_, err := client.PutObject(context.Background(), &s3.PutObjectInput{
+		s3Key := "uploads/" + uid + compressedExt
+
+		if _, err := client.PutObject(context.Background(), &s3.PutObjectInput{
 			Bucket:      aws.String(cfg.s3.bucket),
 			Key:         aws.String(s3Key),
-			Body:        bytes.NewReader(data),
-			ContentType: aws.String(ct),
-		})
-		if err != nil {
+			Body:        bytes.NewReader(compressedData),
+			ContentType: aws.String(compressedMIME),
+		}); err != nil {
 			log.Printf("[Storage] S3 upload failed: %v", err)
 			return nil, err
 		}
 
 		var displayURL string
+		var err error
 		if cfg.s3.publicURL != "" {
 			displayURL = buildPublicURL(cfg.s3, s3Key)
 		} else {
@@ -190,17 +212,163 @@ func uploadFile(filename string, contentType string, data []byte) (*uploadResult
 				return nil, err
 			}
 		}
-		return &uploadResult{URL: displayURL, Key: s3Key}, nil
+
+		result := &uploadResult{URL: displayURL, Key: s3Key}
+
+		// Store raw copy for images
+		if isImageMIME(contentType) {
+			rawKey := "uploads/raw/" + uid + origExt
+			if _, err := client.PutObject(context.Background(), &s3.PutObjectInput{
+				Bucket:      aws.String(cfg.s3.bucket),
+				Key:         aws.String(rawKey),
+				Body:        bytes.NewReader(data),
+				ContentType: aws.String(contentType),
+			}); err != nil {
+				log.Printf("[Storage] S3 raw upload failed (non-fatal): %v", err)
+			} else {
+				if cfg.s3.publicURL != "" {
+					result.RawURL = buildPublicURL(cfg.s3, rawKey)
+				} else {
+					result.RawURL, _ = getSignedDownloadURL(rawKey, 86400)
+				}
+				result.RawKey = rawKey
+			}
+		}
+		return result, nil
 	}
 
-	// 本地存储
+	// Local storage
+	localKey := uid + compressedExt
 	if err := os.MkdirAll(cfg.uploadDir, 0o755); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(filepath.Join(cfg.uploadDir, key), data, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(cfg.uploadDir, localKey), compressedData, 0o644); err != nil {
 		return nil, err
 	}
-	return &uploadResult{URL: cfg.publicPath + "/" + key, Key: key}, nil
+
+	result := &uploadResult{
+		URL: cfg.publicPath + "/" + localKey,
+		Key: localKey,
+	}
+
+	// Store raw copy for images
+	if isImageMIME(contentType) {
+		rawLocalKey := "raw/" + uid + origExt
+		rawDir := filepath.Join(cfg.uploadDir, "raw")
+		if err := os.MkdirAll(rawDir, 0o755); err == nil {
+			if err := os.WriteFile(filepath.Join(cfg.uploadDir, rawLocalKey), data, 0o644); err == nil {
+				result.RawURL = cfg.publicPath + "/" + rawLocalKey
+				result.RawKey = rawLocalKey
+			} else {
+				log.Printf("[Storage] Local raw write failed (non-fatal): %v", err)
+			}
+		}
+	}
+	return result, nil
+}
+
+// uploadMomentFile stores a moment media file with compression (images).
+// S3: compressed → moments/{uid}.jpg, raw → moments/raw/{uid}{origExt}
+// Local: compressed → {uploadDir}/moments/{uid}.jpg, raw → {uploadDir}/moments/raw/{uid}{origExt}
+func uploadMomentFile(filename, contentType string, data []byte) (*uploadResult, error) {
+	cfg := getStorageConfig()
+	uid := uuid.NewString()
+	origExt := strings.ToLower(filepath.Ext(filename))
+	if origExt == "" {
+		origExt = mimeToExt(contentType)
+	}
+
+	var compressedData []byte
+	var compressedMIME string
+	var compressedExt string
+
+	if isImageMIME(contentType) {
+		compressedData, compressedMIME = compressImage(data, contentType)
+		compressedExt = ".jpg"
+	} else {
+		compressedData = data
+		compressedMIME = contentType
+		compressedExt = origExt
+	}
+
+	if cfg.typ == storageS3 && cfg.s3 != nil {
+		client := getS3Client()
+		compKey := "moments/" + uid + compressedExt
+
+		if _, err := client.PutObject(context.Background(), &s3.PutObjectInput{
+			Bucket:      aws.String(cfg.s3.bucket),
+			Key:         aws.String(compKey),
+			Body:        bytes.NewReader(compressedData),
+			ContentType: aws.String(compressedMIME),
+		}); err != nil {
+			log.Printf("[Storage] S3 moment upload failed: %v", err)
+			return nil, err
+		}
+
+		var displayURL string
+		var err error
+		if cfg.s3.publicURL != "" {
+			displayURL = buildPublicURL(cfg.s3, compKey)
+		} else {
+			displayURL, err = getSignedDownloadURL(compKey, 3600)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		result := &uploadResult{URL: displayURL, Key: compKey}
+
+		// Store raw copy for images
+		if isImageMIME(contentType) {
+			rawKey := "moments/raw/" + uid + origExt
+			if _, err := client.PutObject(context.Background(), &s3.PutObjectInput{
+				Bucket:      aws.String(cfg.s3.bucket),
+				Key:         aws.String(rawKey),
+				Body:        bytes.NewReader(data),
+				ContentType: aws.String(contentType),
+			}); err != nil {
+				log.Printf("[Storage] S3 moment raw upload failed (non-fatal): %v", err)
+			} else {
+				if cfg.s3.publicURL != "" {
+					result.RawURL = buildPublicURL(cfg.s3, rawKey)
+				} else {
+					result.RawURL, _ = getSignedDownloadURL(rawKey, 86400)
+				}
+				result.RawKey = rawKey
+			}
+		}
+		return result, nil
+	}
+
+	// Local storage — moments subfolder
+	compKey := "moments/" + uid + compressedExt
+	compPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(compKey))
+	if err := os.MkdirAll(filepath.Dir(compPath), 0o755); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(compPath, compressedData, 0o644); err != nil {
+		return nil, err
+	}
+
+	result := &uploadResult{
+		URL: cfg.publicPath + "/" + compKey,
+		Key: compKey,
+	}
+
+	// Store raw copy for images
+	if isImageMIME(contentType) {
+		rawKey := "moments/raw/" + uid + origExt
+		rawPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(rawKey))
+		if err := os.MkdirAll(filepath.Dir(rawPath), 0o755); err == nil {
+			if err := os.WriteFile(rawPath, data, 0o644); err == nil {
+				result.RawURL = cfg.publicPath + "/" + rawKey
+				result.RawKey = rawKey
+			} else {
+				log.Printf("[Storage] Local moment raw write failed (non-fatal): %v", err)
+			}
+		}
+	}
+	return result, nil
 }
 
 func deleteFile(key string) error {
@@ -213,7 +381,8 @@ func deleteFile(key string) error {
 		})
 		return err
 	}
-	filePath := filepath.Join(cfg.uploadDir, path.Base(key))
+	// Local: key can be "uuid.ext" (flat) or "subdir/uuid.ext" (with subdirectory)
+	filePath := filepath.Join(cfg.uploadDir, filepath.FromSlash(key))
 	if _, err := os.Stat(filePath); err == nil {
 		return os.Remove(filePath)
 	}
@@ -236,10 +405,11 @@ func getSignedDownloadURL(key string, expiresInSec int64) (string, error) {
 		}
 		return req.URL, nil
 	}
-	return cfg.publicPath + "/" + path.Base(key), nil
+	// Local: use the key directly as URL path (supports subdirectories)
+	return cfg.publicPath + "/" + key, nil
 }
 
-// toStorageKey 从存储值或历史完整 URL 中解析出 S3 key（本地存储原样返回）。
+// toStorageKey extracts the S3 key from a stored value or historical full URL.
 func toStorageKey(input string) string {
 	cfg := getStorageConfig()
 	if cfg.typ != storageS3 || cfg.s3 == nil {
@@ -326,4 +496,10 @@ func deleteFilesBestEffort(values []string) {
 			log.Printf("[Storage] Failed to delete file: %s %v", key, err)
 		}
 	}
+}
+
+// localUploadPath returns the filesystem path for a local storage key.
+// Kept for legacy usage in tests.
+func localUploadPath(cfg storageConfig, key string) string {
+	return filepath.Join(cfg.uploadDir, filepath.FromSlash(path.Base(key)))
 }

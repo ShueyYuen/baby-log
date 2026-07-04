@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
+import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
+import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Plus, Star, Pencil, Trash2 } from 'lucide-react';
@@ -40,6 +42,7 @@ const milestoneLabels: Record<string, string> = {
 
 export default function GrowthPage() {
   const { currentBaby } = useBaby();
+  const { isViewer } = useAuth();
   const { toast } = useToast();
   const [growthRecords, setGrowthRecords] = useState<GrowthItem[]>([]);
   const [milestones, setMilestones] = useState<MilestoneItem[]>([]);
@@ -60,15 +63,33 @@ export default function GrowthPage() {
 
   useEffect(() => {
     if (!currentBaby) return;
-    loadData();
+    loadData(true);
   }, [currentBaby]);
 
-  const loadData = async () => {
+  const loadData = async (invalidate = false) => {
     if (!currentBaby) return;
+    const cKeyGrowth = `/growth?babyId=${currentBaby.id}`;
+    const cKeyMilestones = `/milestones?babyId=${currentBaby.id}`;
+
+    if (invalidate) {
+      cacheInvalidate(cKeyGrowth);
+      cacheInvalidate(cKeyMilestones);
+    }
+
+    // Show stale data immediately
+    const cachedGrowth = cacheRead<{ success: boolean; data: GrowthItem[] }>(cKeyGrowth);
+    const cachedMilestones = cacheRead<{ success: boolean; data: MilestoneItem[] }>(cKeyMilestones);
+    if (cachedGrowth && cachedMilestones) {
+      setGrowthRecords(cachedGrowth.data);
+      setMilestones(cachedMilestones.data);
+    }
+
     const [growthRes, milestonesRes] = await Promise.all([
-      api.get<{ success: boolean; data: GrowthItem[] }>(`/growth?babyId=${currentBaby.id}`),
-      api.get<{ success: boolean; data: MilestoneItem[] }>(`/milestones?babyId=${currentBaby.id}`),
+      api.get<{ success: boolean; data: GrowthItem[] }>(cKeyGrowth),
+      api.get<{ success: boolean; data: MilestoneItem[] }>(cKeyMilestones),
     ]);
+    cacheWrite(cKeyGrowth, growthRes);
+    cacheWrite(cKeyMilestones, milestonesRes);
     setGrowthRecords(growthRes.data);
     setMilestones(milestonesRes.data);
   };
@@ -85,7 +106,7 @@ export default function GrowthPage() {
     });
     setShowGrowthForm(false);
     setGHeight(''); setGWeight(''); setGHead('');
-    loadData();
+    loadData(true);
   };
 
   const [editingMilestone, setEditingMilestone] = useState<MilestoneItem | null>(null);
@@ -102,7 +123,7 @@ export default function GrowthPage() {
     });
     setShowMilestoneForm(false);
     setMTitle(''); setMDesc('');
-    loadData();
+    loadData(true);
   };
 
   const openEditMilestone = (m: MilestoneItem) => {
@@ -124,14 +145,14 @@ export default function GrowthPage() {
     });
     setEditingMilestone(null);
     setMTitle(''); setMDesc('');
-    loadData();
+    loadData(true);
   };
 
   const deleteMilestone = async (id: string) => {
     try {
       await api.delete(`/milestones/${id}`);
       toast('里程碑已删除', 'success');
-      loadData();
+      loadData(true);
     } catch {
       toast('删除失败', 'error');
     }
@@ -289,11 +310,13 @@ export default function GrowthPage() {
               </Button>
             )}
             <Dialog open={showGrowthForm} onOpenChange={setShowGrowthForm}>
+              {!isViewer && (
               <DialogTrigger asChild>
                 <Button variant="outline" className="flex-1">
                   <Plus size={16} /> 记录数据
                 </Button>
               </DialogTrigger>
+              )}
             <DialogContent className="w-[calc(100%-2rem)] max-w-sm">
               <DialogHeader>
                 <DialogTitle>记录生理数据</DialogTitle>
@@ -331,11 +354,13 @@ export default function GrowthPage() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-lg dark:text-gray-100">里程碑</h3>
           <Dialog open={showMilestoneForm} onOpenChange={setShowMilestoneForm}>
+            {!isViewer && (
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm">
                 <Plus size={14} /> 添加
               </Button>
             </DialogTrigger>
+            )}
             <DialogContent className="w-[calc(100%-2rem)] max-w-sm">
               <DialogHeader>
                 <DialogTitle>记录里程碑</DialogTitle>
@@ -391,6 +416,8 @@ export default function GrowthPage() {
                     {m.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{m.description}</p>}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    {!isViewer && (
+                    <>
                     <button
                       onClick={() => openEditMilestone(m)}
                       className="p-1.5 rounded-md text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -403,6 +430,8 @@ export default function GrowthPage() {
                     >
                       <Trash2 size={14} />
                     </button>
+                    </>
+                    )}
                   </div>
                 </CardContent>
               </Card>

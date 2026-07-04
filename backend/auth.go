@@ -134,6 +134,18 @@ func handleMe(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, userPublic{ID: id, Username: username, DisplayName: displayName, Role: role})
 }
 
+// requireEditorRole middleware: denies write access for "viewer"-role users.
+func requireEditorRole(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var role string
+		if err := db.QueryRow(`SELECT role FROM "User" WHERE id = ?`, getUserID(r)).Scan(&role); err != nil || role == "viewer" {
+			writeErr(w, http.StatusForbidden, "只读账户无法执行此操作")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // POST /auth/users （管理员）
 func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	if !isAdmin(getUserID(r)) {
@@ -144,6 +156,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Username    string `json:"username"`
 		DisplayName string `json:"displayName"`
+		Role        string `json:"role"` // optional: "user" (default) or "viewer"
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, http.StatusBadRequest, "Invalid input")
@@ -152,6 +165,9 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	if len(body.Username) < 2 || len(body.Username) > 50 || len(body.DisplayName) < 1 || len(body.DisplayName) > 50 {
 		writeErr(w, http.StatusBadRequest, "Invalid input")
 		return
+	}
+	if body.Role != "viewer" {
+		body.Role = "user"
 	}
 
 	var exists string
@@ -163,8 +179,8 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	password := generatePassword(16)
 	id := uuid.NewString()
 	now := nowMillis()
-	_, err := db.Exec(`INSERT INTO "User" (id, username, password, displayName, role, createdAt, updatedAt) VALUES (?, ?, ?, ?, 'user', ?, ?)`,
-		id, body.Username, password, body.DisplayName, int64(now), int64(now))
+	_, err := db.Exec(`INSERT INTO "User" (id, username, password, displayName, role, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		id, body.Username, password, body.DisplayName, body.Role, int64(now), int64(now))
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
@@ -293,6 +309,45 @@ func handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeOK(w, map[string]interface{}{"generatedPassword": password})
+}
+
+// PUT /auth/users/{id}/role （管理员）
+func handleSetUserRole(w http.ResponseWriter, r *http.Request) {
+	if !isAdmin(getUserID(r)) {
+		writeErr(w, http.StatusForbidden, "仅管理员可操作")
+		return
+	}
+
+	targetID := chiURLParam(r, "id")
+	if targetID == getUserID(r) {
+		writeErr(w, http.StatusBadRequest, "不能修改自己的角色")
+		return
+	}
+
+	var body struct {
+		Role string `json:"role"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, http.StatusBadRequest, "Invalid input")
+		return
+	}
+	validRoles := map[string]bool{"admin": true, "user": true, "viewer": true}
+	if !validRoles[body.Role] {
+		writeErr(w, http.StatusBadRequest, "无效的角色")
+		return
+	}
+
+	now := int64(nowMillis())
+	res, err := db.Exec(`UPDATE "User" SET role = ?, updatedAt = ? WHERE id = ?`, body.Role, now, targetID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeErr(w, http.StatusNotFound, "User not found")
+		return
+	}
+	writeOK(w, map[string]string{"id": targetID, "role": body.Role})
 }
 
 var _ = sql.ErrNoRows

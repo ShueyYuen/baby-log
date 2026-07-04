@@ -183,4 +183,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS "PushSubscription_endpoint_key" ON "PushSubscr
 CREATE INDEX IF NOT EXISTS "PushSubscription_userId_idx" ON "PushSubscription"("userId");
 CREATE INDEX IF NOT EXISTS "Reminder_sent_remindAt_idx" ON "Reminder"("sent", "remindAt");
 CREATE INDEX IF NOT EXISTS "Reminder_babyId_source_idx" ON "Reminder"("babyId", "source");
+
+CREATE TABLE IF NOT EXISTS "Moment" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "content" TEXT,
+    "mediaItems" TEXT,
+    "createdAt" INTEGER NOT NULL,
+    "updatedAt" INTEGER NOT NULL,
+    CONSTRAINT "Moment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS "MomentComment" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "momentId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
+    "createdAt" INTEGER NOT NULL,
+    CONSTRAINT "MomentComment_momentId_fkey" FOREIGN KEY ("momentId") REFERENCES "Moment" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "MomentComment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "Moment_createdAt_idx" ON "Moment"("createdAt");
+CREATE INDEX IF NOT EXISTS "Moment_userId_idx" ON "Moment"("userId");
+CREATE INDEX IF NOT EXISTS "MomentComment_momentId_idx" ON "MomentComment"("momentId");
 `

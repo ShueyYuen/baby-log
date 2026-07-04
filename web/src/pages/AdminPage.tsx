@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 import dayjs from 'dayjs';
-import { UserPlus, Trash2, KeyRound, Copy, Check } from 'lucide-react';
+import { UserPlus, Trash2, KeyRound, Copy, Check, ShieldCheck, Eye, User as UserIcon } from 'lucide-react';
 import { Button, Input, Card, CardContent, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, ConfirmDialog, useToast } from '../components/ui';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 
 interface UserItem {
   id: string;
@@ -20,6 +21,7 @@ export default function AdminPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
+  const [newUserRole, setNewUserRole] = useState<'user' | 'viewer'>('user');
   const [creating, setCreating] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState('');
   const [copied, setCopied] = useState(false);
@@ -28,6 +30,8 @@ export default function AdminPage() {
     id: string;
     name: string;
   } | null>(null);
+  const [roleChangeTarget, setRoleChangeTarget] = useState<UserItem | null>(null);
+  const [newRole, setNewRole] = useState('');
 
   useEffect(() => {
     loadUsers();
@@ -49,10 +53,12 @@ export default function AdminPage() {
       const res = await api.post<{ success: boolean; data: { generatedPassword: string } }>('/auth/users', {
         username: newUsername,
         displayName: newDisplayName,
+        role: newUserRole,
       });
       setGeneratedPassword(res.data.generatedPassword);
       setNewUsername('');
       setNewDisplayName('');
+      setNewUserRole('user');
       loadUsers();
     } catch (err: any) {
       toast(err.message || '创建失败', 'error');
@@ -90,6 +96,30 @@ export default function AdminPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleChangeRole = async () => {
+    if (!roleChangeTarget || !newRole) return;
+    try {
+      await api.put(`/auth/users/${roleChangeTarget.id}/role`, { role: newRole });
+      toast('角色已更新', 'success');
+      setRoleChangeTarget(null);
+      loadUsers();
+    } catch (err: any) {
+      toast(err.message || '更新失败', 'error');
+    }
+  };
+
+  const roleBadge = (role: string) => {
+    if (role === 'admin') return <Badge variant="info">管理员</Badge>;
+    if (role === 'viewer') return <Badge variant="secondary">只读</Badge>;
+    return <Badge variant="secondary">普通用户</Badge>;
+  };
+
+  const roleIcon = (role: string) => {
+    if (role === 'admin') return <ShieldCheck size={14} className="text-blue-500" />;
+    if (role === 'viewer') return <Eye size={14} className="text-gray-400" />;
+    return <UserIcon size={14} className="text-gray-400" />;
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -106,9 +136,7 @@ export default function AdminPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-medium dark:text-gray-100">{u.displayName}</span>
-                  <Badge variant={u.role === 'admin' ? 'info' : 'secondary'}>
-                    {u.role === 'admin' ? '管理员' : '普通用户'}
-                  </Badge>
+                  {roleBadge(u.role)}
                 </div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   @{u.username} · 创建于 {dayjs(u.createdAt).format('YYYY-MM-DD')}
@@ -116,6 +144,13 @@ export default function AdminPage() {
               </div>
               {u.id !== currentUser?.id && (
                 <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => { setRoleChangeTarget(u); setNewRole(u.role); }}
+                    className="p-2 rounded-md text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    title="更改角色"
+                  >
+                    {roleIcon(u.role)}
+                  </button>
                   <button
                     onClick={() => setConfirmAction({ type: 'reset', id: u.id, name: u.displayName })}
                     className="p-2 rounded-md text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -151,6 +186,31 @@ export default function AdminPage() {
         onConfirm={handleConfirm}
       />
 
+      {/* Change Role Dialog */}
+      <Dialog open={!!roleChangeTarget} onOpenChange={(open) => { if (!open) setRoleChangeTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>更改角色 — {roleChangeTarget?.displayName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <Select value={newRole} onValueChange={setNewRole}>
+              <SelectTrigger>
+                <SelectValue placeholder="选择角色" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="admin">管理员（可管理所有用户）</SelectItem>
+                <SelectItem value="user">普通用户（可记录宝宝数据）</SelectItem>
+                <SelectItem value="viewer">只读用户（仅可查看 + 发朋友圈）</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex gap-2 justify-end">
+              <Button variant="secondary" onClick={() => setRoleChangeTarget(null)}>取消</Button>
+              <Button onClick={handleChangeRole}>保存</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Create User Dialog */}
       <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
         <DialogContent>
@@ -166,6 +226,18 @@ export default function AdminPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">显示名称</label>
                 <Input value={newDisplayName} onChange={(e) => setNewDisplayName(e.target.value)} placeholder="如：爸爸/妈妈/奶奶" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">角色</label>
+                <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as 'user' | 'viewer')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">普通用户（可记录宝宝数据）</SelectItem>
+                    <SelectItem value="viewer">只读用户（仅可查看 + 发朋友圈）</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400">系统将自动生成强密码，创建后请妥善保存。</p>
               <div className="flex gap-3">
