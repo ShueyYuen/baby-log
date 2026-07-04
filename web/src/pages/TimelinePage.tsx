@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
@@ -7,6 +7,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
 import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock, Square } from 'lucide-react';
 import { ImageViewer, useToast } from '../components/ui';
+import { TwoPhaseTypeButton } from '../components/TwoPhaseTypeButton';
 import { isPushSupported, subscribePush, isSubscribed } from '../lib/push';
 import { addFeedingReminderToCalendar } from '../lib/calendar';
 
@@ -97,7 +98,6 @@ function formatRecordDetail(record: RecordItem): string {
 
 // 支持“开始/结束”两阶段记录的活动类型（长按入口即可开始）。
 const twoPhaseTypes = ['sleep', 'bath'];
-const LONG_PRESS_MS = 450;
 
 // formatElapsed 将毫秒时长格式化为 mm:ss 或 h:mm:ss。
 function formatElapsed(ms: number): string {
@@ -159,24 +159,6 @@ export default function TimelinePage() {
   const handleAddType = (type: string, category: string) => {
     setShowTypePanel(false);
     navigate(`/record/new?type=${type}&category=${category}`);
-  };
-
-  const longPressTimer = useRef<number | null>(null);
-  const longPressFired = useRef(false);
-
-  const startLongPress = (type: string, category: string) => {
-    longPressFired.current = false;
-    longPressTimer.current = window.setTimeout(() => {
-      longPressFired.current = true;
-      handleStartOngoing(type, category);
-    }, LONG_PRESS_MS);
-  };
-
-  const cancelLongPress = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
   };
 
   // 长按开始一个进行中的活动（睡眠/洗澡）：直接落一条 ongoing 记录，不进表单。
@@ -552,34 +534,34 @@ export default function TimelinePage() {
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">长按睡眠 / 洗澡可直接开始计时</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">短按填写详情 · 长按睡眠/洗澡可直接开始计时</p>
             <div className="grid grid-cols-4 gap-4">
               {allRecordTypes.map((item) => {
                 const Icon = item.icon;
                 const twoPhase = twoPhaseTypes.includes(item.type);
+                if (twoPhase) {
+                  return (
+                    <TwoPhaseTypeButton
+                      key={item.type}
+                      label={item.label}
+                      icon={Icon}
+                      color={item.color}
+                      onShortPress={() => handleAddType(item.type, item.category)}
+                      onLongPress={() => handleStartOngoing(item.type, item.category)}
+                    />
+                  );
+                }
                 return (
                   <button
                     key={item.type}
-                    onClick={() => {
-                      if (longPressFired.current) {
-                        longPressFired.current = false;
-                        return;
-                      }
-                      handleAddType(item.type, item.category);
-                    }}
-                    onPointerDown={twoPhase ? () => startLongPress(item.type, item.category) : undefined}
-                    onPointerUp={twoPhase ? cancelLongPress : undefined}
-                    onPointerLeave={twoPhase ? cancelLongPress : undefined}
-                    onContextMenu={twoPhase ? (e) => e.preventDefault() : undefined}
+                    type="button"
+                    onClick={() => handleAddType(item.type, item.category)}
                     className="relative flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   >
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center ${item.color}`}>
                       <Icon size={22} />
                     </div>
                     <span className="text-xs text-gray-700 dark:text-gray-300">{item.label}</span>
-                    {twoPhase && (
-                      <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-indigo-400" title="可长按开始" />
-                    )}
                   </button>
                 );
               })}
