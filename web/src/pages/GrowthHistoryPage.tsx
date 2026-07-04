@@ -120,7 +120,7 @@ export default function GrowthHistoryPage() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editingRecord} onOpenChange={(open) => { if (!open) setEditingRecord(null); }}>
-        <DialogContent className="max-w-sm mx-4">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-sm">
           <DialogHeader>
             <DialogTitle>编辑记录</DialogTitle>
           </DialogHeader>

@@ -29,14 +29,32 @@ func main() {
 		port = "3001"
 	}
 
-	r := chi.NewRouter()
-	r.Use(corsMiddleware)
-	r.Use(httpLogger)
-
 	uploadDir := os.Getenv("UPLOAD_DIR")
 	if uploadDir == "" {
 		uploadDir = "uploads"
 	}
+
+	r := buildRouter(uploadDir, resolveWebDistDir())
+
+	if vapidConfigured() {
+		log.Println("[Push] VAPID keys configured")
+	}
+
+	startReminderScheduler()
+
+	addr := ":" + port
+	log.Printf("Server running on http://localhost:%s", port)
+	if err := http.ListenAndServe(addr, r); err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
+}
+
+// buildRouter 构建带全部中间件与路由的 HTTP handler。
+// 抽离出来以便测试通过 httptest 复用与生产完全一致的路由。
+func buildRouter(uploadDir, webDist string) *chi.Mux {
+	r := chi.NewRouter()
+	r.Use(corsMiddleware)
+	r.Use(httpLogger)
 
 	r.Route(apiPrefix, func(r chi.Router) {
 		// 静态文件（上传目录）
@@ -124,7 +142,6 @@ func main() {
 	})
 
 	// SPA 静态资源与回退
-	webDist := resolveWebDistDir()
 	log.Printf("[Static] Web dist dir: %s", orNotFound(webDist))
 	if webDist != "" {
 		indexHTML := filepath.Join(webDist, "index.html")
@@ -136,17 +153,7 @@ func main() {
 		log.Println("[Static] No web dist directory found, SPA fallback disabled")
 	}
 
-	if vapidConfigured() {
-		log.Println("[Push] VAPID keys configured")
-	}
-
-	startReminderScheduler()
-
-	addr := ":" + port
-	log.Printf("Server running on http://localhost:%s", port)
-	if err := http.ListenAndServe(addr, r); err != nil {
-		log.Fatalf("Server failed: %v", err)
-	}
+	return r
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
@@ -191,8 +198,9 @@ func resolveWebDistDir() string {
 	}
 	if cwd, err := os.Getwd(); err == nil {
 		candidates = append(candidates,
+			filepath.Join(cwd, "web"),      // 生产镜像布局：dist 已拷贝到 <cwd>/web
+			filepath.Join(cwd, "web/dist"), // 本地：backend 同级 web 目录
 			filepath.Join(cwd, "../web/dist"),
-			filepath.Join(cwd, "packages/web/dist"),
 		)
 	}
 	for _, dir := range candidates {

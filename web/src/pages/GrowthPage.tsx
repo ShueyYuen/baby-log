@@ -294,7 +294,7 @@ export default function GrowthPage() {
                   <Plus size={16} /> 记录数据
                 </Button>
               </DialogTrigger>
-            <DialogContent className="max-w-sm mx-4">
+            <DialogContent className="w-[calc(100%-2rem)] max-w-sm">
               <DialogHeader>
                 <DialogTitle>记录生理数据</DialogTitle>
               </DialogHeader>
@@ -336,7 +336,7 @@ export default function GrowthPage() {
                 <Plus size={14} /> 添加
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-sm mx-4">
+            <DialogContent className="w-[calc(100%-2rem)] max-w-sm">
               <DialogHeader>
                 <DialogTitle>记录里程碑</DialogTitle>
               </DialogHeader>
@@ -412,7 +412,7 @@ export default function GrowthPage() {
 
         {/* Edit Milestone Dialog */}
         <Dialog open={!!editingMilestone} onOpenChange={(open) => { if (!open) setEditingMilestone(null); }}>
-          <DialogContent className="max-w-sm mx-4">
+          <DialogContent className="w-[calc(100%-2rem)] max-w-sm">
             <DialogHeader>
               <DialogTitle>编辑里程碑</DialogTitle>
             </DialogHeader>

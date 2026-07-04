@@ -15,6 +15,25 @@ const planTypes = [
   { value: 'custom', label: '自定义' },
 ];
 
+// 常见婴幼儿疫苗候选名称（含国家免疫规划及常见自费疫苗），用于疫苗计划的快捷填充。
+const vaccineSuggestions = [
+  '乙肝疫苗',
+  '卡介苗',
+  '脊灰疫苗',
+  '百白破疫苗',
+  '麻腮风疫苗',
+  '乙脑疫苗',
+  '流脑疫苗',
+  '甲肝疫苗',
+  '白破疫苗',
+  'Hib疫苗',
+  '13价肺炎疫苗',
+  '轮状病毒疫苗',
+  '手足口（EV71）疫苗',
+  '水痘疫苗',
+  '流感疫苗',
+];
+
 export default function PlanFormPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -115,6 +134,20 @@ export default function PlanFormPage() {
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">标题</label>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="如：乙肝疫苗第二针" required />
+          {type === 'vaccine' && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {vaccineSuggestions.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setTitle(name)}
+                  className="px-2.5 py-1 text-xs rounded-full border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div>
