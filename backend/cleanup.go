@@ -178,7 +178,7 @@ func collectReferencedKeys() (map[string]bool, error) {
 // Query params:
 //   - dry-run=true → list orphans without deleting
 func handleManualCleanup(w http.ResponseWriter, r *http.Request) {
-	if !isAdmin(getUserID(r)) {
+	if !isAdminCtx(r) {
 		writeErr(w, http.StatusForbidden, "仅管理员可操作")
 		return
 	}
@@ -279,7 +279,7 @@ func handleManualCleanup(w http.ResponseWriter, r *http.Request) {
 // Query params:
 //   - dry-run=true → count objects without updating
 func handleSetS3CacheControl(w http.ResponseWriter, r *http.Request) {
-	if !isAdmin(getUserID(r)) {
+	if !isAdminCtx(r) {
 		writeErr(w, http.StatusForbidden, "仅管理员可操作")
 		return
 	}

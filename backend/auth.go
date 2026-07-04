@@ -18,7 +18,10 @@ import (
 
 type ctxKey string
 
-const userIDKey ctxKey = "userId"
+const (
+	userIDKey   ctxKey = "userId"
+	userRoleKey ctxKey = "userRole"
+)
 
 func getUserID(r *http.Request) string {
 	if v, ok := r.Context().Value(userIDKey).(string); ok {
@@ -27,8 +30,16 @@ func getUserID(r *http.Request) string {
 	return ""
 }
 
+func getUserRole(r *http.Request) string {
+	if v, ok := r.Context().Value(userRoleKey).(string); ok {
+		return v
+	}
+	return ""
+}
+
 // authMiddleware：Bearer <userId:tokenVersion> 鉴权。
-// 兼容旧格式 Bearer <userId>（无版本号时跳过版本检查）。
+// 一次查询获取 id、role、tokenVersion 并全部缓存到 context 中，
+// 避免后续 requireEditorRole / isAdmin 重复查库。
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
@@ -49,9 +60,9 @@ func authMiddleware(next http.Handler) http.Handler {
 			userID = token
 		}
 
-		var id string
+		var id, role string
 		var dbTokenVer int
-		err := db.QueryRow(`SELECT id, "tokenVersion" FROM "User" WHERE id = ?`, userID).Scan(&id, &dbTokenVer)
+		err := db.QueryRow(`SELECT id, role, "tokenVersion" FROM "User" WHERE id = ?`, userID).Scan(&id, &role, &dbTokenVer)
 		if err != nil {
 			if isNoRows(err) {
 				writeErr(w, http.StatusUnauthorized, "Invalid token")
@@ -67,6 +78,7 @@ func authMiddleware(next http.Handler) http.Handler {
 		}
 
 		ctx := context.WithValue(r.Context(), userIDKey, id)
+		ctx = context.WithValue(ctx, userRoleKey, role)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -165,13 +177,8 @@ func clearLoginFailures(username string) {
 	delete(loginAttempts, username)
 }
 
-func isAdmin(userID string) bool {
-	var role string
-	err := db.QueryRow(`SELECT role FROM "User" WHERE id = ?`, userID).Scan(&role)
-	if err != nil {
-		return false
-	}
-	return role == "admin"
+func isAdminCtx(r *http.Request) bool {
+	return getUserRole(r) == "admin"
 }
 
 // POST /auth/login
@@ -219,22 +226,24 @@ func handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var id, username, displayName, role string
-	err := db.QueryRow(`SELECT id, username, displayName, role FROM "User" WHERE id = ?`, userID).
-		Scan(&id, &username, &displayName, &role)
+	role := getUserRole(r)
+
+	var username, displayName string
+	err := db.QueryRow(`SELECT username, displayName FROM "User" WHERE id = ?`, userID).
+		Scan(&username, &displayName)
 	if err != nil {
 		writeErr(w, http.StatusUnauthorized, "Invalid token")
 		return
 	}
 
-	writeOK(w, userPublic{ID: id, Username: username, DisplayName: displayName, Role: role})
+	writeOK(w, userPublic{ID: userID, Username: username, DisplayName: displayName, Role: role})
 }
 
 // requireEditorRole middleware: denies write access for "viewer"-role users.
+// Uses the role already cached in context by authMiddleware — no extra DB query.
 func requireEditorRole(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var role string
-		if err := db.QueryRow(`SELECT role FROM "User" WHERE id = ?`, getUserID(r)).Scan(&role); err != nil || role == "viewer" {
+		if getUserRole(r) == "viewer" {
 			writeErr(w, http.StatusForbidden, "只读账户无法执行此操作")
 			return
 		}
@@ -244,7 +253,7 @@ func requireEditorRole(next http.Handler) http.Handler {
 
 // POST /auth/users （管理员）
 func handleCreateUser(w http.ResponseWriter, r *http.Request) {
-	if !isAdmin(getUserID(r)) {
+	if !isAdminCtx(r) {
 		writeErr(w, http.StatusForbidden, "仅管理员可操作")
 		return
 	}
@@ -297,7 +306,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 // GET /auth/users （管理员）
 func handleListUsers(w http.ResponseWriter, r *http.Request) {
-	if !isAdmin(getUserID(r)) {
+	if !isAdminCtx(r) {
 		writeErr(w, http.StatusForbidden, "仅管理员可操作")
 		return
 	}
@@ -335,7 +344,7 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 // DELETE /auth/users/{id} （管理员）
 func handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	adminID := getUserID(r)
-	if !isAdmin(adminID) {
+	if !isAdminCtx(r) {
 		writeErr(w, http.StatusForbidden, "仅管理员可操作")
 		return
 	}
@@ -384,7 +393,7 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 
 // POST /auth/users/{id}/reset-password （管理员）
 func handleResetPassword(w http.ResponseWriter, r *http.Request) {
-	if !isAdmin(getUserID(r)) {
+	if !isAdminCtx(r) {
 		writeErr(w, http.StatusForbidden, "仅管理员可操作")
 		return
 	}
@@ -408,7 +417,7 @@ func handleResetPassword(w http.ResponseWriter, r *http.Request) {
 
 // PUT /auth/users/{id}/role （管理员）
 func handleSetUserRole(w http.ResponseWriter, r *http.Request) {
-	if !isAdmin(getUserID(r)) {
+	if !isAdminCtx(r) {
 		writeErr(w, http.StatusForbidden, "仅管理员可操作")
 		return
 	}

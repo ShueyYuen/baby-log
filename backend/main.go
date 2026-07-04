@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -54,6 +56,7 @@ func main() {
 // 抽离出来以便测试通过 httptest 复用与生产完全一致的路由。
 func buildRouter(uploadDir, webDist string) *chi.Mux {
 	r := chi.NewRouter()
+	r.Use(panicRecovery)
 	r.Use(corsMiddleware)
 	r.Use(httpLogger)
 
@@ -128,12 +131,14 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				})
 			})
 
-			r.Route("/stats", func(r chi.Router) {
-				r.Get("/summary", handleStatsSummary)
-				r.Get("/predict", handleStatsPredict)
-				r.Get("/daily", handleStatsDaily)
-				r.Get("/range", handleStatsRange)
-			})
+		r.Route("/stats", func(r chi.Router) {
+			r.Get("/summary", handleStatsSummary)
+			r.Get("/predict", handleStatsPredict)
+			r.Get("/daily", handleStatsDaily)
+			r.Get("/range", handleStatsRange)
+		})
+
+		r.Get("/timeline", handleTimeline)
 
 			r.Route("/upload", func(r chi.Router) {
 				r.Post("/", handleUploadSingle)
@@ -206,6 +211,28 @@ func httpLogger(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func panicRecovery(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rv := recover(); rv != nil {
+				log.Printf("[PANIC] %s %s: %v\n%s", r.Method, r.URL.Path, rv, debug.Stack())
+				if !headerWritten(w) {
+					writeErr(w, http.StatusInternalServerError,
+						fmt.Sprintf("Internal server error: %v", rv))
+				}
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+func headerWritten(w http.ResponseWriter) bool {
+	// chi's wrapped ResponseWriter records the status; if Header() was
+	// already sent we shouldn't try to write again.  A simple heuristic:
+	// if Content-Type is already set, the response was (likely) started.
+	return w.Header().Get("Content-Type") != ""
 }
 
 func spaHandler(webDist string) http.HandlerFunc {

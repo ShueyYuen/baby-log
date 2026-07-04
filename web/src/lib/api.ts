@@ -96,6 +96,37 @@ export interface UploadMomentResult {
   mediaType: 'image' | 'video';
 }
 
+// ─── Timeline types ──────────────────────────────────────────────────────────
+
+export interface TimelineSummary {
+  lastFeeding: { time: string; minutesAgo: number } | null;
+  lastDiaper: { time: string; minutesAgo: number } | null;
+  lastSleep: { time: string; minutesAgo: number } | null;
+}
+
+export interface FeedingPrediction {
+  minutesUntilNext: number | null;
+  avgIntervalMinutes: number | null;
+  method: 'bottle' | 'breastfeed' | 'average' | null;
+}
+
+export interface TimelineRecord {
+  id: string;
+  category: string;
+  type: string;
+  data: any;
+  occurredAt: string;
+  note?: string;
+  images?: RecordImage[];
+  user?: { displayName: string };
+}
+
+export interface TimelineResponse {
+  records: TimelineRecord[];
+  summary: TimelineSummary;
+  prediction: FeedingPrediction;
+}
+
 // ─── API client ───────────────────────────────────────────────────────────────
 
 export const api = {

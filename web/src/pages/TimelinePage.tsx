@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { api } from '../lib/api';
+import { api, type TimelineResponse, type TimelineRecord, type TimelineSummary, type FeedingPrediction } from '../lib/api';
 import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -18,28 +19,7 @@ import { addFeedingReminderToCalendar } from '../lib/calendar';
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
 
-interface RecordItem {
-  id: string;
-  category: string;
-  type: string;
-  data: any;
-  occurredAt: string;
-  note?: string;
-  images?: Array<{ key: string; rawKey?: string; mediaType?: string; url: string; rawUrl?: string }>;
-  user?: { displayName: string };
-}
-
-interface Summary {
-  lastFeeding: { time: string; minutesAgo: number } | null;
-  lastDiaper: { time: string; minutesAgo: number } | null;
-  lastSleep: { time: string; minutesAgo: number } | null;
-}
-
-interface FeedingPrediction {
-  minutesUntilNext: number | null;
-  avgIntervalMinutes: number | null;
-  method: 'bottle' | 'breastfeed' | 'average' | null;
-}
+type RecordItem = TimelineRecord;
 
 const typeConfig: Record<string, { label: string; icon: any; color: string }> = {
   breastfeed: { label: '母乳', icon: Heart, color: 'text-pink-500 bg-pink-50 dark:bg-pink-950/40' },
@@ -211,7 +191,7 @@ export default function TimelinePage() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [records, setRecords] = useState<RecordItem[]>([]);
-  const [summary, setSummary] = useState<Summary | null>(null);
+  const [summary, setSummary] = useState<TimelineSummary | null>(null);
   const [prediction, setPrediction] = useState<FeedingPrediction | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('');
@@ -325,41 +305,28 @@ export default function TimelinePage() {
     if (!currentBaby) return;
     const params = new URLSearchParams({ babyId: currentBaby.id, pageSize: '50' });
     if (filter) params.set('category', filter);
-    const cKeyRecords = `/records?${params}`;
-    const cKeySummary = `/stats/summary?babyId=${currentBaby.id}`;
-    const cKeyPredict = `/stats/predict?babyId=${currentBaby.id}`;
+    const cKey = `/timeline?${params}`;
 
     if (invalidate) {
-      cacheInvalidate(`/records`);
-      cacheInvalidate(cKeySummary);
-      cacheInvalidate(cKeyPredict);
+      cacheInvalidate('/timeline');
     }
 
-    // Show stale data immediately if available
-    const cachedRecords = cacheRead<{ success: boolean; data: { items: RecordItem[] } }>(cKeyRecords);
-    const cachedSummary = cacheRead<{ success: boolean; data: Summary }>(cKeySummary);
-    const cachedPredict = cacheRead<{ success: boolean; data: FeedingPrediction }>(cKeyPredict);
-    if (cachedRecords && cachedSummary && cachedPredict) {
-      setRecords(cachedRecords.data.items);
-      setSummary(cachedSummary.data);
-      setPrediction(cachedPredict.data);
+    const cached = cacheRead<{ success: boolean; data: TimelineResponse }>(cKey);
+    if (cached) {
+      setRecords(cached.data.records);
+      setSummary(cached.data.summary);
+      setPrediction(cached.data.prediction);
       setLoading(false);
     } else {
       setLoading(true);
     }
 
     try {
-      const [recordsRes, summaryRes, predictRes] = await Promise.all([
-        api.get<{ success: boolean; data: { items: RecordItem[] } }>(cKeyRecords),
-        api.get<{ success: boolean; data: Summary }>(cKeySummary),
-        api.get<{ success: boolean; data: FeedingPrediction }>(cKeyPredict),
-      ]);
-      cacheWrite(cKeyRecords, recordsRes);
-      cacheWrite(cKeySummary, summaryRes);
-      cacheWrite(cKeyPredict, predictRes);
-      setRecords(recordsRes.data.items);
-      setSummary(summaryRes.data);
-      setPrediction(predictRes.data);
+      const res = await api.get<{ success: boolean; data: TimelineResponse }>(cKey);
+      cacheWrite(cKey, res);
+      setRecords(res.data.records);
+      setSummary(res.data.summary);
+      setPrediction(res.data.prediction);
     } catch {
       // ignore
     } finally {
@@ -368,20 +335,47 @@ export default function TimelinePage() {
   };
 
 
-  const groupedRecords = useMemo(() => records.reduce<Record<string, RecordItem[]>>((acc, record) => {
-    const date = dayjs(record.occurredAt);
-    const today = dayjs().startOf('day');
-    const yesterday = today.subtract(1, 'day');
+  type FlatRow = { kind: 'header'; group: string } | { kind: 'item'; record: RecordItem };
 
-    let group: string;
-    if (date.isAfter(today)) group = '今天';
-    else if (date.isAfter(yesterday)) group = '昨天';
-    else group = date.format('MM月DD日');
+  const flatRows = useMemo(() => {
+    const grouped = records.reduce<Record<string, RecordItem[]>>((acc, record) => {
+      const date = dayjs(record.occurredAt);
+      const today = dayjs().startOf('day');
+      const yesterday = today.subtract(1, 'day');
 
-    if (!acc[group]) acc[group] = [];
-    acc[group].push(record);
-    return acc;
-  }, {}), [records]);
+      let group: string;
+      if (date.isAfter(today)) group = '今天';
+      else if (date.isAfter(yesterday)) group = '昨天';
+      else group = date.format('MM月DD日');
+
+      if (!acc[group]) acc[group] = [];
+      acc[group].push(record);
+      return acc;
+    }, {});
+
+    const rows: FlatRow[] = [];
+    for (const [group, items] of Object.entries(grouped)) {
+      rows.push({ kind: 'header', group });
+      for (const record of items) {
+        rows.push({ kind: 'item', record });
+      }
+    }
+    return rows;
+  }, [records]);
+
+  const listRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: flatRows.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: useCallback((i: number) => (flatRows[i]?.kind === 'header' ? 36 : 72), [flatRows]),
+    overscan: 8,
+  });
+
+  const onImageClickCb = useCallback((images: ViewerImage[], index: number) => {
+    setViewerImages(images);
+    setViewerIndex(index);
+    setViewerOpen(true);
+  }, []);
 
   return (
     <>
@@ -560,30 +554,50 @@ export default function TimelinePage() {
         ))}
       </div>
 
-      {/* Timeline */}
+      {/* Timeline (virtualized) */}
       {loading ? (
         <TimelineSkeleton />
       ) : records.length === 0 ? (
         <div className="text-center py-12 text-gray-400">暂无记录，点击 + 添加</div>
       ) : (
-        <div className="space-y-6">
-          {Object.entries(groupedRecords).map(([group, items]) => (
-            <div key={group}>
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">{group}</h3>
-              <div className="space-y-2">
-                {items.map((record) => {
-                  return (
-                    <RecordCardItem
-                      key={record.id}
-                      record={record}
-                      isViewer={isViewer}
-                      onImageClick={(images, index) => { setViewerImages(images); setViewerIndex(index); setViewerOpen(true); }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+        <div
+          ref={listRef}
+          className="overflow-y-auto -mx-1 px-1"
+          style={{ height: Math.min(flatRows.length * 72, window.innerHeight - 280) }}
+        >
+          <div
+            style={{ height: virtualizer.getTotalSize(), position: 'relative' }}
+          >
+            {virtualizer.getVirtualItems().map((vItem) => {
+              const row = flatRows[vItem.index];
+              return (
+                <div
+                  key={vItem.key}
+                  data-index={vItem.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${vItem.start}px)`,
+                  }}
+                >
+                  {row.kind === 'header' ? (
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 pt-4 pb-2">{row.group}</h3>
+                  ) : (
+                    <div className="pb-2">
+                      <RecordCardItem
+                        record={row.record}
+                        isViewer={isViewer}
+                        onImageClick={onImageClickCb}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

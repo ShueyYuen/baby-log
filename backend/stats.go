@@ -116,89 +116,7 @@ func handleStatsPredict(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parsed, err := loadRecentFeedings(babyID, 30)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
-		return
-	}
-
-	if len(parsed) < 2 {
-		writeOK(w, map[string]interface{}{"nextFeeding": nil, "avgIntervalMinutes": nil, "method": nil})
-		return
-	}
-
-	var bottleRates, breastRates []float64
-	for i := 0; i < len(parsed)-1; i++ {
-		current := parsed[i+1]
-		next := parsed[i]
-		intervalMin := float64(next.occurredAt-current.occurredAt) / 60000.0
-		if intervalMin <= 0 || intervalMin > 480 {
-			continue
-		}
-		if current.typ == "bottle" {
-			ml := numField(current.data, "amountMl")
-			if ml > 0 {
-				bottleRates = append(bottleRates, intervalMin/ml)
-			}
-		} else if current.typ == "breastfeed" {
-			totalMin := numField(current.data, "leftMinutes") + numField(current.data, "rightMinutes")
-			if totalMin > 0 {
-				breastRates = append(breastRates, intervalMin/totalMin)
-			}
-		}
-	}
-
-	lastFeeding := parsed[0]
-	lastFeedingTime := lastFeeding.occurredAt
-	var predictedInterval *int
-	var method *string
-
-	if lastFeeding.typ == "bottle" && len(bottleRates) >= 2 {
-		avgRate := avg(bottleRates)
-		ml := numField(lastFeeding.data, "amountMl")
-		v := int(math.Round(avgRate * ml))
-		predictedInterval = &v
-		m := "bottle"
-		method = &m
-	} else if lastFeeding.typ == "breastfeed" && len(breastRates) >= 2 {
-		avgRate := avg(breastRates)
-		totalMin := numField(lastFeeding.data, "leftMinutes") + numField(lastFeeding.data, "rightMinutes")
-		v := int(math.Round(avgRate * totalMin))
-		predictedInterval = &v
-		m := "breastfeed"
-		method = &m
-	}
-
-	if predictedInterval == nil {
-		var intervals []float64
-		for i := 0; i < len(parsed)-1; i++ {
-			diff := float64(parsed[i].occurredAt-parsed[i+1].occurredAt) / 60000.0
-			if diff > 0 && diff <= 480 {
-				intervals = append(intervals, diff)
-			}
-		}
-		if len(intervals) >= 2 {
-			v := int(math.Round(avg(intervals)))
-			predictedInterval = &v
-			m := "average"
-			method = &m
-		}
-	}
-
-	if predictedInterval == nil {
-		writeOK(w, map[string]interface{}{"minutesUntilNext": nil, "avgIntervalMinutes": nil, "method": nil})
-		return
-	}
-
-	now := time.Now().UnixMilli()
-	nextFeedingTime := lastFeedingTime + int64(*predictedInterval)*60000
-	minutesUntilNext := int(math.Round(float64(nextFeedingTime-now) / 60000.0))
-
-	writeOK(w, map[string]interface{}{
-		"minutesUntilNext":   minutesUntilNext,
-		"avgIntervalMinutes": *predictedInterval,
-		"method":             *method,
-	})
+	writeOK(w, buildPrediction(babyID))
 }
 
 // GET /stats/daily
@@ -424,6 +342,186 @@ func sleepMinutesValue(v float64) interface{} {
 		return int64(v)
 	}
 	return v
+}
+
+// GET /timeline — 合并 records + summary + predict 为单次请求
+func handleTimeline(w http.ResponseWriter, r *http.Request) {
+	userID := getUserID(r)
+	q := r.URL.Query()
+	babyID := q.Get("babyId")
+	if babyID == "" {
+		writeErr(w, http.StatusBadRequest, "babyId required")
+		return
+	}
+
+	ok, err := findMembership(babyID, userID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	if !ok {
+		writeErr(w, http.StatusForbidden, "Permission denied")
+		return
+	}
+
+	pageSize := parseIntDefault(q.Get("pageSize"), 50)
+	if pageSize < 1 {
+		pageSize = 50
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	where := `WHERE r.babyId = ?`
+	args := []interface{}{babyID}
+	if v := q.Get("category"); v != "" {
+		where += ` AND r.category = ?`
+		args = append(args, v)
+	}
+
+	listArgs := append([]interface{}{}, args...)
+	listArgs = append(listArgs, pageSize, 0)
+	rows, err := db.Query(`
+		SELECT r.id, r.babyId, r.category, r.type, r.data, r.occurredAt, r.note, r.images, r.createdBy, r.createdAt, r.updatedAt, u.id, u.displayName
+		FROM "Record" r
+		JOIN "User" u ON u.id = r.createdBy
+		`+where+`
+		ORDER BY r.occurredAt DESC
+		LIMIT ? OFFSET ?`, listArgs...)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	defer rows.Close()
+
+	items := []recordOut{}
+	for rows.Next() {
+		var rec recordOut
+		var dataStr string
+		var occurred, created, updated int64
+		var note, images sql.NullString
+		var uID, uName string
+		if err := rows.Scan(&rec.ID, &rec.BabyID, &rec.Category, &rec.Type, &dataStr, &occurred, &note, &images, &rec.CreatedBy, &created, &updated, &uID, &uName); err != nil {
+			writeErr(w, http.StatusInternalServerError, "Server error")
+			return
+		}
+		rec.Data = json.RawMessage(dataStr)
+		rec.OccurredAt = Millis(occurred)
+		rec.CreatedAt = Millis(created)
+		rec.UpdatedAt = Millis(updated)
+		rec.Note = strPtr(note)
+		rec.Images = recordImagesToDisplay(parseRecordImages(images))
+		rec.User = &memberUser{ID: uID, DisplayName: uName}
+		items = append(items, rec)
+	}
+
+	// Summary
+	now := time.Now()
+	lastAgo := func(query string, qargs ...interface{}) map[string]interface{} {
+		var occurred int64
+		if err := db.QueryRow(query, qargs...).Scan(&occurred); err != nil {
+			return nil
+		}
+		t := time.UnixMilli(occurred)
+		return map[string]interface{}{
+			"time":       Millis(occurred),
+			"minutesAgo": int(math.Round(float64(now.Sub(t).Milliseconds()) / 60000.0)),
+		}
+	}
+	summary := map[string]interface{}{
+		"lastFeeding": lastAgo(`SELECT occurredAt FROM "Record" WHERE babyId = ? AND category = 'feeding' ORDER BY occurredAt DESC LIMIT 1`, babyID),
+		"lastDiaper":  lastAgo(`SELECT occurredAt FROM "Record" WHERE babyId = ? AND category = 'nursing' AND type = 'diaper' ORDER BY occurredAt DESC LIMIT 1`, babyID),
+		"lastSleep":   lastAgo(`SELECT occurredAt FROM "Record" WHERE babyId = ? AND category = 'activity' AND type = 'sleep' ORDER BY occurredAt DESC LIMIT 1`, babyID),
+	}
+
+	// Prediction
+	prediction := buildPrediction(babyID)
+
+	writeOK(w, map[string]interface{}{
+		"records":    items,
+		"summary":    summary,
+		"prediction": prediction,
+	})
+}
+
+// buildPrediction extracts the prediction logic so it can be reused.
+func buildPrediction(babyID string) map[string]interface{} {
+	parsed, err := loadRecentFeedings(babyID, 30)
+	if err != nil || len(parsed) < 2 {
+		return map[string]interface{}{"minutesUntilNext": nil, "avgIntervalMinutes": nil, "method": nil}
+	}
+
+	var bottleRates, breastRates []float64
+	for i := 0; i < len(parsed)-1; i++ {
+		current := parsed[i+1]
+		next := parsed[i]
+		intervalMin := float64(next.occurredAt-current.occurredAt) / 60000.0
+		if intervalMin <= 0 || intervalMin > 480 {
+			continue
+		}
+		if current.typ == "bottle" {
+			ml := numField(current.data, "amountMl")
+			if ml > 0 {
+				bottleRates = append(bottleRates, intervalMin/ml)
+			}
+		} else if current.typ == "breastfeed" {
+			totalMin := numField(current.data, "leftMinutes") + numField(current.data, "rightMinutes")
+			if totalMin > 0 {
+				breastRates = append(breastRates, intervalMin/totalMin)
+			}
+		}
+	}
+
+	lastFeeding := parsed[0]
+	lastFeedingTime := lastFeeding.occurredAt
+	var predictedInterval *int
+	var method *string
+
+	if lastFeeding.typ == "bottle" && len(bottleRates) >= 2 {
+		avgRate := avg(bottleRates)
+		ml := numField(lastFeeding.data, "amountMl")
+		v := int(math.Round(avgRate * ml))
+		predictedInterval = &v
+		m := "bottle"
+		method = &m
+	} else if lastFeeding.typ == "breastfeed" && len(breastRates) >= 2 {
+		avgRate := avg(breastRates)
+		totalMin := numField(lastFeeding.data, "leftMinutes") + numField(lastFeeding.data, "rightMinutes")
+		v := int(math.Round(avgRate * totalMin))
+		predictedInterval = &v
+		m := "breastfeed"
+		method = &m
+	}
+
+	if predictedInterval == nil {
+		var intervals []float64
+		for i := 0; i < len(parsed)-1; i++ {
+			diff := float64(parsed[i].occurredAt-parsed[i+1].occurredAt) / 60000.0
+			if diff > 0 && diff <= 480 {
+				intervals = append(intervals, diff)
+			}
+		}
+		if len(intervals) >= 2 {
+			v := int(math.Round(avg(intervals)))
+			predictedInterval = &v
+			m := "average"
+			method = &m
+		}
+	}
+
+	if predictedInterval == nil {
+		return map[string]interface{}{"minutesUntilNext": nil, "avgIntervalMinutes": nil, "method": nil}
+	}
+
+	nowMs := time.Now().UnixMilli()
+	nextFeedingTime := lastFeedingTime + int64(*predictedInterval)*60000
+	minutesUntilNext := int(math.Round(float64(nextFeedingTime-nowMs) / 60000.0))
+
+	return map[string]interface{}{
+		"minutesUntilNext":   minutesUntilNext,
+		"avgIntervalMinutes": *predictedInterval,
+		"method":             *method,
+	}
 }
 
 var _ = sql.ErrNoRows
