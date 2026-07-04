@@ -477,6 +477,58 @@ interface MediaPreview {
   url: string;
   result?: UploadMomentResult;
   type: "image" | "video";
+  progress?: number; // 0–100, undefined = not started or already done
+  error?: boolean;
+}
+
+const CONCURRENT_UPLOADS = 3;
+
+function UploadProgressRing({
+  progress,
+  error,
+}: {
+  progress: number;
+  error?: boolean;
+}) {
+  const r = 18;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (progress / 100) * circumference;
+
+  return (
+    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+      {error ? (
+        <div className="text-red-400 text-xs font-medium">失败</div>
+      ) : (
+        <div className="relative w-12 h-12">
+          <svg className="w-12 h-12 -rotate-90" viewBox="0 0 44 44">
+            <circle
+              cx="22"
+              cy="22"
+              r={r}
+              fill="none"
+              stroke="rgba(255,255,255,0.25)"
+              strokeWidth="3"
+            />
+            <circle
+              cx="22"
+              cy="22"
+              r={r}
+              fill="none"
+              stroke="white"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+              className="transition-[stroke-dashoffset] duration-200"
+            />
+          </svg>
+          <span className="absolute inset-0 flex items-center justify-center text-white text-[10px] font-semibold">
+            {progress}%
+          </span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function MomentFormDialog({
@@ -522,35 +574,73 @@ function MomentFormDialog({
   const handleFiles = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
-      const allowed = Array.from(files).slice(0, 9 - previews.length);
-      if (allowed.length === 0) return;
+      const allowed = Array.from(files);
 
+      const startIdx = previews.length;
       const newPreviews: MediaPreview[] = allowed.map((f) => ({
         file: f,
         url: URL.createObjectURL(f),
         type: f.type.startsWith("video/") ? "video" : "image",
+        progress: 0,
       }));
       setPreviews((prev) => [...prev, ...newPreviews]);
-
       setUploading(true);
-      try {
-        const results = await api.moments.uploadMedia(allowed);
-        setPreviews((prev) => {
-          const next = [...prev];
-          let ri = 0;
-          for (let i = 0; i < next.length; i++) {
-            if (!next[i].result && next[i].file) {
-              next[i] = { ...next[i], result: results[ri++] };
-              if (ri >= results.length) break;
+
+      let queueIdx = 0;
+
+      const uploadNext = async (): Promise<void> => {
+        const myIdx = queueIdx++;
+        if (myIdx >= allowed.length) return;
+
+        const fileIdx = startIdx + myIdx;
+        try {
+          const result = await api.moments.uploadMediaSingle(
+            allowed[myIdx],
+            (percent) => {
+              setPreviews((prev) => {
+                const next = [...prev];
+                if (next[fileIdx]) {
+                  next[fileIdx] = { ...next[fileIdx], progress: percent };
+                }
+                return next;
+              });
+            },
+          );
+          setPreviews((prev) => {
+            const next = [...prev];
+            if (next[fileIdx]) {
+              next[fileIdx] = {
+                ...next[fileIdx],
+                result,
+                progress: undefined,
+              };
             }
-          }
-          return next;
-        });
-      } catch (e) {
-        console.error("Upload failed", e);
-      } finally {
-        setUploading(false);
-      }
+            return next;
+          });
+        } catch (e) {
+          console.error(`Upload failed for file ${myIdx}`, e);
+          setPreviews((prev) => {
+            const next = [...prev];
+            if (next[fileIdx]) {
+              next[fileIdx] = {
+                ...next[fileIdx],
+                error: true,
+                progress: undefined,
+              };
+            }
+            return next;
+          });
+        }
+
+        await uploadNext();
+      };
+
+      const workers = Math.min(CONCURRENT_UPLOADS, allowed.length);
+      await Promise.all(
+        Array.from({ length: workers }, () => uploadNext()),
+      );
+
+      setUploading(false);
     },
     [previews.length],
   );
@@ -583,15 +673,17 @@ function MomentFormDialog({
     }
   };
 
+  const uploadingCount = previews.filter(
+    (p) => p.file && !p.result && !p.error,
+  ).length;
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
         className={[
-          // Mobile: full-width bottom sheet, no gap at bottom
           "bottom-0 left-0 right-0 top-auto translate-x-0 translate-y-0",
           "rounded-t-2xl rounded-b-none h-[80svh] overflow-y-auto pb-6 flex flex-col",
           "sm:h-auto sm:max-h-[80svh]",
-          // Desktop (sm+): centered modal with max width
           "sm:left-1/2 sm:top-1/2 sm:bottom-auto",
           "sm:-translate-x-1/2 sm:-translate-y-1/2",
           "sm:rounded-xl sm:max-w-lg sm:max-h-none sm:overflow-visible",
@@ -612,7 +704,7 @@ function MomentFormDialog({
 
           {/* Preview grid */}
           {previews.length > 0 && (
-            <div className="grid grid-cols-3 gap-2 flex-1">
+            <div className="grid grid-cols-3 gap-2 flex-1 overflow-y-auto max-h-[40vh]">
               {previews.map((p, idx) => (
                 <div
                   key={idx}
@@ -633,10 +725,11 @@ function MomentFormDialog({
                       className="w-full h-full object-cover"
                     />
                   )}
-                  {!p.result && (
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    </div>
+                  {p.file && !p.result && (
+                    <UploadProgressRing
+                      progress={p.progress ?? 0}
+                      error={p.error}
+                    />
                   )}
                   <button
                     onClick={() => removePreview(idx)}
@@ -646,15 +739,13 @@ function MomentFormDialog({
                   </button>
                 </div>
               ))}
-              {previews.length < 9 && (
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  className="aspect-[4/5] rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors"
-                >
-                  <ImagePlus size={20} />
-                  <span className="text-xs">添加</span>
-                </button>
-              )}
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="aspect-[4/5] rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors"
+              >
+                <ImagePlus size={20} />
+                <span className="text-xs">添加</span>
+              </button>
             </div>
           )}
 
@@ -664,7 +755,7 @@ function MomentFormDialog({
               className="w-full flex-1 min-h-[180px] rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors"
             >
               <ImagePlus size={36} />
-              <span className="text-sm">点击添加照片 / 视频（最多 9 个）</span>
+              <span className="text-sm">点击添加照片 / 视频</span>
             </button>
           )}
 
@@ -677,26 +768,39 @@ function MomentFormDialog({
             onChange={(e) => handleFiles(e.target.files)}
           />
 
-          <div className="flex justify-end gap-2 pt-1">
-            <Button variant="secondary" onClick={onClose}>
-              取消
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={
-                saving ||
-                uploading ||
-                (!content.trim() && previews.length === 0)
-              }
-            >
-              {saving
-                ? "发布中..."
-                : uploading
-                  ? "上传中..."
-                  : editMoment
-                    ? "保存"
-                    : "发布"}
-            </Button>
+          <div className="flex items-center justify-between pt-1">
+            {uploading ? (
+              <span className="text-xs text-gray-400">
+                正在上传 {uploadingCount} 个文件…
+              </span>
+            ) : (
+              previews.length > 0 && (
+                <span className="text-xs text-gray-400">
+                  已选择 {previews.length} 个文件
+                </span>
+              )
+            )}
+            <div className="flex gap-2 ml-auto">
+              <Button variant="secondary" onClick={onClose}>
+                取消
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={
+                  saving ||
+                  uploading ||
+                  (!content.trim() && previews.length === 0)
+                }
+              >
+                {saving
+                  ? "发布中..."
+                  : uploading
+                    ? "上传中..."
+                    : editMoment
+                      ? "保存"
+                      : "发布"}
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

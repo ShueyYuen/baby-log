@@ -138,5 +138,45 @@ export const api = {
       );
       return res.data;
     },
+
+    uploadMediaSingle: (
+      file: File,
+      onProgress?: (percent: number) => void,
+    ): Promise<UploadMomentResult> => {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData();
+        formData.append('files', file);
+
+        if (onProgress) {
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              onProgress(Math.round((e.loaded / e.total) * 100));
+            }
+          });
+        }
+
+        xhr.addEventListener('load', () => {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            if (xhr.status >= 200 && xhr.status < 300 && data.data?.length) {
+              resolve(data.data[0]);
+            } else {
+              reject(new Error(data.error || 'Upload failed'));
+            }
+          } catch {
+            reject(new Error('Upload failed'));
+          }
+        });
+
+        xhr.addEventListener('error', () => reject(new Error('Network error')));
+        xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
+
+        xhr.open('POST', `${API_BASE}/moments/upload`);
+        const token = getToken();
+        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.send(formData);
+      });
+    },
   },
 };

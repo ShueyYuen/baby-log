@@ -82,9 +82,6 @@ func handleUploadMultiple(w http.ResponseWriter, r *http.Request) {
 	}
 
 	headers := r.MultipartForm.File["files"]
-	if len(headers) > 9 {
-		headers = headers[:9]
-	}
 
 	log.Printf("[Upload] Received multiple files: count=%d storage=%s", len(headers), getStorageType())
 
@@ -134,9 +131,6 @@ func handleUploadMomentMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	headers := r.MultipartForm.File["files"]
-	if len(headers) > 9 {
-		headers = headers[:9]
-	}
 
 	log.Printf("[Upload] Moment media: count=%d storage=%s", len(headers), getStorageType())
 
@@ -170,8 +164,27 @@ func handleUploadMomentMedia(w http.ResponseWriter, r *http.Request) {
 		} else {
 			result.MediaType = "video"
 		}
+		trackUploadedFile(result.Key, result.RawKey)
 		results = append(results, result)
 	}
 
 	writeOK(w, results)
+}
+
+func trackUploadedFile(key, rawKey string) {
+	now := int64(nowMillis())
+	_, err := db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used") VALUES (?, ?, ?, 0)`,
+		key, rawKey, now)
+	if err != nil {
+		log.Printf("[Upload] Failed to track uploaded file %s: %v", key, err)
+	}
+}
+
+func markUploadedFilesUsed(keys []string) {
+	for _, key := range keys {
+		if key == "" {
+			continue
+		}
+		db.Exec(`UPDATE "UploadedFile" SET "used" = 1 WHERE "key" = ?`, key)
+	}
 }

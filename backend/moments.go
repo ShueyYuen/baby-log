@@ -242,6 +242,12 @@ func handleCreateMoment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	usedKeys := make([]string, 0, len(body.MediaItems))
+	for _, item := range body.MediaItems {
+		usedKeys = append(usedKeys, item.Key)
+	}
+	markUploadedFilesUsed(usedKeys)
+
 	// Fetch display name
 	var displayName string
 	db.QueryRow(`SELECT displayName FROM "User" WHERE id = ?`, currentUserID).Scan(&displayName)
@@ -335,6 +341,13 @@ func handleUpdateMoment(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "Failed to update moment")
 		return
 	}
+
+	usedKeys := make([]string, 0, len(body.MediaItems))
+	for _, item := range body.MediaItems {
+		usedKeys = append(usedKeys, item.Key)
+	}
+	markUploadedFilesUsed(usedKeys)
+
 	writeOK(w, map[string]string{"id": id})
 }
 
