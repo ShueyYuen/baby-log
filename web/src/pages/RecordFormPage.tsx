@@ -1,4 +1,4 @@
-import { ArrowLeft, ImagePlus, X } from "lucide-react";
+import { ArrowLeft, ImagePlus, Play, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   useLocation,
@@ -21,7 +21,7 @@ import {
 } from "../components/ui";
 import { useAuth } from "../contexts/AuthContext";
 import { useBaby } from "../contexts/BabyContext";
-import { api } from "../lib/api";
+import { api, type RecordImage } from "../lib/api";
 import { cacheRead } from "../lib/queryCache";
 
 function toLocalDateTimeString(date: Date): string {
@@ -75,6 +75,11 @@ const quickTimes = [
   { label: "1小时前", offset: -60 },
 ];
 
+function normalizeRecordImages(raw: unknown): RecordImage[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  return raw as RecordImage[];
+}
+
 export default function RecordFormPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -107,7 +112,7 @@ export default function RecordFormPage() {
       : toLocalDateTimeString(new Date()),
   );
   const [note, setNote] = useState(_sr?.note || "");
-  const [images, setImages] = useState<string[]>(_sr?.images || []);
+  const [images, setImages] = useState<RecordImage[]>(_sr?.images || []);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -146,7 +151,7 @@ export default function RecordFormPage() {
         setType(stateRecord.type);
         setOccurredAt(toLocalDateTimeString(new Date(stateRecord.occurredAt)));
         setNote(stateRecord.note || "");
-        setImages(stateRecord.images || []);
+        setImages(normalizeRecordImages(stateRecord.images));
         populateData(stateRecord.type, stateRecord.data);
         setLoadingRecord(false);
       } else {
@@ -174,7 +179,7 @@ export default function RecordFormPage() {
         setType(record.type);
         setOccurredAt(toLocalDateTimeString(new Date(record.occurredAt)));
         setNote(record.note || "");
-        setImages(record.images || []);
+        setImages(normalizeRecordImages(record.images));
         populateData(record.type, record.data);
         setLoadingRecord(false);
         return;
@@ -188,7 +193,7 @@ export default function RecordFormPage() {
         setType(freshRecord.type);
         setOccurredAt(toLocalDateTimeString(new Date(freshRecord.occurredAt)));
         setNote(freshRecord.note || "");
-        setImages(freshRecord.images || []);
+        setImages(normalizeRecordImages(freshRecord.images));
         populateData(freshRecord.type, freshRecord.data);
       }
     } catch {
@@ -290,7 +295,9 @@ export default function RecordFormPage() {
         data: buildData(),
         occurredAt: new Date(occurredAt).toISOString(),
         note: note || undefined,
-        images: images.length > 0 ? images : undefined,
+        images: images.length > 0
+          ? images.map((img) => ({ key: img.key, rawKey: img.rawKey, mediaType: img.mediaType }))
+          : undefined,
       };
 
       if (isEditing) {
@@ -725,26 +732,32 @@ export default function RecordFormPage() {
           />
         </div>
 
-        {/* Images */}
+        {/* Images / Videos */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            图片
+            图片 / 视频
           </label>
           <div className="flex flex-wrap gap-2">
-            {images.map((url, idx) => (
+            {images.map((img, idx) => (
               <div
                 key={idx}
                 className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600"
               >
-                <img
-                  src={url}
-                  alt=""
-                  className="w-full h-full object-cover cursor-zoom-in"
-                  onClick={() => {
-                    setViewerIndex(idx);
-                    setViewerOpen(true);
-                  }}
-                />
+                {img.mediaType === "video" ? (
+                  <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                    <Play size={20} className="text-gray-500" />
+                  </div>
+                ) : (
+                  <img
+                    src={img.url}
+                    alt=""
+                    className="w-full h-full object-cover cursor-zoom-in"
+                    onClick={() => {
+                      setViewerIndex(idx);
+                      setViewerOpen(true);
+                    }}
+                  />
+                )}
                 <button
                   type="button"
                   onClick={() => setImages(images.filter((_, i) => i !== idx))}
@@ -754,44 +767,48 @@ export default function RecordFormPage() {
                 </button>
               </div>
             ))}
-            {images.length < 9 && (
-              <label className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 transition-colors">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  multiple
-                  disabled={uploading}
-                  onChange={async (e) => {
-                    const files = e.target.files;
-                    if (!files || files.length === 0) return;
-                    setUploading(true);
-                    try {
-                      const newUrls: string[] = [];
-                      for (const file of Array.from(files)) {
-                        const res = await api.upload(file);
-                        if (res.success) newUrls.push(res.data.url);
-                      }
-                      setImages((prev) => [...prev, ...newUrls].slice(0, 9));
-                    } catch {
-                      toast("图片上传失败", "error");
-                    } finally {
-                      setUploading(false);
-                      e.target.value = "";
+            <label className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 transition-colors">
+              <input
+                type="file"
+                accept="image/*,video/*"
+                className="hidden"
+                multiple
+                disabled={uploading}
+                onChange={async (e) => {
+                  const files = e.target.files;
+                  if (!files || files.length === 0) return;
+                  setUploading(true);
+                  try {
+                    const newItems: RecordImage[] = [];
+                    for (const file of Array.from(files)) {
+                      const result = await api.moments.uploadMediaSingle(file);
+                      newItems.push({
+                        key: result.key,
+                        rawKey: result.rawKey,
+                        mediaType: result.mediaType,
+                        url: result.url,
+                        rawUrl: result.rawUrl,
+                      });
                     }
-                  }}
-                />
-                {uploading ? (
-                  <span className="text-xs text-gray-400">上传中</span>
-                ) : (
-                  <ImagePlus size={20} className="text-gray-400" />
-                )}
-              </label>
-            )}
+                    setImages((prev) => [...prev, ...newItems]);
+                  } catch {
+                    toast("上传失败", "error");
+                  } finally {
+                    setUploading(false);
+                    e.target.value = "";
+                  }
+                }}
+              />
+              {uploading ? (
+                <span className="text-xs text-gray-400">上传中</span>
+              ) : (
+                <ImagePlus size={20} className="text-gray-400" />
+              )}
+            </label>
           </div>
           {images.length > 0 && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              {images.length}/9
+              已选 {images.length} 个文件
             </p>
           )}
         </div>
@@ -843,7 +860,7 @@ export default function RecordFormPage() {
       </Dialog>
 
       <ImageViewer
-        images={images}
+        images={images.map((img) => img.url)}
         initialIndex={viewerIndex}
         open={viewerOpen}
         onOpenChange={setViewerOpen}

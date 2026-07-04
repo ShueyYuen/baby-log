@@ -20,16 +20,30 @@ func parseIntDefault(s string, def int) int {
 	return n
 }
 
-// 解析存储的 images JSON 文本为 key 数组
-func parseImageKeys(ns sql.NullString) []string {
+func parseRecordImages(ns sql.NullString) []RecordImageStore {
 	if !ns.Valid || ns.String == "" {
 		return nil
 	}
-	var keys []string
-	if err := json.Unmarshal([]byte(ns.String), &keys); err != nil {
+	var items []RecordImageStore
+	if err := json.Unmarshal([]byte(ns.String), &items); err != nil {
 		return nil
 	}
-	return keys
+	return items
+}
+
+func recordImagesToDisplay(items []RecordImageStore) []RecordImageDisplay {
+	out := make([]RecordImageDisplay, 0, len(items))
+	for _, item := range items {
+		d := RecordImageDisplay{Key: item.Key, RawKey: item.RawKey, MediaType: item.MediaType}
+		if item.Key != "" {
+			d.URL, _ = toDisplayURL(item.Key, 86400)
+		}
+		if item.RawKey != "" {
+			d.RawURL, _ = toDisplayURL(item.RawKey, 86400)
+		}
+		out = append(out, d)
+	}
+	return out
 }
 
 // GET /records
@@ -133,7 +147,7 @@ func handleListRecords(w http.ResponseWriter, r *http.Request) {
 		rec.CreatedAt = Millis(created)
 		rec.UpdatedAt = Millis(updated)
 		rec.Note = strPtr(note)
-		rec.Images = toDisplayURLs(parseImageKeys(images))
+		rec.Images = recordImagesToDisplay(parseRecordImages(images))
 		rec.User = &memberUser{ID: uID, DisplayName: uName}
 		items = append(items, rec)
 	}
@@ -152,13 +166,13 @@ func handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 	userID := getUserID(r)
 
 	var body struct {
-		BabyID     string          `json:"babyId"`
-		Category   string          `json:"category"`
-		Type       string          `json:"type"`
-		Data       json.RawMessage `json:"data"`
-		OccurredAt string          `json:"occurredAt"`
-		Note       *string         `json:"note"`
-		Images     *[]string       `json:"images"`
+		BabyID     string            `json:"babyId"`
+		Category   string            `json:"category"`
+		Type       string            `json:"type"`
+		Data       json.RawMessage   `json:"data"`
+		OccurredAt string            `json:"occurredAt"`
+		Note       *string           `json:"note"`
+		Images     json.RawMessage   `json:"images"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, http.StatusBadRequest, "Invalid input")
@@ -187,10 +201,12 @@ func handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var imagesStore sql.NullString
-	if body.Images != nil {
-		keys := toStorageKeys(*body.Images)
-		b, _ := json.Marshal(keys)
-		imagesStore = sql.NullString{String: string(b), Valid: true}
+	var parsedImages []RecordImageStore
+	if len(body.Images) > 0 && string(body.Images) != "null" {
+		if err := json.Unmarshal(body.Images, &parsedImages); err == nil && len(parsedImages) > 0 {
+			b, _ := json.Marshal(parsedImages)
+			imagesStore = sql.NullString{String: string(b), Valid: true}
+		}
 	}
 
 	id := uuid.NewString()
@@ -204,10 +220,16 @@ func handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	usedKeys := make([]string, 0, len(parsedImages))
+	for _, img := range parsedImages {
+		usedKeys = append(usedKeys, img.Key)
+	}
+	markUploadedFilesUsed(usedKeys)
+
 	out := recordOut{
 		ID: id, BabyID: body.BabyID, Category: body.Category, Type: body.Type,
 		Data: json.RawMessage(body.Data), OccurredAt: occurred, Note: body.Note,
-		Images: toDisplayURLs(parseImageKeys(imagesStore)), CreatedBy: userID,
+		Images: recordImagesToDisplay(parseRecordImages(imagesStore)), CreatedBy: userID,
 		CreatedAt: now, UpdatedAt: now,
 	}
 	writeOK(w, out)
@@ -289,15 +311,13 @@ func handleUpdateRecord(w http.ResponseWriter, r *http.Request) {
 			args = append(args, jsonString(raw))
 		}
 	}
-	var newImages []string
+	var newImages []RecordImageStore
 	hasImages := false
 	if raw, ok := body["images"]; ok && len(raw) > 0 && string(raw) != "null" {
-		var imgs []string
-		if err := json.Unmarshal(raw, &imgs); err == nil {
+		json.Unmarshal(raw, &newImages)
+		if len(newImages) >= 0 {
 			hasImages = true
-			newImages = imgs
-			keys := toStorageKeys(imgs)
-			b, _ := json.Marshal(keys)
+			b, _ := json.Marshal(newImages)
 			sets = append(sets, "images = ?")
 			args = append(args, string(b))
 		}
@@ -312,14 +332,26 @@ func handleUpdateRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 清理被移除的旧图片
+	// Mark newly added images as used
+	if hasImages {
+		usedKeys := make([]string, 0, len(newImages))
+		for _, img := range newImages {
+			usedKeys = append(usedKeys, img.Key)
+		}
+		markUploadedFilesUsed(usedKeys)
+	}
+
+	// Mark removed images for deferred cleanup
 	if hasImages && existingImages.Valid {
-		removed := diffRemovedKeys(parseImageKeys(existingImages), newImages)
-		if len(removed) > 0 {
-			go func() {
-				defer recoverSilently()
-				deleteFilesBestEffort(removed)
-			}()
+		oldImgs := parseRecordImages(existingImages)
+		newKeySet := map[string]bool{}
+		for _, img := range newImages {
+			newKeySet[img.Key] = true
+		}
+		for _, old := range oldImgs {
+			if old.Key != "" && !newKeySet[old.Key] {
+				markFileUnused(old.Key, old.RawKey)
+			}
 		}
 	}
 
@@ -364,11 +396,9 @@ func handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if images.Valid {
-		keys := parseImageKeys(images)
-		go func() {
-			defer recoverSilently()
-			deleteFilesBestEffort(keys)
-		}()
+		for _, img := range parseRecordImages(images) {
+			markFileUnused(img.Key, img.RawKey)
+		}
 	}
 
 	writeSuccess(w)
@@ -390,7 +420,7 @@ func loadRecordByID(id string) (*recordOut, error) {
 	rec.CreatedAt = Millis(created)
 	rec.UpdatedAt = Millis(updated)
 	rec.Note = strPtr(note)
-	rec.Images = toDisplayURLs(parseImageKeys(images))
+	rec.Images = recordImagesToDisplay(parseRecordImages(images))
 	return &rec, nil
 }
 

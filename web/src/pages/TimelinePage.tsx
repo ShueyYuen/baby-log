@@ -8,7 +8,7 @@ import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock, Square } from 'lucide-react';
+import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock, Square, Play } from 'lucide-react';
 import { ImageViewer, useToast } from '../components/ui';
 import { TwoPhaseTypeButton } from '../components/TwoPhaseTypeButton';
 import { isPushSupported, subscribePush, isSubscribed } from '../lib/push';
@@ -24,7 +24,7 @@ interface RecordItem {
   data: any;
   occurredAt: string;
   note?: string;
-  images?: string[];
+  images?: Array<{ key: string; rawKey?: string; mediaType?: string; url: string; rawUrl?: string }>;
   user?: { displayName: string };
 }
 
@@ -124,6 +124,10 @@ function minutesSince(time: string, now: number): number {
   return Math.max(0, Math.round((now - new Date(time).getTime()) / 60000));
 }
 
+function getImageUrls(images: RecordItem['images']): string[] {
+  return (images ?? []).map((img) => img.url);
+}
+
 // RecordCardItem uses useViewTransitionState so it must be its own component
 interface RecordCardItemProps {
   record: RecordItem;
@@ -146,6 +150,8 @@ function RecordCardItem({ record, isViewer, onImageClick }: RecordCardItemProps)
       doNavigate();
     }
   };
+
+  const urls = getImageUrls(record.images);
 
   return (
     <div
@@ -170,19 +176,25 @@ function RecordCardItem({ record, isViewer, onImageClick }: RecordCardItemProps)
       </div>
       {record.images && record.images.length > 0 && (
         <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-          {record.images.slice(0, 2).map((url, i) => (
-            <img
-              key={i}
-              src={url}
-              alt=""
-              className="w-10 h-10 rounded-lg object-cover cursor-zoom-in"
-              onClick={() => onImageClick(record.images!, i)}
-            />
+          {record.images.slice(0, 2).map((img, i) => (
+            img.mediaType === 'video' ? (
+              <div key={i} className="w-10 h-10 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                <Play size={12} className="text-gray-500" />
+              </div>
+            ) : (
+              <img
+                key={i}
+                src={img.url}
+                alt=""
+                className="w-10 h-10 rounded-lg object-cover cursor-zoom-in"
+                onClick={() => onImageClick(urls, i)}
+              />
+            )
           ))}
           {record.images.length > 2 && (
             <span
               className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500 cursor-zoom-in"
-              onClick={() => onImageClick(record.images!, 2)}
+              onClick={() => onImageClick(urls, 2)}
             >
               +{record.images.length - 2}
             </span>
@@ -373,7 +385,7 @@ export default function TimelinePage() {
 
   return (
     <>
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* 进行中的活动（睡眠/洗澡） */}
       {ongoingRecords.length > 0 && (
         <div className="space-y-2">

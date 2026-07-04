@@ -15,7 +15,7 @@ func TestCreateMilestone(t *testing.T) {
 		"type":       "first_smile",
 		"title":      "第一次笑",
 		"occurredAt": "2025-06-01T00:00:00.000Z",
-		"images":     []string{"a.jpg", "b.jpg"},
+		"images":     []map[string]string{{"key": "a.jpg"}, {"key": "b.jpg"}},
 	})
 	e := mustOK(t, r)
 	var m milestoneOut

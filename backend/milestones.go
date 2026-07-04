@@ -24,7 +24,7 @@ func scanMilestoneRow(row interface {
 	m.CreatedAt = Millis(created)
 	m.UpdatedAt = Millis(updated)
 	m.Description = strPtr(desc)
-	m.Images = toDisplayURLs(parseImageKeys(images))
+	m.Images = recordImagesToDisplay(parseRecordImages(images))
 	return &m, nil
 }
 
@@ -71,12 +71,12 @@ func handleCreateMilestone(w http.ResponseWriter, r *http.Request) {
 	userID := getUserID(r)
 
 	var body struct {
-		BabyID      string    `json:"babyId"`
-		Type        string    `json:"type"`
-		Title       string    `json:"title"`
-		OccurredAt  string    `json:"occurredAt"`
-		Description *string   `json:"description"`
-		Images      *[]string `json:"images"`
+		BabyID      string            `json:"babyId"`
+		Type        string            `json:"type"`
+		Title       string            `json:"title"`
+		OccurredAt  string            `json:"occurredAt"`
+		Description *string           `json:"description"`
+		Images      []RecordImageStore `json:"images"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, http.StatusBadRequest, "Invalid input")
@@ -104,9 +104,8 @@ func handleCreateMilestone(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var imagesStore sql.NullString
-	if body.Images != nil {
-		keys := toStorageKeys(*body.Images)
-		b, _ := json.Marshal(keys)
+	if len(body.Images) > 0 {
+		b, _ := json.Marshal(body.Images)
 		imagesStore = sql.NullString{String: string(b), Valid: true}
 	}
 
@@ -119,6 +118,12 @@ func handleCreateMilestone(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
 	}
+
+	usedKeys := make([]string, 0, len(body.Images))
+	for _, img := range body.Images {
+		usedKeys = append(usedKeys, img.Key)
+	}
+	markUploadedFilesUsed(usedKeys)
 
 	row := db.QueryRow(`SELECT `+milestoneCols+` FROM "Milestone" WHERE id = ?`, id)
 	m, err := scanMilestoneRow(row)
@@ -193,7 +198,7 @@ func handleUpdateMilestone(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var newImages []string
+	var newImages []RecordImageStore
 	imagesProvided := false
 	if raw, ok := body["images"]; ok {
 		imagesProvided = true
@@ -201,14 +206,10 @@ func handleUpdateMilestone(w http.ResponseWriter, r *http.Request) {
 			sets = append(sets, "images = ?")
 			args = append(args, nil)
 		} else {
-			var imgs []string
-			if err := json.Unmarshal(raw, &imgs); err == nil {
-				newImages = imgs
-				keys := toStorageKeys(imgs)
-				b, _ := json.Marshal(keys)
-				sets = append(sets, "images = ?")
-				args = append(args, string(b))
-			}
+			json.Unmarshal(raw, &newImages)
+			b, _ := json.Marshal(newImages)
+			sets = append(sets, "images = ?")
+			args = append(args, string(b))
 		}
 	}
 
@@ -221,13 +222,24 @@ func handleUpdateMilestone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if imagesProvided {
+		usedKeys := make([]string, 0, len(newImages))
+		for _, img := range newImages {
+			usedKeys = append(usedKeys, img.Key)
+		}
+		markUploadedFilesUsed(usedKeys)
+	}
+
 	if imagesProvided && existingImages.Valid {
-		removed := diffRemovedKeys(parseImageKeys(existingImages), newImages)
-		if len(removed) > 0 {
-			go func() {
-				defer recoverSilently()
-				deleteFilesBestEffort(removed)
-			}()
+		oldImgs := parseRecordImages(existingImages)
+		newKeySet := map[string]bool{}
+		for _, img := range newImages {
+			newKeySet[img.Key] = true
+		}
+		for _, old := range oldImgs {
+			if old.Key != "" && !newKeySet[old.Key] {
+				markFileUnused(old.Key, old.RawKey)
+			}
 		}
 	}
 
@@ -272,11 +284,9 @@ func handleDeleteMilestone(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if images.Valid {
-		keys := parseImageKeys(images)
-		go func() {
-			defer recoverSilently()
-			deleteFilesBestEffort(keys)
-		}()
+		for _, img := range parseRecordImages(images) {
+			markFileUnused(img.Key, img.RawKey)
+		}
 	}
 
 	writeSuccess(w)

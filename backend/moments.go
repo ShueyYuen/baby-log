@@ -305,7 +305,7 @@ func handleUpdateMoment(w http.ResponseWriter, r *http.Request) {
 		mediaJSON = string(b)
 	}
 
-	// Delete media files that were removed
+	// Mark removed media files for deferred cleanup
 	if oldMediaJSON.Valid && oldMediaJSON.String != "" {
 		var oldItems []MediaItem
 		if err := json.Unmarshal([]byte(oldMediaJSON.String), &oldItems); err == nil {
@@ -314,16 +314,10 @@ func handleUpdateMoment(w http.ResponseWriter, r *http.Request) {
 				if item.Key != "" {
 					newKeySet[item.Key] = true
 				}
-				if item.RawKey != "" {
-					newKeySet[item.RawKey] = true
-				}
 			}
 			for _, item := range oldItems {
 				if item.Key != "" && !newKeySet[item.Key] {
-					deleteFile(item.Key)
-				}
-				if item.RawKey != "" && !newKeySet[item.RawKey] {
-					deleteFile(item.RawKey)
+					markFileUnused(item.Key, item.RawKey)
 				}
 			}
 		}
@@ -371,16 +365,13 @@ func handleDeleteMoment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete media files
+	// Mark media files for deferred cleanup
 	if mediaJSON.Valid && mediaJSON.String != "" {
 		var items []MediaItem
 		if err := json.Unmarshal([]byte(mediaJSON.String), &items); err == nil {
 			for _, item := range items {
 				if item.Key != "" {
-					deleteFile(item.Key)
-				}
-				if item.RawKey != "" && item.RawKey != item.Key {
-					deleteFile(item.RawKey)
+					markFileUnused(item.Key, item.RawKey)
 				}
 			}
 		}

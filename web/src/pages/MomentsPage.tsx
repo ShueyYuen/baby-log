@@ -213,7 +213,7 @@ function Lightbox({
         {/* Left arrow — desktop only */}
         {current > 0 && (
           <button
-            className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 items-center justify-center w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors z-10"
+            className="flex absolute left-2 top-1/2 -translate-y-1/2 items-center justify-center w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors z-10"
             onClick={(e) => {
               e.stopPropagation();
               prev();
@@ -243,7 +243,7 @@ function Lightbox({
         {/* Right arrow — desktop only */}
         {current < items.length - 1 && (
           <button
-            className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 items-center justify-center w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors z-10"
+            className="flex absolute right-2 top-1/2 -translate-y-1/2 items-center justify-center w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors z-10"
             onClick={(e) => {
               e.stopPropagation();
               next();

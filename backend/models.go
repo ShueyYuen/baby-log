@@ -33,19 +33,35 @@ type babyOut struct {
 	Members   []babyMemberOut `json:"members,omitempty"`
 }
 
+// RecordImageStore is the JSON shape persisted in Record.images / Milestone.images.
+type RecordImageStore struct {
+	Key       string `json:"key"`
+	RawKey    string `json:"rawKey,omitempty"`
+	MediaType string `json:"mediaType,omitempty"`
+}
+
+// RecordImageDisplay is the API response shape with resolved URLs.
+type RecordImageDisplay struct {
+	Key       string `json:"key"`
+	RawKey    string `json:"rawKey,omitempty"`
+	MediaType string `json:"mediaType,omitempty"`
+	URL       string `json:"url"`
+	RawURL    string `json:"rawUrl,omitempty"`
+}
+
 type recordOut struct {
-	ID         string          `json:"id"`
-	BabyID     string          `json:"babyId"`
-	Category   string          `json:"category"`
-	Type       string          `json:"type"`
-	Data       json.RawMessage `json:"data"`
-	OccurredAt Millis          `json:"occurredAt"`
-	Note       *string         `json:"note"`
-	Images     []string        `json:"images"`
-	CreatedBy  string          `json:"createdBy"`
-	CreatedAt  Millis          `json:"createdAt"`
-	UpdatedAt  Millis          `json:"updatedAt"`
-	User       *memberUser     `json:"user,omitempty"`
+	ID         string              `json:"id"`
+	BabyID     string              `json:"babyId"`
+	Category   string              `json:"category"`
+	Type       string              `json:"type"`
+	Data       json.RawMessage     `json:"data"`
+	OccurredAt Millis              `json:"occurredAt"`
+	Note       *string             `json:"note"`
+	Images     []RecordImageDisplay `json:"images"`
+	CreatedBy  string              `json:"createdBy"`
+	CreatedAt  Millis              `json:"createdAt"`
+	UpdatedAt  Millis              `json:"updatedAt"`
+	User       *memberUser         `json:"user,omitempty"`
 }
 
 type planOut struct {
@@ -76,15 +92,15 @@ type growthOut struct {
 }
 
 type milestoneOut struct {
-	ID          string   `json:"id"`
-	BabyID      string   `json:"babyId"`
-	Type        string   `json:"type"`
-	Title       string   `json:"title"`
-	OccurredAt  Millis   `json:"occurredAt"`
-	Description *string  `json:"description"`
-	Images      []string `json:"images"`
-	CreatedAt   Millis   `json:"createdAt"`
-	UpdatedAt   Millis   `json:"updatedAt"`
+	ID          string              `json:"id"`
+	BabyID      string              `json:"babyId"`
+	Type        string              `json:"type"`
+	Title       string              `json:"title"`
+	OccurredAt  Millis              `json:"occurredAt"`
+	Description *string             `json:"description"`
+	Images      []RecordImageDisplay `json:"images"`
+	CreatedAt   Millis              `json:"createdAt"`
+	UpdatedAt   Millis              `json:"updatedAt"`
 }
 
 type reminderOut struct {

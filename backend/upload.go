@@ -66,6 +66,7 @@ func handleUploadSingle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	trackUploadedFile(result.Key, result.RawKey)
 	writeOK(w, result)
 }
 
@@ -186,5 +187,19 @@ func markUploadedFilesUsed(keys []string) {
 			continue
 		}
 		db.Exec(`UPDATE "UploadedFile" SET "used" = 1 WHERE "key" = ?`, key)
+	}
+}
+
+// markFileUnused marks a file for deferred cleanup. If no tracking record
+// exists (e.g. file uploaded before tracking was introduced), one is created.
+func markFileUnused(key, rawKey string) {
+	if key == "" {
+		return
+	}
+	now := int64(nowMillis())
+	result, _ := db.Exec(`UPDATE "UploadedFile" SET "used" = 0 WHERE "key" = ?`, key)
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used") VALUES (?, ?, ?, 0)`,
+			key, rawKey, now)
 	}
 }

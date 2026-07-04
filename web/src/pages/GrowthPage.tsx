@@ -2,11 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { api } from '../lib/api';
+import { api, type RecordImage } from '../lib/api';
 import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Plus, Star, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Star, Pencil, Trash2, ImagePlus, Play, X } from 'lucide-react';
 import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DatePicker, ConfirmDialog, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { Textarea } from '../components/ui';
@@ -27,6 +27,7 @@ interface MilestoneItem {
   title: string;
   occurredAt: string;
   description?: string;
+  images?: RecordImage[];
 }
 
 const milestoneLabels: Record<string, string> = {
@@ -60,6 +61,8 @@ export default function GrowthPage() {
   const [mTitle, setMTitle] = useState('');
   const [mDate, setMDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [mDesc, setMDesc] = useState('');
+  const [mImages, setMImages] = useState<RecordImage[]>([]);
+  const [mUploading, setMUploading] = useState(false);
 
   useEffect(() => {
     if (!currentBaby) return;
@@ -113,16 +116,17 @@ export default function GrowthPage() {
 
   const addMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentBaby) return;
+    if (!currentBaby || mUploading) return;
     await api.post('/milestones', {
       babyId: currentBaby.id,
       type: mType,
       title: mTitle || milestoneLabels[mType],
       occurredAt: new Date(mDate).toISOString(),
       description: mDesc || undefined,
+      images: mImages.length > 0 ? mImages.map((img) => ({ key: img.key, rawKey: img.rawKey, mediaType: img.mediaType })) : undefined,
     });
     setShowMilestoneForm(false);
-    setMTitle(''); setMDesc('');
+    setMTitle(''); setMDesc(''); setMImages([]);
     loadData(true);
   };
 
@@ -132,19 +136,21 @@ export default function GrowthPage() {
     setMTitle(m.title);
     setMDate(dayjs(m.occurredAt).format('YYYY-MM-DD'));
     setMDesc(m.description || '');
+    setMImages(m.images || []);
   };
 
   const saveMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingMilestone) return;
+    if (!editingMilestone || mUploading) return;
     await api.put(`/milestones/${editingMilestone.id}`, {
       type: mType,
       title: mTitle || milestoneLabels[mType],
       occurredAt: new Date(mDate).toISOString(),
       description: mDesc || undefined,
+      images: mImages.map((img) => ({ key: img.key, rawKey: img.rawKey, mediaType: img.mediaType })),
     });
     setEditingMilestone(null);
-    setMTitle(''); setMDesc('');
+    setMTitle(''); setMDesc(''); setMImages([]);
     loadData(true);
   };
 
@@ -157,6 +163,23 @@ export default function GrowthPage() {
       toast('删除失败', 'error');
     }
     setDeletingMilestoneId(null);
+  };
+
+  const handleMilestoneUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setMUploading(true);
+    try {
+      const newItems: RecordImage[] = [];
+      for (const file of Array.from(files)) {
+        const result = await api.moments.uploadMediaSingle(file);
+        newItems.push({ key: result.key, rawKey: result.rawKey, mediaType: result.mediaType, url: result.url, rawUrl: result.rawUrl });
+      }
+      setMImages((prev) => [...prev, ...newItems]);
+    } catch {
+      toast('上传失败', 'error');
+    } finally {
+      setMUploading(false);
+    }
   };
 
   const gender = (currentBaby?.gender === 'female' ? 'female' : 'male') as 'male' | 'female';
@@ -391,9 +414,30 @@ export default function GrowthPage() {
                   <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">描述</label>
                   <Textarea value={mDesc} onChange={(e) => setMDesc(e.target.value)} placeholder="可选..." />
                 </div>
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">图片 / 视频</label>
+                  <div className="flex flex-wrap gap-2">
+                    {mImages.map((img, idx) => (
+                      <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
+                        {img.mediaType === 'video' ? (
+                          <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
+                        ) : (
+                          <img src={img.url} alt="" className="w-full h-full object-cover" />
+                        )}
+                        <button type="button" onClick={() => setMImages((prev) => prev.filter((_, i) => i !== idx))} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center">
+                          <X size={10} className="text-white" />
+                        </button>
+                      </div>
+                    ))}
+                    <label className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 transition-colors">
+                      <input type="file" accept="image/*,video/*" className="hidden" multiple disabled={mUploading} onChange={(e) => { handleMilestoneUpload(e.target.files); e.target.value = ''; }} />
+                      {mUploading ? <span className="text-[10px] text-gray-400">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
+                    </label>
+                  </div>
+                </div>
                 <div className="flex gap-3">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => setShowMilestoneForm(false)}>取消</Button>
-                  <Button type="submit" className="flex-1">保存</Button>
+                  <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowMilestoneForm(false); setMImages([]); }}>取消</Button>
+                  <Button type="submit" className="flex-1" disabled={mUploading}>保存</Button>
                 </div>
               </form>
             </DialogContent>
@@ -414,6 +458,20 @@ export default function GrowthPage() {
                     <h4 className="font-medium text-sm dark:text-gray-100">{m.title}</h4>
                     <p className="text-xs text-gray-400 dark:text-gray-500">{dayjs(m.occurredAt).format('YYYY-MM-DD')}</p>
                     {m.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{m.description}</p>}
+                    {m.images && m.images.length > 0 && (
+                      <div className="flex gap-1 mt-1.5">
+                        {m.images.slice(0, 3).map((img, i) => (
+                          img.mediaType === 'video' ? (
+                            <div key={i} className="w-10 h-10 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center"><Play size={12} className="text-gray-500" /></div>
+                          ) : (
+                            <img key={i} src={img.url} alt="" className="w-10 h-10 rounded object-cover" />
+                          )
+                        ))}
+                        {m.images.length > 3 && (
+                          <span className="w-10 h-10 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500">+{m.images.length - 3}</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {!isViewer && (
@@ -471,9 +529,30 @@ export default function GrowthPage() {
                 <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">描述</label>
                 <Textarea value={mDesc} onChange={(e) => setMDesc(e.target.value)} placeholder="可选..." />
               </div>
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">图片 / 视频</label>
+                <div className="flex flex-wrap gap-2">
+                  {mImages.map((img, idx) => (
+                    <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
+                      {img.mediaType === 'video' ? (
+                        <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
+                      ) : (
+                        <img src={img.url} alt="" className="w-full h-full object-cover" />
+                      )}
+                      <button type="button" onClick={() => setMImages((prev) => prev.filter((_, i) => i !== idx))} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center">
+                        <X size={10} className="text-white" />
+                      </button>
+                    </div>
+                  ))}
+                  <label className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 transition-colors">
+                    <input type="file" accept="image/*,video/*" className="hidden" multiple disabled={mUploading} onChange={(e) => { handleMilestoneUpload(e.target.files); e.target.value = ''; }} />
+                    {mUploading ? <span className="text-[10px] text-gray-400">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
+                  </label>
+                </div>
+              </div>
               <div className="flex gap-3">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setEditingMilestone(null)}>取消</Button>
-                <Button type="submit" className="flex-1">保存</Button>
+                <Button type="button" variant="outline" className="flex-1" onClick={() => { setEditingMilestone(null); setMImages([]); }}>取消</Button>
+                <Button type="submit" className="flex-1" disabled={mUploading}>保存</Button>
               </div>
             </form>
           </DialogContent>

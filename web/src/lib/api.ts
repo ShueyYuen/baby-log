@@ -29,6 +29,23 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   return data;
 }
 
+// ─── Shared upload types ──────────────────────────────────────────────────────
+
+export interface UploadResult {
+  url: string;
+  key: string;
+  rawUrl?: string;
+  rawKey?: string;
+}
+
+export interface RecordImage {
+  key: string;
+  rawKey?: string;
+  mediaType?: 'image' | 'video';
+  url: string;
+  rawUrl?: string;
+}
+
 // ─── Moments types ────────────────────────────────────────────────────────────
 
 export interface MediaItem {
@@ -98,7 +115,7 @@ export const api = {
   upload: async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post<{ success: boolean; data: { url: string } }>('/upload', formData);
+    return api.post<{ success: boolean; data: UploadResult }>('/upload', formData);
   },
 
   moments: {
