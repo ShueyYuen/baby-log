@@ -27,6 +27,10 @@ const (
 	storageS3    storageType = "s3"
 )
 
+// s3CacheControl sets the Cache-Control header for all uploaded objects.
+// Files use UUID-based names and are immutable, so a long cache is safe.
+const s3CacheControl = "public, max-age=31536000, immutable"
+
 type s3Config struct {
 	bucket          string
 	region          string
@@ -192,47 +196,72 @@ func uploadFile(filename string, contentType string, data []byte) (*uploadResult
 		client := getS3Client()
 		s3Key := "uploads/" + uid + compressedExt
 
-		if _, err := client.PutObject(context.Background(), &s3.PutObjectInput{
-			Bucket:      aws.String(cfg.s3.bucket),
-			Key:         aws.String(s3Key),
-			Body:        bytes.NewReader(compressedData),
-			ContentType: aws.String(compressedMIME),
-		}); err != nil {
-			log.Printf("[Storage] S3 upload failed: %v", err)
-			return nil, err
+		type s3Result struct {
+			url string
+			key string
+			err error
 		}
 
-		var displayURL string
-		var err error
-		if cfg.s3.publicURL != "" {
-			displayURL = buildPublicURL(cfg.s3, s3Key)
-		} else {
-			displayURL, err = getSignedDownloadURL(s3Key, 3600)
-			if err != nil {
-				return nil, err
-			}
-		}
+		compCh := make(chan s3Result, 1)
+		rawCh := make(chan s3Result, 1)
 
-		result := &uploadResult{URL: displayURL, Key: s3Key}
-
-		// Store raw copy for images
-		if isImageMIME(contentType) {
-			rawKey := "uploads/raw/" + uid + origExt
+		go func() {
 			if _, err := client.PutObject(context.Background(), &s3.PutObjectInput{
-				Bucket:      aws.String(cfg.s3.bucket),
-				Key:         aws.String(rawKey),
-				Body:        bytes.NewReader(data),
-				ContentType: aws.String(contentType),
+				Bucket:       aws.String(cfg.s3.bucket),
+				Key:          aws.String(s3Key),
+				Body:         bytes.NewReader(compressedData),
+				ContentType:  aws.String(compressedMIME),
+				CacheControl: aws.String(s3CacheControl),
 			}); err != nil {
-				log.Printf("[Storage] S3 raw upload failed (non-fatal): %v", err)
-			} else {
-				if cfg.s3.publicURL != "" {
-					result.RawURL = buildPublicURL(cfg.s3, rawKey)
-				} else {
-					result.RawURL, _ = getSignedDownloadURL(rawKey, 86400)
-				}
-				result.RawKey = rawKey
+				compCh <- s3Result{err: err}
+				return
 			}
+			var u string
+			if cfg.s3.publicURL != "" {
+				u = buildPublicURL(cfg.s3, s3Key)
+			} else {
+				u, _ = getSignedDownloadURL(s3Key, 3600)
+			}
+			compCh <- s3Result{url: u, key: s3Key}
+		}()
+
+		if isImageMIME(contentType) {
+			go func() {
+				rawKey := "uploads/raw/" + uid + origExt
+				if _, err := client.PutObject(context.Background(), &s3.PutObjectInput{
+					Bucket:       aws.String(cfg.s3.bucket),
+					Key:          aws.String(rawKey),
+					Body:         bytes.NewReader(data),
+					ContentType:  aws.String(contentType),
+					CacheControl: aws.String(s3CacheControl),
+				}); err != nil {
+					log.Printf("[Storage] S3 raw upload failed (non-fatal): %v", err)
+					rawCh <- s3Result{}
+					return
+				}
+				var u string
+				if cfg.s3.publicURL != "" {
+					u = buildPublicURL(cfg.s3, rawKey)
+				} else {
+					u, _ = getSignedDownloadURL(rawKey, 86400)
+				}
+				rawCh <- s3Result{url: u, key: rawKey}
+			}()
+		} else {
+			rawCh <- s3Result{}
+		}
+
+		comp := <-compCh
+		if comp.err != nil {
+			log.Printf("[Storage] S3 upload failed: %v", comp.err)
+			return nil, comp.err
+		}
+
+		result := &uploadResult{URL: comp.url, Key: comp.key}
+		raw := <-rawCh
+		if raw.key != "" {
+			result.RawURL = raw.url
+			result.RawKey = raw.key
 		}
 		return result, nil
 	}
@@ -295,47 +324,72 @@ func uploadMomentFile(filename, contentType string, data []byte) (*uploadResult,
 		client := getS3Client()
 		compKey := "moments/" + uid + compressedExt
 
-		if _, err := client.PutObject(context.Background(), &s3.PutObjectInput{
-			Bucket:      aws.String(cfg.s3.bucket),
-			Key:         aws.String(compKey),
-			Body:        bytes.NewReader(compressedData),
-			ContentType: aws.String(compressedMIME),
-		}); err != nil {
-			log.Printf("[Storage] S3 moment upload failed: %v", err)
-			return nil, err
+		type s3Result struct {
+			url string
+			key string
+			err error
 		}
 
-		var displayURL string
-		var err error
-		if cfg.s3.publicURL != "" {
-			displayURL = buildPublicURL(cfg.s3, compKey)
-		} else {
-			displayURL, err = getSignedDownloadURL(compKey, 3600)
-			if err != nil {
-				return nil, err
-			}
-		}
+		compCh := make(chan s3Result, 1)
+		rawCh := make(chan s3Result, 1)
 
-		result := &uploadResult{URL: displayURL, Key: compKey}
-
-		// Store raw copy for images
-		if isImageMIME(contentType) {
-			rawKey := "moments/raw/" + uid + origExt
+		go func() {
 			if _, err := client.PutObject(context.Background(), &s3.PutObjectInput{
-				Bucket:      aws.String(cfg.s3.bucket),
-				Key:         aws.String(rawKey),
-				Body:        bytes.NewReader(data),
-				ContentType: aws.String(contentType),
+				Bucket:       aws.String(cfg.s3.bucket),
+				Key:          aws.String(compKey),
+				Body:         bytes.NewReader(compressedData),
+				ContentType:  aws.String(compressedMIME),
+				CacheControl: aws.String(s3CacheControl),
 			}); err != nil {
-				log.Printf("[Storage] S3 moment raw upload failed (non-fatal): %v", err)
-			} else {
-				if cfg.s3.publicURL != "" {
-					result.RawURL = buildPublicURL(cfg.s3, rawKey)
-				} else {
-					result.RawURL, _ = getSignedDownloadURL(rawKey, 86400)
-				}
-				result.RawKey = rawKey
+				compCh <- s3Result{err: err}
+				return
 			}
+			var u string
+			if cfg.s3.publicURL != "" {
+				u = buildPublicURL(cfg.s3, compKey)
+			} else {
+				u, _ = getSignedDownloadURL(compKey, 3600)
+			}
+			compCh <- s3Result{url: u, key: compKey}
+		}()
+
+		if isImageMIME(contentType) {
+			go func() {
+				rawKey := "moments/raw/" + uid + origExt
+				if _, err := client.PutObject(context.Background(), &s3.PutObjectInput{
+					Bucket:       aws.String(cfg.s3.bucket),
+					Key:          aws.String(rawKey),
+					Body:         bytes.NewReader(data),
+					ContentType:  aws.String(contentType),
+					CacheControl: aws.String(s3CacheControl),
+				}); err != nil {
+					log.Printf("[Storage] S3 moment raw upload failed (non-fatal): %v", err)
+					rawCh <- s3Result{}
+					return
+				}
+				var u string
+				if cfg.s3.publicURL != "" {
+					u = buildPublicURL(cfg.s3, rawKey)
+				} else {
+					u, _ = getSignedDownloadURL(rawKey, 86400)
+				}
+				rawCh <- s3Result{url: u, key: rawKey}
+			}()
+		} else {
+			rawCh <- s3Result{}
+		}
+
+		comp := <-compCh
+		if comp.err != nil {
+			log.Printf("[Storage] S3 moment upload failed: %v", comp.err)
+			return nil, comp.err
+		}
+
+		result := &uploadResult{URL: comp.url, Key: comp.key}
+		raw := <-rawCh
+		if raw.key != "" {
+			result.RawURL = raw.url
+			result.RawKey = raw.key
 		}
 		return result, nil
 	}

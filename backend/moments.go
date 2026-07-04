@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -408,6 +409,7 @@ func handleCreateMomentComment(w http.ResponseWriter, r *http.Request) {
 		INSERT INTO "MomentComment" (id, momentId, userId, content, createdAt)
 		VALUES (?, ?, ?, ?, ?)
 	`, commentID, momentID, currentUserID, body.Content, now); err != nil {
+		log.Printf("[Moments] Failed to create comment: momentId=%s userId=%s err=%v", momentID, currentUserID, err)
 		writeErr(w, http.StatusInternalServerError, "Failed to create comment")
 		return
 	}

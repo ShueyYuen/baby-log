@@ -14,7 +14,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Button,
   ConfirmDialog,
@@ -70,6 +70,8 @@ function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
 
 // ── Media grid ───────────────────────────────────────────────────────────────
 
+const GRID_PAGE_SIZE = 9;
+
 function MediaGrid({
   items,
   onClickImage,
@@ -77,51 +79,75 @@ function MediaGrid({
   items: MediaItemDisplay[];
   onClickImage: (idx: number) => void;
 }) {
+  const [showAll, setShowAll] = useState(false);
+
   if (items.length === 0) return null;
 
+  const hasMore = items.length > GRID_PAGE_SIZE && !showAll;
+  const visible = hasMore ? items.slice(0, GRID_PAGE_SIZE) : items;
+  const remaining = items.length - GRID_PAGE_SIZE;
+
   const gridClass =
-    items.length === 1
+    visible.length === 1
       ? "grid-cols-1"
-      : items.length === 2
+      : visible.length === 2
         ? "grid-cols-2"
         : "grid-cols-3";
 
   return (
     <div className={`grid gap-1 mt-2 ${gridClass}`}>
-      {items.map((item, idx) => (
-        <div
-          key={idx}
-          className={`relative overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-700 ${items.length === 1 ? "aspect-[4/3] max-w-sm" : "aspect-square"}`}
-        >
-          {item.mediaType === "video" ? (
-            <div
-              className="w-full h-full relative cursor-pointer"
-              onClick={() => onClickImage(idx)}
-            >
-              <video
-                src={item.url}
-                className="w-full h-full object-cover"
-                muted
-                playsInline
-                preload="metadata"
-              />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                <div className="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center">
-                  <Play size={18} className="text-gray-800 ml-0.5" />
+      {visible.map((item, idx) => {
+        const isLastWithMore = hasMore && idx === GRID_PAGE_SIZE - 1;
+
+        return (
+          <div
+            key={idx}
+            className={`relative overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-700 ${visible.length === 1 ? "aspect-[4/3] max-w-sm" : "aspect-square"}`}
+          >
+            {item.mediaType === "video" ? (
+              <div
+                className="w-full h-full relative cursor-pointer"
+                onClick={() => onClickImage(idx)}
+              >
+                <video
+                  src={item.url}
+                  className="w-full h-full object-cover"
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                  <div className="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center">
+                    <Play size={18} className="text-gray-800 ml-0.5" />
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <img
-              src={item.url}
-              alt=""
-              className="w-full h-full object-cover cursor-pointer"
-              onClick={() => onClickImage(idx)}
-              loading="lazy"
-            />
-          )}
-        </div>
-      ))}
+            ) : (
+              <img
+                src={item.url}
+                alt=""
+                className="w-full h-full object-cover cursor-pointer"
+                onClick={() => onClickImage(idx)}
+                loading="lazy"
+                decoding="async"
+              />
+            )}
+            {isLastWithMore && (
+              <div
+                className="absolute inset-0 bg-black/50 flex items-center justify-center cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowAll(true);
+                }}
+              >
+                <span className="text-white text-lg font-semibold">
+                  +{remaining}
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -477,11 +503,12 @@ interface MediaPreview {
   url: string;
   result?: UploadMomentResult;
   type: "image" | "video";
-  progress?: number; // 0–100, undefined = not started or already done
+  progress?: number;
   error?: boolean;
 }
 
-const CONCURRENT_UPLOADS = 3;
+const CONCURRENT_UPLOADS = 5;
+const PROGRESS_STEP = 5;
 
 function UploadProgressRing({
   progress,
@@ -531,6 +558,46 @@ function UploadProgressRing({
   );
 }
 
+const PreviewItem = React.memo(function PreviewItem({
+  preview,
+  onRemove,
+}: {
+  preview: MediaPreview;
+  onRemove: () => void;
+}) {
+  const p = preview;
+  return (
+    <div className="relative w-[calc(33.333%-0.375rem)] aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
+      {!p.url ? null : p.type === "video" ? (
+        <video
+          src={p.url}
+          className="w-full h-full object-cover"
+          muted
+          playsInline
+          preload="metadata"
+        />
+      ) : (
+        <img
+          src={p.url}
+          alt=""
+          className="w-full h-full object-cover"
+          decoding="async"
+          loading="lazy"
+        />
+      )}
+      {p.file && !p.result && (
+        <UploadProgressRing progress={p.progress ?? 0} error={p.error} />
+      )}
+      <button
+        onClick={onRemove}
+        className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black/80"
+      >
+        <X size={12} />
+      </button>
+    </div>
+  );
+});
+
 function MomentFormDialog({
   open,
   onClose,
@@ -577,16 +644,34 @@ function MomentFormDialog({
       const allowed = Array.from(files);
 
       const startIdx = previews.length;
-      const newPreviews: MediaPreview[] = allowed.map((f) => ({
+
+      const placeholders: MediaPreview[] = allowed.map((f) => ({
         file: f,
-        url: URL.createObjectURL(f),
+        url: "",
         type: f.type.startsWith("video/") ? "video" : "image",
         progress: 0,
       }));
-      setPreviews((prev) => [...prev, ...newPreviews]);
+      setPreviews((prev) => [...prev, ...placeholders]);
       setUploading(true);
 
+      // Stagger blob URL creation to avoid blocking main thread
+      for (let i = 0; i < allowed.length; i++) {
+        const blobUrl = URL.createObjectURL(allowed[i]);
+        setPreviews((prev) => {
+          const next = [...prev];
+          const idx = startIdx + i;
+          if (next[idx]) {
+            next[idx] = { ...next[idx], url: blobUrl };
+          }
+          return next;
+        });
+        if (i % 3 === 2) {
+          await new Promise((r) => requestAnimationFrame(r));
+        }
+      }
+
       let queueIdx = 0;
+      const lastReported: number[] = new Array(allowed.length).fill(-1);
 
       const uploadNext = async (): Promise<void> => {
         const myIdx = queueIdx++;
@@ -597,10 +682,14 @@ function MomentFormDialog({
           const result = await api.moments.uploadMediaSingle(
             allowed[myIdx],
             (percent) => {
+              const stepped =
+                Math.floor(percent / PROGRESS_STEP) * PROGRESS_STEP;
+              if (stepped <= lastReported[myIdx]) return;
+              lastReported[myIdx] = stepped;
               setPreviews((prev) => {
                 const next = [...prev];
                 if (next[fileIdx]) {
-                  next[fileIdx] = { ...next[fileIdx], progress: percent };
+                  next[fileIdx] = { ...next[fileIdx], progress: stepped };
                 }
                 return next;
               });
@@ -636,9 +725,7 @@ function MomentFormDialog({
       };
 
       const workers = Math.min(CONCURRENT_UPLOADS, allowed.length);
-      await Promise.all(
-        Array.from({ length: workers }, () => uploadNext()),
-      );
+      await Promise.all(Array.from({ length: workers }, () => uploadNext()));
 
       setUploading(false);
     },
@@ -682,18 +769,20 @@ function MomentFormDialog({
       <DialogContent
         className={[
           "bottom-0 left-0 right-0 top-auto translate-x-0 translate-y-0",
-          "rounded-t-2xl rounded-b-none h-[80svh] overflow-y-auto pb-6 flex flex-col",
+          "rounded-t-2xl rounded-b-none h-[80svh] pb-0 flex flex-col overflow-hidden",
           "sm:h-auto sm:max-h-[80svh]",
           "sm:left-1/2 sm:top-1/2 sm:bottom-auto",
           "sm:-translate-x-1/2 sm:-translate-y-1/2",
-          "sm:rounded-xl sm:max-w-lg sm:max-h-none sm:overflow-visible",
+          "sm:rounded-xl sm:max-w-lg sm:max-h-none",
         ].join(" ")}
       >
-        <DialogHeader>
+        {/* Fixed header */}
+        <DialogHeader className="shrink-0">
           <DialogTitle>{editMoment ? "编辑动态" : "发布动态"}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 pt-1 flex-1 flex flex-col">
+        {/* Scrollable content */}
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-2 px-1 -mx-1">
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
@@ -702,46 +791,18 @@ function MomentFormDialog({
             className="w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 p-3 text-sm outline-none focus:ring-2 focus:ring-primary-400 resize-none dark:text-gray-100"
           />
 
-          {/* Preview grid */}
           {previews.length > 0 && (
-            <div className="grid grid-cols-3 gap-2 flex-1 overflow-y-auto max-h-[40vh]">
+            <div className="flex flex-wrap gap-2">
               {previews.map((p, idx) => (
-                <div
+                <PreviewItem
                   key={idx}
-                  className="relative aspect-[4/5] rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700"
-                >
-                  {p.type === "video" ? (
-                    <video
-                      src={p.url}
-                      className="w-full h-full object-cover"
-                      muted
-                      playsInline
-                      preload="metadata"
-                    />
-                  ) : (
-                    <img
-                      src={p.url}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                  {p.file && !p.result && (
-                    <UploadProgressRing
-                      progress={p.progress ?? 0}
-                      error={p.error}
-                    />
-                  )}
-                  <button
-                    onClick={() => removePreview(idx)}
-                    className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black/80"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
+                  preview={p}
+                  onRemove={() => removePreview(idx)}
+                />
               ))}
               <button
                 onClick={() => fileRef.current?.click()}
-                className="aspect-[4/5] rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors"
+                className="w-[calc(33.333%-0.375rem)] aspect-square rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors"
               >
                 <ImagePlus size={20} />
                 <span className="text-xs">添加</span>
@@ -752,7 +813,7 @@ function MomentFormDialog({
           {previews.length === 0 && (
             <button
               onClick={() => fileRef.current?.click()}
-              className="w-full flex-1 min-h-[180px] rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors"
+              className="w-full min-h-[180px] rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors"
             >
               <ImagePlus size={36} />
               <span className="text-sm">点击添加照片 / 视频</span>
@@ -767,40 +828,41 @@ function MomentFormDialog({
             className="hidden"
             onChange={(e) => handleFiles(e.target.files)}
           />
+        </div>
 
-          <div className="flex items-center justify-between pt-1">
-            {uploading ? (
+        {/* Fixed footer */}
+        <div className="shrink-0 flex items-center justify-between pt-3 pb-6 border-t border-gray-100 dark:border-gray-700">
+          {uploading ? (
+            <span className="text-xs text-gray-400">
+              正在上传 {uploadingCount} 个文件…
+            </span>
+          ) : (
+            previews.length > 0 && (
               <span className="text-xs text-gray-400">
-                正在上传 {uploadingCount} 个文件…
+                已选择 {previews.length} 个文件
               </span>
-            ) : (
-              previews.length > 0 && (
-                <span className="text-xs text-gray-400">
-                  已选择 {previews.length} 个文件
-                </span>
-              )
-            )}
-            <div className="flex gap-2 ml-auto">
-              <Button variant="secondary" onClick={onClose}>
-                取消
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={
-                  saving ||
-                  uploading ||
-                  (!content.trim() && previews.length === 0)
-                }
-              >
-                {saving
-                  ? "发布中..."
-                  : uploading
-                    ? "上传中..."
-                    : editMoment
-                      ? "保存"
-                      : "发布"}
-              </Button>
-            </div>
+            )
+          )}
+          <div className="flex gap-2 ml-auto">
+            <Button variant="secondary" onClick={onClose}>
+              取消
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={
+                saving ||
+                uploading ||
+                (!content.trim() && previews.length === 0)
+              }
+            >
+              {saving
+                ? "发布中..."
+                : uploading
+                  ? "上传中..."
+                  : editMoment
+                    ? "保存"
+                    : "发布"}
+            </Button>
           </div>
         </div>
       </DialogContent>
