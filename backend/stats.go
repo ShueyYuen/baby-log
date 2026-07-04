@@ -414,6 +414,10 @@ func handleTimeline(w http.ResponseWriter, r *http.Request) {
 		rec.User = &memberUser{ID: uID, DisplayName: uName}
 		items = append(items, rec)
 	}
+	if err := rows.Err(); err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
 
 	// Summary
 	now := time.Now()

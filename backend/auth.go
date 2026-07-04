@@ -299,7 +299,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		"id":                id,
 		"username":          body.Username,
 		"displayName":       body.DisplayName,
-		"role":              "user",
+		"role":              body.Role,
 		"generatedPassword": plainPwd,
 	})
 }

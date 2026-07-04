@@ -5,7 +5,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { api, type TimelineResponse, type TimelineRecord, type TimelineSummary, type FeedingPrediction } from '../lib/api';
-import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
+import { cacheRead, cacheReadAsync, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -194,7 +194,9 @@ export default function TimelinePage() {
   const [summary, setSummary] = useState<TimelineSummary | null>(null);
   const [prediction, setPrediction] = useState<FeedingPrediction | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [filter, setFilter] = useState<string>('');
+  const loadIdRef = useRef(0);
   const [showTypePanel, setShowTypePanel] = useState(false);
   const [viewerImages, setViewerImages] = useState<ViewerImage[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -303,6 +305,7 @@ export default function TimelinePage() {
 
   const loadData = async (invalidate = false) => {
     if (!currentBaby) return;
+    const thisLoadId = ++loadIdRef.current;
     const params = new URLSearchParams({ babyId: currentBaby.id, pageSize: '50' });
     if (filter) params.set('category', filter);
     const cKey = `/timeline?${params}`;
@@ -311,26 +314,36 @@ export default function TimelinePage() {
       cacheInvalidate('/timeline');
     }
 
-    const cached = cacheRead<{ success: boolean; data: TimelineResponse }>(cKey);
+    type CachedRes = { success: boolean; data: TimelineResponse };
+    let cached = cacheRead<CachedRes>(cKey);
+    if (!cached) {
+      cached = (await cacheReadAsync<CachedRes>(cKey)) ?? undefined;
+    }
+    if (thisLoadId !== loadIdRef.current) return;
+
     if (cached) {
       setRecords(cached.data.records);
       setSummary(cached.data.summary);
       setPrediction(cached.data.prediction);
       setLoading(false);
+      setError(false);
     } else {
       setLoading(true);
     }
 
     try {
       const res = await api.get<{ success: boolean; data: TimelineResponse }>(cKey);
+      if (thisLoadId !== loadIdRef.current) return;
       cacheWrite(cKey, res);
       setRecords(res.data.records);
       setSummary(res.data.summary);
       setPrediction(res.data.prediction);
+      setError(false);
     } catch {
-      // ignore
+      if (thisLoadId !== loadIdRef.current) return;
+      if (!cached) setError(true);
     } finally {
-      setLoading(false);
+      if (thisLoadId === loadIdRef.current) setLoading(false);
     }
   };
 
@@ -557,19 +570,25 @@ export default function TimelinePage() {
       {/* Timeline (virtualized) */}
       {loading ? (
         <TimelineSkeleton />
+      ) : error ? (
+        <div className="text-center py-12 text-gray-400">
+          <p>加载失败</p>
+          <button onClick={() => loadData(true)} className="mt-2 text-sm text-primary-500 hover:underline">重试</button>
+        </div>
       ) : records.length === 0 ? (
         <div className="text-center py-12 text-gray-400">暂无记录，点击 + 添加</div>
       ) : (
         <div
           ref={listRef}
-          className="overflow-y-auto -mx-1 px-1"
-          style={{ height: Math.min(flatRows.length * 72, window.innerHeight - 280) }}
+          className="flex-1 overflow-y-auto -mx-1 px-1"
+          style={{ maxHeight: 'calc(100vh - 280px)' }}
         >
           <div
             style={{ height: virtualizer.getTotalSize(), position: 'relative' }}
           >
             {virtualizer.getVirtualItems().map((vItem) => {
               const row = flatRows[vItem.index];
+              if (!row) return null;
               return (
                 <div
                   key={vItem.key}

@@ -6,6 +6,7 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
+import { cacheInvalidate } from '../lib/queryCache';
 import {
   Button,
   DateTimePicker,
@@ -306,6 +307,7 @@ export default function RecordFormPage() {
       } else {
         await api.post("/records", payload);
       }
+      cacheInvalidate('/timeline');
       navigate("/", { replace: true });
     } catch {
       toast(isEditing ? "修改失败" : "添加失败", "error");
@@ -856,6 +858,7 @@ export default function RecordFormPage() {
               onClick={async () => {
                 try {
                   await api.delete(`/records/${id}`);
+                  cacheInvalidate('/timeline');
                   navigate("/", { replace: true });
                 } catch {
                   toast("删除失败", "error");

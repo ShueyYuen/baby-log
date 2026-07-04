@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -218,21 +217,11 @@ func panicRecovery(next http.Handler) http.Handler {
 		defer func() {
 			if rv := recover(); rv != nil {
 				log.Printf("[PANIC] %s %s: %v\n%s", r.Method, r.URL.Path, rv, debug.Stack())
-				if !headerWritten(w) {
-					writeErr(w, http.StatusInternalServerError,
-						fmt.Sprintf("Internal server error: %v", rv))
-				}
+				writeErr(w, http.StatusInternalServerError, "Internal server error")
 			}
 		}()
 		next.ServeHTTP(w, r)
 	})
-}
-
-func headerWritten(w http.ResponseWriter) bool {
-	// chi's wrapped ResponseWriter records the status; if Header() was
-	// already sent we shouldn't try to write again.  A simple heuristic:
-	// if Content-Type is already set, the response was (likely) started.
-	return w.Header().Get("Content-Type") != ""
 }
 
 func spaHandler(webDist string) http.HandlerFunc {
