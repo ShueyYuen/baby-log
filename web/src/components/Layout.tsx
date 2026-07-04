@@ -15,7 +15,7 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
-  const { currentBaby, refreshBabies } = useBaby();
+  const { currentBaby, loading: babyLoading, refreshBabies } = useBaby();
   const { user, logout, isAdmin } = useAuth();
   const { theme, setTheme } = useTheme();
 
@@ -67,18 +67,7 @@ export default function Layout({ children }: LayoutProps) {
     { value: 'system' as const, icon: Monitor, label: '跟随系统' },
   ];
 
-  if (!currentBaby) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold mb-4 dark:text-gray-100">请先添加宝宝信息</h2>
-          <Link to="/baby/setup" className="btn-primary">
-            添加宝宝
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const babyNameLabel = babyLoading ? '…' : currentBaby?.name;
 
   return (
     <div className="h-screen overflow-hidden bg-gray-50 dark:bg-gray-900 md:pl-64">
@@ -86,12 +75,20 @@ export default function Layout({ children }: LayoutProps) {
       <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-col z-50">
         <div className="p-6 border-b border-gray-100 dark:border-gray-700">
           <h1 className="text-xl font-bold text-primary-600">宝宝日志</h1>
-          <button
-            onClick={openBabyEdit}
-            className="text-sm text-gray-500 dark:text-gray-400 mt-1 hover:text-primary-600 dark:hover:text-primary-400 transition-colors cursor-pointer"
-          >
-            {currentBaby.name}
-          </button>
+          {currentBaby ? (
+            <button
+              onClick={openBabyEdit}
+              className="text-sm text-gray-500 dark:text-gray-400 mt-1 hover:text-primary-600 dark:hover:text-primary-400 transition-colors cursor-pointer"
+            >
+              {babyNameLabel}
+            </button>
+          ) : babyLoading ? (
+            <span className="text-sm text-gray-400 mt-1">…</span>
+          ) : (
+            <Link to="/baby/setup" className="text-sm text-primary-500 hover:text-primary-600 mt-1 inline-block">
+              添加宝宝
+            </Link>
+          )}
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
@@ -155,18 +152,34 @@ export default function Layout({ children }: LayoutProps) {
           >
             {theme === 'dark' ? <Moon size={18} /> : theme === 'light' ? <Sun size={18} /> : <Monitor size={18} />}
           </button>
-          <button
-            onClick={openBabyEdit}
-            className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-          >
-            {currentBaby.name}
-          </button>
+          {currentBaby ? (
+            <button
+              onClick={openBabyEdit}
+              className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+            >
+              {babyNameLabel}
+            </button>
+          ) : babyLoading ? (
+            <span className="text-sm text-gray-400">…</span>
+          ) : (
+            <Link to="/baby/setup" className="text-sm text-primary-500 hover:text-primary-600">
+              添加宝宝
+            </Link>
+          )}
         </div>
       </header>
 
       {/* Main Content */}
       <main className={`h-full md:pt-6 md:pb-6 px-4 md:px-8 overflow-y-auto custom-scrollbar ${isSecondaryPage ? 'pt-0 pb-0' : 'pt-16 pb-20'}`}>
         <div className="max-w-4xl mx-auto">
+          {!babyLoading && !currentBaby && (
+            <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/30">
+              <p className="text-sm text-amber-800 dark:text-amber-200">还没有宝宝信息，添加后即可开始记录</p>
+              <Link to="/baby/setup" className="shrink-0 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400">
+                去添加
+              </Link>
+            </div>
+          )}
           {children}
         </div>
       </main>

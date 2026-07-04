@@ -534,7 +534,7 @@ export default function TimelinePage() {
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">短按填写详情 · 长按睡眠/洗澡可直接开始计时</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">短按填写详情 · 按住睡眠/洗澡约 0.5 秒可直接开始（电脑/手机均支持）</p>
             <div className="grid grid-cols-4 gap-4">
               {allRecordTypes.map((item) => {
                 const Icon = item.icon;

@@ -13,6 +13,7 @@ interface Baby {
 interface BabyContextValue {
   babies: Baby[];
   currentBaby: Baby | null;
+  loading: boolean;
   setCurrentBaby: (baby: Baby) => void;
   refreshBabies: () => Promise<void>;
 }
@@ -23,9 +24,15 @@ export function BabyProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [babies, setBabies] = useState<Baby[]>([]);
   const [currentBaby, setCurrentBaby] = useState<Baby | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const refreshBabies = async () => {
-    if (!user) return;
+    if (!user) {
+      setBabies([]);
+      setCurrentBaby(null);
+      setLoading(false);
+      return;
+    }
     try {
       const res = await api.get<{ success: boolean; data: Baby[] }>('/babies');
       setBabies(res.data);
@@ -33,8 +40,11 @@ export function BabyProvider({ children }: { children: ReactNode }) {
       const found = res.data.find((b) => b.id === savedId);
       if (found) setCurrentBaby(found);
       else if (res.data.length > 0) setCurrentBaby(res.data[0]);
+      else setCurrentBaby(null);
     } catch {
       // ignore
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -48,7 +58,7 @@ export function BabyProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <BabyContext.Provider value={{ babies, currentBaby, setCurrentBaby: selectBaby, refreshBabies }}>
+    <BabyContext.Provider value={{ babies, currentBaby, loading, setCurrentBaby: selectBaby, refreshBabies }}>
       {children}
     </BabyContext.Provider>
   );
