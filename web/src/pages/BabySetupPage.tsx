@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, generateIdempotencyKey } from '../lib/api';
 import { useBaby } from '../contexts/BabyContext';
 import { DateTimePicker } from '../components/ui';
 
@@ -25,7 +25,7 @@ export default function BabySetupPage() {
     setLoading(true);
 
     try {
-      await api.post('/babies', { name, gender, birthDate: new Date(birthDate).toISOString() });
+      await api.post('/babies', { name, gender, birthDate: new Date(birthDate).toISOString() }, generateIdempotencyKey());
       await refreshBabies();
       navigate('/');
     } catch (err: any) {

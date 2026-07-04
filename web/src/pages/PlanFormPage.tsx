@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { api } from '../lib/api';
+import { api, generateIdempotencyKey } from '../lib/api';
 import { cacheRead } from '../lib/queryCache';
 import { ArrowLeft, Bell } from 'lucide-react';
 import { Button, Input, Textarea, DateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, useToast } from '../components/ui';
@@ -118,7 +118,7 @@ export default function PlanFormPage() {
           description: description || undefined,
           reminder,
           repeat,
-        });
+        }, generateIdempotencyKey());
       }
       navigate('/plans', { replace: true });
     } catch {

@@ -27,6 +27,7 @@ import { MomentsSkeleton } from "../components/ui/skeleton";
 import { useAuth } from "../contexts/AuthContext";
 import {
   api,
+  generateIdempotencyKey,
   type MediaItem,
   type MediaItemDisplay,
   type Moment,
@@ -911,7 +912,7 @@ export default function MomentsPage() {
     const res = await api.moments.create({
       content: content || undefined,
       mediaItems,
-    });
+    }, generateIdempotencyKey());
     setMoments((prev) => [res.data, ...prev]);
     setTotal((t) => t + 1);
   };
@@ -958,7 +959,7 @@ export default function MomentsPage() {
   };
 
   const handleAddComment = async (momentId: string, content: string) => {
-    const res = await api.moments.addComment(momentId, content);
+    const res = await api.moments.addComment(momentId, content, generateIdempotencyKey());
     setMoments((prev) =>
       prev.map((m) => {
         if (m.id !== momentId) return m;

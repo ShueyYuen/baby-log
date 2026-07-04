@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { api, type RecordImage, type UploadMomentResult } from '../lib/api';
+import { api, generateIdempotencyKey, type RecordImage, type UploadMomentResult } from '../lib/api';
 import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -161,7 +161,7 @@ export default function GrowthPage() {
       height: gHeight ? +gHeight : undefined,
       weight: gWeight ? +gWeight : undefined,
       headCircumference: gHead ? +gHead : undefined,
-    });
+    }, generateIdempotencyKey());
     setShowGrowthForm(false);
     setGHeight(''); setGWeight(''); setGHead('');
     loadData(true);
@@ -180,7 +180,7 @@ export default function GrowthPage() {
       occurredAt: new Date(mDate).toISOString(),
       description: mDesc || undefined,
       images: completed.length > 0 ? completed : undefined,
-    });
+    }, generateIdempotencyKey());
     setShowMilestoneForm(false);
     setMTitle(''); setMDesc(''); setMPreviews([]);
     loadData(true);

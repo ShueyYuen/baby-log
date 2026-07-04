@@ -26,6 +26,8 @@ func runCleanupTick() {
 		}
 	}()
 
+	cleanupIdempotencyKeys()
+
 	cutoff := int64(nowMillis()) - 24*60*60*1000
 
 	rows, err := db.Query(

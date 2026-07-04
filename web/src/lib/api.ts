@@ -4,13 +4,19 @@ function getToken(): string | null {
   return localStorage.getItem('token');
 }
 
+export function generateIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
 
-  // 只有在 body 不是 FormData 时，才默认设置为 application/json
   if (!(options.body instanceof FormData) && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
@@ -131,10 +137,11 @@ export interface TimelineResponse {
 
 export const api = {
   get: <T>(url: string) => request<T>(url),
-  post: <T>(url: string, body: unknown) =>
+  post: <T>(url: string, body: unknown, idempotencyKey?: string) =>
     request<T>(url, {
       method: 'POST',
       body: body instanceof FormData ? body : JSON.stringify(body),
+      headers: idempotencyKey ? { 'X-Idempotency-Key': idempotencyKey } : undefined,
     }),
   put: <T>(url: string, body: unknown) =>
     request<T>(url, {
@@ -155,8 +162,8 @@ export const api = {
         `/moments?page=${page}&pageSize=${pageSize}`
       ),
 
-    create: (data: { content?: string; mediaItems?: MediaItem[] }) =>
-      api.post<{ success: boolean; data: Moment }>('/moments', data),
+    create: (data: { content?: string; mediaItems?: MediaItem[] }, idempotencyKey?: string) =>
+      api.post<{ success: boolean; data: Moment }>('/moments', data, idempotencyKey),
 
     update: (id: string, data: { content?: string; mediaItems?: MediaItem[] }) =>
       api.put<{ success: boolean; data: { id: string } }>(`/moments/${id}`, data),
@@ -164,10 +171,11 @@ export const api = {
     delete: (id: string) =>
       api.delete<{ success: boolean; data: { id: string } }>(`/moments/${id}`),
 
-    addComment: (momentId: string, content: string) =>
+    addComment: (momentId: string, content: string, idempotencyKey?: string) =>
       api.post<{ success: boolean; data: MomentComment }>(
         `/moments/${momentId}/comments`,
-        { content }
+        { content },
+        idempotencyKey,
       ),
 
     deleteComment: (momentId: string, commentId: string) =>

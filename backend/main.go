@@ -79,6 +79,7 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 		// 需鉴权的业务路由
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware)
+			r.Use(idempotencyMiddleware)
 
 			r.Route("/babies", func(r chi.Router) {
 				r.Get("/", handleListBabies)

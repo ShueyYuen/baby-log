@@ -241,4 +241,14 @@ CREATE TABLE IF NOT EXISTS "UploadedFile" (
     "used" INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS "UploadedFile_used_createdAt_idx" ON "UploadedFile"("used", "createdAt");
+
+CREATE TABLE IF NOT EXISTS "IdempotencyKey" (
+    "key" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "statusCode" INTEGER NOT NULL,
+    "responseBody" TEXT NOT NULL,
+    "contentType" TEXT NOT NULL DEFAULT '',
+    "createdAt" INTEGER NOT NULL,
+    PRIMARY KEY ("key", "userId")
+);
 `

@@ -22,7 +22,7 @@ import {
 } from "../components/ui";
 import { useAuth } from "../contexts/AuthContext";
 import { useBaby } from "../contexts/BabyContext";
-import { api, type RecordImage, type UploadMomentResult } from "../lib/api";
+import { api, generateIdempotencyKey, type RecordImage, type UploadMomentResult } from "../lib/api";
 import { cacheRead } from "../lib/queryCache";
 import { Skeleton } from "../components/ui/skeleton";
 
@@ -179,6 +179,7 @@ export default function RecordFormPage() {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const idempotencyKeyRef = useRef(generateIdempotencyKey());
 
   // Dynamic form data — initialized from state record if available
   const [leftMinutes, setLeftMinutes] = useState(_d.leftMinutes ?? 10);
@@ -439,7 +440,7 @@ export default function RecordFormPage() {
       if (isEditing) {
         await api.put(`/records/${id}`, payload);
       } else {
-        await api.post("/records", payload);
+        await api.post("/records", payload, idempotencyKeyRef.current);
       }
       cacheInvalidate('/timeline');
       navigate("/", { replace: true });

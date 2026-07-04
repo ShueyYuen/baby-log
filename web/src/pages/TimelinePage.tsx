@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { api, type TimelineResponse, type TimelineRecord, type TimelineSummary, type FeedingPrediction } from '../lib/api';
+import { api, generateIdempotencyKey, type TimelineResponse, type TimelineRecord, type TimelineSummary, type FeedingPrediction } from '../lib/api';
 import { cacheRead, cacheReadAsync, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -249,7 +249,7 @@ export default function TimelinePage() {
         type,
         data: { ongoing: true, startTime: nowIso },
         occurredAt: nowIso,
-      });
+      }, generateIdempotencyKey());
       setShowTypePanel(false);
       toast(`${label}已开始`, 'success');
       loadData(true);
@@ -286,7 +286,7 @@ export default function TimelinePage() {
             source: 'feeding_manual',
             title: '🍼 喂奶提醒',
             body: '您设置的喂奶提醒时间已到',
-          });
+          }, generateIdempotencyKey());
           toast('提醒已设置！将在预计喂奶时间通知您', 'success');
         } catch {
           toast('设置提醒失败', 'error');
@@ -563,7 +563,7 @@ export default function TimelinePage() {
           <input
             type="text"
             placeholder="搜索备注、内容..."
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-400 dark:focus:ring-primary-500"
+            className="w-full h-10 pl-9 pr-3 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             onChange={(e) => {
               const val = e.target.value;
               if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
