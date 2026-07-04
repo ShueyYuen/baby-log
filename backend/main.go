@@ -159,6 +159,9 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				r.Get("/reminder", handleListReminders)
 				r.Get("/due-reminders", handleDueReminders)
 			})
+
+			r.Post("/admin/cleanup", handleManualCleanup)
+			r.Post("/admin/s3-cache-control", handleSetS3CacheControl)
 		})
 
 		r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {

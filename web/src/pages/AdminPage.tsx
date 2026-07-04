@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 import dayjs from 'dayjs';
-import { UserPlus, Trash2, KeyRound, Copy, Check, ShieldCheck, Eye, User as UserIcon } from 'lucide-react';
+import { UserPlus, Trash2, KeyRound, Copy, Check, ShieldCheck, Eye, User as UserIcon, HardDrive } from 'lucide-react';
 import { Button, Input, Card, CardContent, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, ConfirmDialog, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 
@@ -32,6 +32,23 @@ export default function AdminPage() {
   } | null>(null);
   const [roleChangeTarget, setRoleChangeTarget] = useState<UserItem | null>(null);
   const [newRole, setNewRole] = useState('');
+  const [cleanupResult, setCleanupResult] = useState<{
+    dryRun: boolean;
+    count?: number;
+    found?: number;
+    deleted?: number;
+    files?: Array<{ key: string; rawKey?: string; createdAt: number }>;
+    errors?: string[];
+  } | null>(null);
+  const [cleaningUp, setCleaningUp] = useState(false);
+  const [cacheControlResult, setCacheControlResult] = useState<{
+    dryRun: boolean;
+    total: number;
+    updated?: number;
+    skipped?: number;
+    errors?: string[];
+  } | null>(null);
+  const [settingCache, setSettingCache] = useState(false);
 
   useEffect(() => {
     loadUsers();
@@ -105,6 +122,40 @@ export default function AdminPage() {
       loadUsers();
     } catch (err: any) {
       toast(err.message || '更新失败', 'error');
+    }
+  };
+
+  const runCleanup = async (dryRun: boolean, all: boolean) => {
+    setCleaningUp(true);
+    try {
+      const params = new URLSearchParams();
+      if (dryRun) params.set('dry-run', 'true');
+      if (all) params.set('all', 'true');
+      const res = await api.post<{ success: boolean; data: typeof cleanupResult }>(`/admin/cleanup?${params}`, {});
+      setCleanupResult(res.data);
+      if (!dryRun) {
+        toast(`已清理 ${res.data?.deleted ?? 0} 个文件`, 'success');
+      }
+    } catch (err: any) {
+      toast(err.message || '清理失败', 'error');
+    } finally {
+      setCleaningUp(false);
+    }
+  };
+
+  const runSetCacheControl = async (dryRun: boolean) => {
+    setSettingCache(true);
+    try {
+      const params = dryRun ? '?dry-run=true' : '';
+      const res = await api.post<{ success: boolean; data: typeof cacheControlResult }>(`/admin/s3-cache-control${params}`, {});
+      setCacheControlResult(res.data);
+      if (!dryRun) {
+        toast(`已更新 ${res.data?.updated ?? 0} 个文件的 Cache-Control`, 'success');
+      }
+    } catch (err: any) {
+      toast(err.message || '操作失败', 'error');
+    } finally {
+      setSettingCache(false);
     }
   };
 
@@ -268,6 +319,149 @@ export default function AdminPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Storage Cleanup */}
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mt-2">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <HardDrive size={18} className="text-gray-500" />
+            <h2 className="text-xl font-semibold dark:text-gray-100">存储清理</h2>
+          </div>
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          清理已上传但未被任何记录引用的孤立文件。定时任务每小时自动清理超过 24 小时的孤立文件。
+        </p>
+
+        <div className="flex flex-wrap gap-2 mb-4">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={cleaningUp}
+            onClick={() => runCleanup(true, false)}
+          >
+            {cleaningUp ? '扫描中...' : '扫描 (>24h)'}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={cleaningUp}
+            onClick={() => runCleanup(true, true)}
+          >
+            {cleaningUp ? '扫描中...' : '扫描 (全部)'}
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={cleaningUp}
+            onClick={() => runCleanup(false, false)}
+          >
+            清理 (&gt;24h)
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={cleaningUp}
+            onClick={() => runCleanup(false, true)}
+          >
+            清理 (全部)
+          </Button>
+        </div>
+
+        {cleanupResult && (
+          <Card>
+            <CardContent className="space-y-2">
+              {cleanupResult.dryRun ? (
+                <>
+                  <p className="text-sm font-medium dark:text-gray-100">
+                    发现 <span className="text-primary-500 font-bold">{cleanupResult.count ?? 0}</span> 个孤立文件
+                  </p>
+                  {cleanupResult.files && cleanupResult.files.length > 0 && (
+                    <div className="max-h-48 overflow-y-auto text-xs space-y-1">
+                      {cleanupResult.files.map((f, i) => (
+                        <div key={i} className="flex items-center gap-2 text-gray-500 dark:text-gray-400 font-mono">
+                          <span className="text-gray-400 w-6 text-right">{i + 1}.</span>
+                          <span className="truncate">{f.key}</span>
+                          <span className="text-gray-400 flex-shrink-0">
+                            {dayjs(f.createdAt).format('MM-DD HH:mm')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium dark:text-gray-100">
+                    已清理 <span className="text-green-500 font-bold">{cleanupResult.deleted}</span> / {cleanupResult.found} 个文件
+                  </p>
+                  {cleanupResult.errors && cleanupResult.errors.length > 0 && (
+                    <div className="text-xs text-red-500 space-y-0.5">
+                      {cleanupResult.errors.map((e, i) => (
+                        <p key={i}>{e}</p>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* S3 Cache-Control */}
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mt-2">
+        <div className="flex items-center gap-2 mb-3">
+          <HardDrive size={18} className="text-gray-500" />
+          <h2 className="text-xl font-semibold dark:text-gray-100">S3 缓存设置</h2>
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          为 S3 中所有已上传文件设置 <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">Cache-Control: public, max-age=31536000, immutable</code>。
+          新上传的文件已自动设置，此操作用于更新历史文件。
+        </p>
+
+        <div className="flex flex-wrap gap-2 mb-4">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={settingCache}
+            onClick={() => runSetCacheControl(true)}
+          >
+            {settingCache ? '扫描中...' : '扫描文件数量'}
+          </Button>
+          <Button
+            size="sm"
+            disabled={settingCache}
+            onClick={() => runSetCacheControl(false)}
+          >
+            {settingCache ? '更新中...' : '执行更新'}
+          </Button>
+        </div>
+
+        {cacheControlResult && (
+          <Card>
+            <CardContent className="space-y-1">
+              <p className="text-sm dark:text-gray-100">
+                {cacheControlResult.dryRun ? (
+                  <>共 <span className="font-bold text-primary-500">{cacheControlResult.total}</span> 个文件</>
+                ) : (
+                  <>
+                    共 {cacheControlResult.total} 个文件，
+                    已更新 <span className="font-bold text-green-500">{cacheControlResult.updated}</span>，
+                    跳过 <span className="text-gray-400">{cacheControlResult.skipped}</span>（已是最新）
+                  </>
+                )}
+              </p>
+              {cacheControlResult.errors && cacheControlResult.errors.length > 0 && (
+                <div className="text-xs text-red-500 space-y-0.5 mt-1">
+                  {cacheControlResult.errors.map((e, i) => (
+                    <p key={i}>{e}</p>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* Password Reset Result Dialog */}
       {generatedPassword && !showCreateForm && (
