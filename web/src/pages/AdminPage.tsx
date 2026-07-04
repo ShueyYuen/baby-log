@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
+import { cropAndResizeAvatar } from '../lib/avatar-crop';
 import dayjs from 'dayjs';
 import { UserPlus, Trash2, KeyRound, Copy, Check, ShieldCheck, Eye, User as UserIcon, HardDrive, Camera } from 'lucide-react';
 import { Button, Input, Card, CardContent, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, ConfirmDialog, useToast } from '../components/ui';
@@ -142,8 +143,9 @@ export default function AdminPage() {
   const handleAvatarUpload = useCallback(async (file: File, userId?: string) => {
     setAvatarUploading(true);
     try {
+      const cropped = await cropAndResizeAvatar(file);
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', cropped);
       const uploadRes = await api.post<{ success: boolean; data: { url: string; key: string } }>('/upload', formData);
       const { url, key } = uploadRes.data;
 

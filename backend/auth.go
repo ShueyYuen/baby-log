@@ -1,17 +1,23 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"database/sql"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -494,6 +500,92 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 
 	targetID := chiURLParam(r, "id")
 
+	contentType := r.Header.Get("Content-Type")
+
+	// Multipart upload: accept file and store in avatar/ folder
+	if strings.HasPrefix(contentType, "multipart/") {
+		if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+			writeErr(w, http.StatusBadRequest, "No file uploaded")
+			return
+		}
+
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "No file uploaded")
+			return
+		}
+		defer file.Close()
+
+		ct := header.Header.Get("Content-Type")
+		if !allowedMimeTypes[ct] {
+			writeErr(w, http.StatusBadRequest, "不支持的文件类型，仅允许 JPG/PNG/GIF/WebP")
+			return
+		}
+
+		data, err := io.ReadAll(io.LimitReader(file, maxUploadSize+1))
+		if err != nil || len(data) > maxUploadSize {
+			writeErr(w, http.StatusBadRequest, "文件过大")
+			return
+		}
+
+		if !validateMediaType(data) {
+			writeErr(w, http.StatusBadRequest, "文件内容与声明的类型不匹配")
+			return
+		}
+
+		cfg := getStorageConfig()
+		uid := uuid.NewString()
+
+		compressedData, _ := compressImage(data, ct)
+		localKey := "avatar/" + uid + ".jpg"
+
+		if cfg.typ == storageLocal {
+			avatarDir := filepath.Join(cfg.uploadDir, "avatar")
+			if err := os.MkdirAll(avatarDir, 0o755); err != nil {
+				writeErr(w, http.StatusInternalServerError, "Server error")
+				return
+			}
+			if err := os.WriteFile(filepath.Join(cfg.uploadDir, localKey), compressedData, 0o644); err != nil {
+				writeErr(w, http.StatusInternalServerError, "Upload failed")
+				return
+			}
+		} else if cfg.s3 != nil {
+			client := getS3Client()
+			if _, err := client.PutObject(context.Background(), &s3.PutObjectInput{
+				Bucket:       aws.String(cfg.s3.bucket),
+				Key:          aws.String(localKey),
+				Body:         bytes.NewReader(compressedData),
+				ContentType:  aws.String("image/jpeg"),
+				CacheControl: aws.String(s3CacheControl),
+			}); err != nil {
+				writeErr(w, http.StatusInternalServerError, "Upload failed")
+				return
+			}
+		}
+
+		var avatarURL string
+		if cfg.typ == storageS3 && cfg.s3 != nil && cfg.s3.publicURL != "" {
+			avatarURL = buildPublicURL(cfg.s3, localKey)
+		} else {
+			avatarURL = cfg.publicPath + "/" + localKey
+		}
+		trackUploadedFile(localKey, "")
+
+		now := int64(nowMillis())
+		res, err := db.Exec(`UPDATE "User" SET avatar = ?, updatedAt = ? WHERE id = ?`, avatarURL, now, targetID)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "Server error")
+			return
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			writeErr(w, http.StatusNotFound, "User not found")
+			return
+		}
+		writeOK(w, map[string]interface{}{"id": targetID, "avatar": avatarURL})
+		return
+	}
+
+	// JSON body: set avatar URL directly or clear it
 	var body struct {
 		Avatar *string `json:"avatar"`
 	}
