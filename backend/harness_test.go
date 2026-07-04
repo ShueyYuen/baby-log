@@ -22,7 +22,8 @@ func setupTestDB(t *testing.T) {
 
 	prev := db
 	path := filepath.Join(t.TempDir(), "test.db")
-	conn, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
+	conn, err := sql.Open("sqlite", path+
+		"?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)")
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}

@@ -39,8 +39,12 @@ func initDB() {
 	}
 
 	var err error
-	// 开启外键约束与忙等待，贴近 Prisma 行为
-	db, err = sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
+	db, err = sql.Open("sqlite", path+
+		"?_pragma=busy_timeout(5000)"+
+		"&_pragma=foreign_keys(1)"+
+		"&_pragma=journal_mode(WAL)"+
+		"&_pragma=synchronous(NORMAL)"+
+		"&_pragma=cache_size(-64000)")
 	if err != nil {
 		log.Fatalf("[DB] Failed to open database: %v", err)
 	}
@@ -48,7 +52,6 @@ func initDB() {
 		log.Fatalf("[DB] Failed to connect: %v", err)
 	}
 
-	// SQLite 单写入者，限制连接数避免锁冲突
 	db.SetMaxOpenConns(1)
 
 	if _, err := db.Exec(schemaSQL); err != nil {

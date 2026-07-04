@@ -261,13 +261,13 @@ func ensureAdmin() error {
 		os.Exit(1)
 	}
 
-	var id, role, existingPassword string
-	err := db.QueryRow(`SELECT id, role, password FROM "User" WHERE username = ?`, username).Scan(&id, &role, &existingPassword)
+	var id, role, existingHash string
+	err := db.QueryRow(`SELECT id, role, password FROM "User" WHERE username = ?`, username).Scan(&id, &role, &existingHash)
 	if err == nil {
-		if role != "admin" || existingPassword != password {
+		if role != "admin" || !checkPassword(existingHash, password) {
 			now := nowMillis()
 			if _, err := db.Exec(`UPDATE "User" SET role = 'admin', password = ?, updatedAt = ? WHERE username = ?`,
-				password, int64(now), username); err != nil {
+				hashPassword(password), int64(now), username); err != nil {
 				return err
 			}
 			log.Printf("Admin account %q updated", username)
@@ -280,7 +280,7 @@ func ensureAdmin() error {
 
 	now := nowMillis()
 	if _, err := db.Exec(`INSERT INTO "User" (id, username, password, displayName, role, createdAt, updatedAt) VALUES (?, ?, ?, '管理员', 'admin', ?, ?)`,
-		uuid.NewString(), username, password, int64(now), int64(now)); err != nil {
+		uuid.NewString(), username, hashPassword(password), int64(now), int64(now)); err != nil {
 		return err
 	}
 	log.Printf("Admin account %q created", username)

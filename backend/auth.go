@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"log"
 	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type ctxKey string
@@ -80,6 +82,22 @@ func validatePasswordStrength(pw string) bool {
 		strings.ContainsAny(pw, symbolChars)
 }
 
+func hashPassword(plain string) string {
+	h, err := bcrypt.GenerateFromPassword([]byte(plain), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatalf("[Auth] bcrypt hash failed: %v", err)
+	}
+	return string(h)
+}
+
+func checkPassword(hashed, plain string) bool {
+	if !strings.HasPrefix(hashed, "$2") {
+		// Legacy plain-text password — compare directly and upgrade in-place
+		return hashed == plain
+	}
+	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(plain)) == nil
+}
+
 func isAdmin(userID string) bool {
 	var role string
 	err := db.QueryRow(`SELECT role FROM "User" WHERE id = ?`, userID).Scan(&role)
@@ -100,12 +118,23 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var id, username, password, displayName, role string
+	var id, username, storedHash, displayName, role string
 	err := db.QueryRow(`SELECT id, username, password, displayName, role FROM "User" WHERE username = ?`, *body.Username).
-		Scan(&id, &username, &password, &displayName, &role)
-	if err != nil || password != *body.Password {
+		Scan(&id, &username, &storedHash, &displayName, &role)
+	if err != nil || !checkPassword(storedHash, *body.Password) {
 		writeErr(w, http.StatusUnauthorized, "用户名或密码错误")
 		return
+	}
+
+	if !strings.HasPrefix(storedHash, "$2") {
+		conn := db
+		pwd := *body.Password
+		uid := id
+		go func() {
+			if conn != nil {
+				conn.Exec(`UPDATE "User" SET password = ? WHERE id = ?`, hashPassword(pwd), uid)
+			}
+		}()
 	}
 
 	writeOK(w, map[string]interface{}{
@@ -176,11 +205,11 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	password := generatePassword(16)
+	plainPwd := generatePassword(16)
 	id := uuid.NewString()
 	now := nowMillis()
 	_, err := db.Exec(`INSERT INTO "User" (id, username, password, displayName, role, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		id, body.Username, password, body.DisplayName, body.Role, int64(now), int64(now))
+		id, body.Username, hashPassword(plainPwd), body.DisplayName, body.Role, int64(now), int64(now))
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
@@ -195,7 +224,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		"username":          body.Username,
 		"displayName":       body.DisplayName,
 		"role":              "user",
-		"generatedPassword": password,
+		"generatedPassword": plainPwd,
 	})
 }
 
@@ -294,21 +323,20 @@ func handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	targetID := chiURLParam(r, "id")
-	password := generatePassword(16)
+	plainPwd := generatePassword(16)
 	now := nowMillis()
 
-	res, err := db.Exec(`UPDATE "User" SET password = ?, updatedAt = ? WHERE id = ?`, password, int64(now), targetID)
+	res, err := db.Exec(`UPDATE "User" SET password = ?, updatedAt = ? WHERE id = ?`, hashPassword(plainPwd), int64(now), targetID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		// 原实现即使目标不存在也不会显式报错（update 会抛错→500），这里保持 500 语义。
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
 	}
 
-	writeOK(w, map[string]interface{}{"generatedPassword": password})
+	writeOK(w, map[string]interface{}{"generatedPassword": plainPwd})
 }
 
 // PUT /auth/users/{id}/role （管理员）
