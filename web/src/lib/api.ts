@@ -134,8 +134,9 @@ export interface TimelineRecord {
 
 export interface TimelineResponse {
   records: TimelineRecord[];
-  summary: TimelineSummary;
-  prediction: FeedingPrediction;
+  summary?: TimelineSummary;
+  prediction?: FeedingPrediction;
+  hasMore: boolean;
 }
 
 // ─── API client ───────────────────────────────────────────────────────────────

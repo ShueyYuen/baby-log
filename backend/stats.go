@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -383,16 +384,23 @@ func handleTimeline(w http.ResponseWriter, r *http.Request) {
 		like := "%" + v + "%"
 		args = append(args, like, like)
 	}
+	if v := q.Get("before"); v != "" {
+		beforeMs, err := strconv.ParseInt(v, 10, 64)
+		if err == nil && beforeMs > 0 {
+			where += ` AND r.occurredAt < ?`
+			args = append(args, beforeMs)
+		}
+	}
 
 	listArgs := append([]interface{}{}, args...)
-	listArgs = append(listArgs, pageSize, 0)
+	listArgs = append(listArgs, pageSize+1)
 	rows, err := db.Query(`
 		SELECT r.id, r.babyId, r.category, r.type, r.data, r.occurredAt, r.note, r.images, r.createdBy, r.createdAt, r.updatedAt, u.id, u.displayName
 		FROM "Record" r
 		JOIN "User" u ON u.id = r.createdBy
 		`+where+`
 		ORDER BY r.occurredAt DESC
-		LIMIT ? OFFSET ?`, listArgs...)
+		LIMIT ?`, listArgs...)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
@@ -424,33 +432,41 @@ func handleTimeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Summary
-	now := time.Now()
-	lastAgo := func(query string, qargs ...interface{}) map[string]interface{} {
-		var occurred int64
-		if err := db.QueryRow(query, qargs...).Scan(&occurred); err != nil {
-			return nil
-		}
-		t := time.UnixMilli(occurred)
-		return map[string]interface{}{
-			"time":       Millis(occurred),
-			"minutesAgo": int(math.Round(float64(now.Sub(t).Milliseconds()) / 60000.0)),
-		}
-	}
-	summary := map[string]interface{}{
-		"lastFeeding": lastAgo(`SELECT occurredAt FROM "Record" WHERE babyId = ? AND category = 'feeding' ORDER BY occurredAt DESC LIMIT 1`, babyID),
-		"lastDiaper":  lastAgo(`SELECT occurredAt FROM "Record" WHERE babyId = ? AND category = 'nursing' AND type = 'diaper' ORDER BY occurredAt DESC LIMIT 1`, babyID),
-		"lastSleep":   lastAgo(`SELECT occurredAt FROM "Record" WHERE babyId = ? AND category = 'activity' AND type = 'sleep' ORDER BY occurredAt DESC LIMIT 1`, babyID),
+	hasMore := len(items) > pageSize
+	if hasMore {
+		items = items[:pageSize]
 	}
 
-	// Prediction
-	prediction := buildPrediction(babyID)
+	isBefore := q.Get("before") != ""
 
-	writeOK(w, map[string]interface{}{
-		"records":    items,
-		"summary":    summary,
-		"prediction": prediction,
-	})
+	result := map[string]interface{}{
+		"records": items,
+		"hasMore": hasMore,
+	}
+
+	if !isBefore {
+		// Summary & prediction only on the first page
+		now := time.Now()
+		lastAgo := func(query string, qargs ...interface{}) map[string]interface{} {
+			var occurred int64
+			if err := db.QueryRow(query, qargs...).Scan(&occurred); err != nil {
+				return nil
+			}
+			t := time.UnixMilli(occurred)
+			return map[string]interface{}{
+				"time":       Millis(occurred),
+				"minutesAgo": int(math.Round(float64(now.Sub(t).Milliseconds()) / 60000.0)),
+			}
+		}
+		result["summary"] = map[string]interface{}{
+			"lastFeeding": lastAgo(`SELECT occurredAt FROM "Record" WHERE babyId = ? AND category = 'feeding' ORDER BY occurredAt DESC LIMIT 1`, babyID),
+			"lastDiaper":  lastAgo(`SELECT occurredAt FROM "Record" WHERE babyId = ? AND category = 'nursing' AND type = 'diaper' ORDER BY occurredAt DESC LIMIT 1`, babyID),
+			"lastSleep":   lastAgo(`SELECT occurredAt FROM "Record" WHERE babyId = ? AND category = 'activity' AND type = 'sleep' ORDER BY occurredAt DESC LIMIT 1`, babyID),
+		}
+		result["prediction"] = buildPrediction(babyID)
+	}
+
+	writeOK(w, result)
 }
 
 // buildPrediction extracts the prediction logic so it can be reused.

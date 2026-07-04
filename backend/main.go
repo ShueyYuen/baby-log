@@ -56,6 +56,7 @@ func main() {
 func buildRouter(uploadDir, webDist string) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(panicRecovery)
+	r.Use(securityHeaders)
 	r.Use(corsMiddleware)
 	r.Use(httpLogger)
 
@@ -221,6 +222,54 @@ func panicRecovery(next http.Handler) http.Handler {
 				writeErr(w, http.StatusInternalServerError, "Internal server error")
 			}
 		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+func securityHeaders(next http.Handler) http.Handler {
+	imgSrc := "'self' blob: data:"
+	connectSrc := "'self'"
+	if cfg := getStorageConfig(); cfg.typ == storageS3 && cfg.s3 != nil {
+		if cfg.s3.publicURL != "" {
+			imgSrc += " " + cfg.s3.publicURL
+		}
+		if cfg.s3.endpoint != "" {
+			imgSrc += " " + cfg.s3.endpoint
+			connectSrc += " " + cfg.s3.endpoint
+		}
+	}
+
+	csp := strings.Join([]string{
+		"default-src 'self'",
+		"script-src 'self'",
+		"style-src 'self' 'unsafe-inline'",
+		"img-src " + imgSrc,
+		"media-src 'self' blob:" + func() string {
+			if cfg := getStorageConfig(); cfg.typ == storageS3 && cfg.s3 != nil {
+				s := ""
+				if cfg.s3.publicURL != "" {
+					s += " " + cfg.s3.publicURL
+				}
+				if cfg.s3.endpoint != "" {
+					s += " " + cfg.s3.endpoint
+				}
+				return s
+			}
+			return ""
+		}(),
+		"connect-src " + connectSrc,
+		"font-src 'self'",
+		"object-src 'none'",
+		"frame-ancestors 'none'",
+		"base-uri 'self'",
+	}, "; ")
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", csp)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		next.ServeHTTP(w, r)
 	})
 }

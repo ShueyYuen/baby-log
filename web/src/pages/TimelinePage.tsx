@@ -195,6 +195,8 @@ export default function TimelinePage() {
   const [summary, setSummary] = useState<TimelineSummary | null>(null);
   const [prediction, setPrediction] = useState<FeedingPrediction | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState(false);
   const [filter, setFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
@@ -327,8 +329,9 @@ export default function TimelinePage() {
 
     if (cached) {
       setRecords(cached.data.records);
-      setSummary(cached.data.summary);
-      setPrediction(cached.data.prediction);
+      setSummary(cached.data.summary ?? null);
+      setPrediction(cached.data.prediction ?? null);
+      setHasMore(cached.data.hasMore);
       setLoading(false);
       setError(false);
     } else {
@@ -340,14 +343,34 @@ export default function TimelinePage() {
       if (thisLoadId !== loadIdRef.current) return;
       cacheWrite(cKey, res);
       setRecords(res.data.records);
-      setSummary(res.data.summary);
-      setPrediction(res.data.prediction);
+      setSummary(res.data.summary ?? null);
+      setPrediction(res.data.prediction ?? null);
+      setHasMore(res.data.hasMore);
       setError(false);
     } catch {
       if (thisLoadId !== loadIdRef.current) return;
       if (!cached) setError(true);
     } finally {
       if (thisLoadId === loadIdRef.current) setLoading(false);
+    }
+  };
+
+  const loadMore = async () => {
+    if (!currentBaby || loadingMore || !hasMore || records.length === 0) return;
+    setLoadingMore(true);
+    const lastRecord = records[records.length - 1];
+    const beforeMs = new Date(lastRecord.occurredAt).getTime();
+    const params = new URLSearchParams({ babyId: currentBaby.id, pageSize: '50', before: String(beforeMs) });
+    if (filter && filter !== 'all') params.set('category', filter);
+    if (search) params.set('search', search);
+    try {
+      const res = await api.get<{ success: boolean; data: TimelineResponse }>(`/timeline?${params}`);
+      setRecords((prev) => [...prev, ...res.data.records]);
+      setHasMore(res.data.hasMore);
+    } catch {
+      // silently fail — user can scroll again to retry
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -394,6 +417,19 @@ export default function TimelinePage() {
     overscan: 8,
     scrollMargin: listRef.current?.offsetTop ?? 0,
   });
+
+  // Infinite scroll: load more when near bottom
+  useEffect(() => {
+    const el = scrollElRef.current;
+    if (!el || !hasMore) return;
+    const handleScroll = () => {
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 300) {
+        loadMore();
+      }
+    };
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, [hasMore, loadingMore, records.length]);
 
   const onImageClickCb = useCallback((images: ViewerImage[], index: number) => {
     setViewerImages(images);
@@ -630,6 +666,12 @@ export default function TimelinePage() {
               );
             })}
           </div>
+          {loadingMore && (
+            <div className="py-4 text-center text-sm text-gray-400">加载中...</div>
+          )}
+          {!hasMore && records.length > 0 && !loadingMore && (
+            <div className="py-4 text-center text-xs text-gray-300 dark:text-gray-600">已加载全部记录</div>
+          )}
         </div>
       )}
     </div>
