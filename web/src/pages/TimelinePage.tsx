@@ -9,8 +9,9 @@ import { cacheRead, cacheReadAsync, cacheWrite, cacheInvalidate } from '../lib/q
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock, Square, Play } from 'lucide-react';
+import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock, Square, Play, Search } from 'lucide-react';
 import { ImageViewer, useToast, type ViewerImage } from '../components/ui';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { TimelineSkeleton } from '../components/ui/skeleton';
 import { TwoPhaseTypeButton } from '../components/TwoPhaseTypeButton';
 import { isPushSupported, subscribePush, isSubscribed } from '../lib/push';
@@ -195,7 +196,9 @@ export default function TimelinePage() {
   const [prediction, setPrediction] = useState<FeedingPrediction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [filter, setFilter] = useState<string>('');
+  const [filter, setFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const loadIdRef = useRef(0);
   const [showTypePanel, setShowTypePanel] = useState(false);
   const [viewerImages, setViewerImages] = useState<ViewerImage[]>([]);
@@ -301,13 +304,14 @@ export default function TimelinePage() {
   useEffect(() => {
     if (!currentBaby) return;
     loadData();
-  }, [currentBaby, filter]);
+  }, [currentBaby, filter, search]);
 
   const loadData = async (invalidate = false) => {
     if (!currentBaby) return;
     const thisLoadId = ++loadIdRef.current;
     const params = new URLSearchParams({ babyId: currentBaby.id, pageSize: '50' });
-    if (filter) params.set('category', filter);
+    if (filter && filter !== 'all') params.set('category', filter);
+    if (search) params.set('search', search);
     const cKey = `/timeline?${params}`;
 
     if (invalidate) {
@@ -377,11 +381,18 @@ export default function TimelinePage() {
   }, [records]);
 
   const listRef = useRef<HTMLDivElement>(null);
+  const scrollElRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (main) scrollElRef.current = main;
+  }, []);
+
   const virtualizer = useVirtualizer({
     count: flatRows.length,
-    getScrollElement: () => listRef.current,
+    getScrollElement: () => scrollElRef.current,
     estimateSize: useCallback((i: number) => (flatRows[i]?.kind === 'header' ? 36 : 72), [flatRows]),
     overscan: 8,
+    scrollMargin: listRef.current?.offsetTop ?? 0,
   });
 
   const onImageClickCb = useCallback((images: ViewerImage[], index: number) => {
@@ -393,9 +404,9 @@ export default function TimelinePage() {
   return (
     <>
     <div className="space-y-3">
-      {/* 进行中的活动（睡眠/洗澡） */}
+      {/* 进行中的活动（睡眠/洗澡）— 固定在顶部 */}
       {ongoingRecords.length > 0 && (
-        <div className="space-y-2">
+        <div className="sticky top-0 z-20 space-y-2 -mx-4 px-4 py-2 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm">
           {ongoingRecords.map((record) => {
             const config = typeConfig[record.type] || typeConfig.other;
             const Icon = config.icon;
@@ -545,26 +556,32 @@ export default function TimelinePage() {
         );
       })()}
 
-      {/* Filter */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {[
-          { value: '', label: '全部' },
-          { value: 'feeding', label: '喂养' },
-          { value: 'nursing', label: '护理' },
-          { value: 'activity', label: '活动' },
-        ].map((item) => (
-          <button
-            key={item.value}
-            onClick={() => setFilter(item.value)}
-            className={`px-4 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors ${
-              filter === item.value
-                ? 'bg-primary-500 text-white'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
+      {/* Search & Filter */}
+      <div className="flex gap-2 items-center">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="搜索备注、内容..."
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-400 dark:focus:ring-primary-500"
+            onChange={(e) => {
+              const val = e.target.value;
+              if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+              searchTimerRef.current = setTimeout(() => setSearch(val), 300);
+            }}
+          />
+        </div>
+        <Select value={filter} onValueChange={setFilter}>
+          <SelectTrigger className="w-24 shrink-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部</SelectItem>
+            <SelectItem value="feeding">喂养</SelectItem>
+            <SelectItem value="nursing">护理</SelectItem>
+            <SelectItem value="activity">活动</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Timeline (virtualized) */}
@@ -578,11 +595,7 @@ export default function TimelinePage() {
       ) : records.length === 0 ? (
         <div className="text-center py-12 text-gray-400">暂无记录，点击 + 添加</div>
       ) : (
-        <div
-          ref={listRef}
-          className="flex-1 overflow-y-auto -mx-1 px-1"
-          style={{ maxHeight: 'calc(100vh - 280px)' }}
-        >
+        <div ref={listRef}>
           <div
             style={{ height: virtualizer.getTotalSize(), position: 'relative' }}
           >
@@ -599,7 +612,7 @@ export default function TimelinePage() {
                     top: 0,
                     left: 0,
                     width: '100%',
-                    transform: `translateY(${vItem.start}px)`,
+                    transform: `translateY(${vItem.start - (virtualizer.options.scrollMargin ?? 0)}px)`,
                   }}
                 >
                   {row.kind === 'header' ? (

@@ -378,6 +378,11 @@ func handleTimeline(w http.ResponseWriter, r *http.Request) {
 		where += ` AND r.category = ?`
 		args = append(args, v)
 	}
+	if v := q.Get("search"); v != "" {
+		where += ` AND (r.note LIKE ? OR r.data LIKE ?)`
+		like := "%" + v + "%"
+		args = append(args, like, like)
+	}
 
 	listArgs := append([]interface{}{}, args...)
 	listArgs = append(listArgs, pageSize, 0)
