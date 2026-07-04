@@ -141,40 +141,40 @@ function RecordCardItem({ record, isViewer, onImageClick }: RecordCardItemProps)
       className={`card flex items-center gap-3 transition-colors ${!isViewer ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700' : ''}`}
       onClick={handleClick}
     >
-      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
-        <Icon size={18} />
+      <div className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
+        <Icon size={20} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-sm dark:text-gray-100">{config.label}</span>
-          <span className="text-xs text-gray-400 dark:text-gray-500">
+          <span className="font-medium text-base dark:text-gray-100">{config.label}</span>
+          <span className="text-sm text-gray-400 dark:text-gray-500">
             {dayjs(record.occurredAt).format('HH:mm')}
           </span>
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+        <p className="text-sm text-gray-500 dark:text-gray-400 truncate mt-0.5">
           {formatRecordDetail(record)}
         </p>
       </div>
       {record.images && record.images.length > 0 && (
-        <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="flex gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           {record.images.slice(0, 2).map((img, i) => (
             img.mediaType === 'video' ? (
-              <div key={i} className="w-10 h-10 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                <Play size={12} className="text-gray-500" />
+              <div key={i} className="w-11 h-11 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                <Play size={14} className="text-gray-500" />
               </div>
             ) : (
               <img
                 key={i}
                 src={img.url}
                 alt=""
-                className="w-10 h-10 rounded-lg object-cover cursor-zoom-in"
+                className="w-11 h-11 rounded-lg object-cover cursor-zoom-in"
                 onClick={() => onImageClick(urls, i)}
               />
             )
           ))}
           {record.images.length > 2 && (
             <span
-              className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500 cursor-zoom-in"
+              className="w-11 h-11 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500 cursor-zoom-in"
               onClick={() => onImageClick(urls, 2)}
             >
               +{record.images.length - 2}
@@ -413,7 +413,7 @@ export default function TimelinePage() {
   const virtualizer = useVirtualizer({
     count: flatRows.length,
     getScrollElement: () => scrollElRef.current,
-    estimateSize: useCallback((i: number) => (flatRows[i]?.kind === 'header' ? 36 : 72), [flatRows]),
+    estimateSize: useCallback((i: number) => (flatRows[i]?.kind === 'header' ? 40 : 80), [flatRows]),
     overscan: 8,
     scrollMargin: listRef.current?.offsetTop ?? 0,
   });
@@ -453,12 +453,12 @@ export default function TimelinePage() {
                 key={record.id}
                 className="card flex items-center gap-3 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/30 dark:to-blue-950/30 border border-indigo-200 dark:border-indigo-900/50"
               >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
-                  <Icon size={18} />
+                <div className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
+                  <Icon size={20} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm dark:text-gray-100">{config.label}进行中</span>
+                    <span className="font-medium text-base dark:text-gray-100">{config.label}进行中</span>
                     <span className="flex items-center gap-1 text-xs text-indigo-500 dark:text-indigo-400">
                       <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
                       {dayjs(startTime).format('HH:mm')} 开始
@@ -484,21 +484,21 @@ export default function TimelinePage() {
       {/* Summary Cards */}
       {summary && (
         <div className="grid grid-cols-3 gap-3">
-          <div className="card text-center">
+          <div className="card text-center py-3">
             <p className="text-xs text-gray-500 dark:text-gray-400">上次喂养</p>
-            <p className="text-sm font-semibold mt-1 dark:text-gray-100">
+            <p className="text-base font-semibold mt-1 dark:text-gray-100">
               {summary.lastFeeding ? formatTimeAgo(minutesSince(summary.lastFeeding.time, now)) : '--'}
             </p>
           </div>
-          <div className="card text-center">
+          <div className="card text-center py-3">
             <p className="text-xs text-gray-500 dark:text-gray-400">上次换尿布</p>
-            <p className="text-sm font-semibold mt-1 dark:text-gray-100">
+            <p className="text-base font-semibold mt-1 dark:text-gray-100">
               {summary.lastDiaper ? formatTimeAgo(minutesSince(summary.lastDiaper.time, now)) : '--'}
             </p>
           </div>
-          <div className="card text-center">
+          <div className="card text-center py-3">
             <p className="text-xs text-gray-500 dark:text-gray-400">上次睡眠</p>
-            <p className="text-sm font-semibold mt-1 dark:text-gray-100">
+            <p className="text-base font-semibold mt-1 dark:text-gray-100">
               {summary.lastSleep ? formatTimeAgo(minutesSince(summary.lastSleep.time, now)) : '--'}
             </p>
           </div>
@@ -540,8 +540,8 @@ export default function TimelinePage() {
 
         return (
           <div className={`card flex items-center gap-3 ${cardBg}`}>
-            <div className={`w-9 h-9 rounded-full ${iconBg} flex items-center justify-center flex-shrink-0`}>
-              <Milk size={16} className={iconColor} />
+            <div className={`w-10 h-10 rounded-full ${iconBg} flex items-center justify-center flex-shrink-0`}>
+              <Milk size={18} className={iconColor} />
             </div>
             <div className="flex-1 min-w-0">
               <p className={`text-xs font-medium ${labelColor}`}>
@@ -652,9 +652,9 @@ export default function TimelinePage() {
                   }}
                 >
                   {row.kind === 'header' ? (
-                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 pt-4 pb-2">{row.group}</h3>
+                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 pt-5 pb-2">{row.group}</h3>
                   ) : (
-                    <div className="pb-2">
+                    <div className="pb-2.5">
                       <RecordCardItem
                         record={row.record}
                         isViewer={isViewer}
@@ -697,8 +697,8 @@ export default function TimelinePage() {
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">短按填写详情 · 按住睡眠/洗澡约 0.5 秒可直接开始（电脑/手机均支持）</p>
-            <div className="grid grid-cols-4 gap-4">
+            <p className="text-sm text-gray-400 dark:text-gray-500 mb-3">短按填写详情 · 按住睡眠/洗澡约 0.5 秒可直接开始（电脑/手机均支持）</p>
+            <div className="grid grid-cols-4 gap-3">
               {allRecordTypes.map((item) => {
                 const Icon = item.icon;
                 const twoPhase = twoPhaseTypes.includes(item.type);
@@ -721,10 +721,10 @@ export default function TimelinePage() {
                     onClick={() => handleAddType(item.type, item.category)}
                     className="relative flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   >
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${item.color}`}>
-                      <Icon size={22} />
+                    <div className={`w-13 h-13 rounded-full flex items-center justify-center ${item.color}`}>
+                      <Icon size={24} />
                     </div>
-                    <span className="text-xs text-gray-700 dark:text-gray-300">{item.label}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{item.label}</span>
                   </button>
                 );
               })}

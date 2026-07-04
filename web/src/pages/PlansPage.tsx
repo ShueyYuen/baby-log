@@ -80,14 +80,14 @@ function PlanCardItem({ plan, isViewer, onComplete, onCalendar }: PlanCardItemPr
                 <Badge variant="secondary">重复</Badge>
               )}
             </div>
-            <h3 className="font-medium dark:text-gray-100">{plan.title}</h3>
+            <h3 className="font-medium text-base dark:text-gray-100">{plan.title}</h3>
             {plan.description && (
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{plan.description}</p>
             )}
-            <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 mt-2">
-              <Calendar size={12} />
+            <div className="flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 mt-2">
+              <Calendar size={14} />
               <span>{dayjs(plan.scheduledAt).format('YYYY-MM-DD HH:mm')}</span>
-              <Clock size={12} className="ml-2" />
+              <Clock size={14} className="ml-2" />
               <span>{dayjs(plan.scheduledAt).fromNow()}</span>
             </div>
           </div>

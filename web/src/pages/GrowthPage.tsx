@@ -449,19 +449,19 @@ export default function GrowthPage() {
               </DialogHeader>
               <form onSubmit={addGrowth} className="space-y-4">
                 <div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">日期</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">日期</label>
                   <DatePicker value={gDate} onChange={setGDate} placeholder="选择日期" />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">体重(kg)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">体重(kg)</label>
                   <Input type="number" value={gWeight} onChange={(e) => setGWeight(e.target.value)} step="0.1" placeholder="如：3.5" />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">身高(cm)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">身高(cm)</label>
                   <Input type="number" value={gHeight} onChange={(e) => setGHeight(e.target.value)} step="0.1" placeholder="如：50" />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">头围(cm)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">头围(cm)</label>
                   <Input type="number" value={gHead} onChange={(e) => setGHead(e.target.value)} step="0.1" placeholder="如：34" />
                 </div>
                 <div className="flex gap-3">
@@ -493,7 +493,7 @@ export default function GrowthPage() {
               </DialogHeader>
               <form onSubmit={addMilestone} className="space-y-4">
                 <div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">类型</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">类型</label>
                   <Select value={mType} onValueChange={setMType}>
                     <SelectTrigger>
                       <SelectValue />
@@ -506,19 +506,19 @@ export default function GrowthPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">标题</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">标题</label>
                   <Input value={mTitle} onChange={(e) => setMTitle(e.target.value)} placeholder="留空则使用类型名称" />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">日期</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">日期</label>
                   <DatePicker value={mDate} onChange={setMDate} placeholder="选择日期" />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">描述</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">描述</label>
                   <Textarea value={mDesc} onChange={(e) => setMDesc(e.target.value)} placeholder="可选..." />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">图片 / 视频</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">图片 / 视频</label>
                   <div className="flex flex-wrap gap-2">
                     {mPreviews.map((p, idx) => (
                       <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
@@ -559,9 +559,9 @@ export default function GrowthPage() {
                     <Star size={18} className="text-yellow-500" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-sm dark:text-gray-100">{m.title}</h4>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">{dayjs(m.occurredAt).format('YYYY-MM-DD')}</p>
-                    {m.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{m.description}</p>}
+                    <h4 className="font-medium text-base dark:text-gray-100">{m.title}</h4>
+                    <p className="text-sm text-gray-400 dark:text-gray-500">{dayjs(m.occurredAt).format('YYYY-MM-DD')}</p>
+                    {m.description && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{m.description}</p>}
                     {m.images && m.images.length > 0 && (
                       <div className="flex gap-1 mt-1.5">
                         {m.images.slice(0, 3).map((img, i) => (
@@ -609,7 +609,7 @@ export default function GrowthPage() {
             </DialogHeader>
             <form onSubmit={saveMilestone} className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">类型</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">类型</label>
                 <Select value={mType} onValueChange={setMType}>
                   <SelectTrigger>
                     <SelectValue />
@@ -622,19 +622,19 @@ export default function GrowthPage() {
                 </Select>
               </div>
               <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">标题</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">标题</label>
                 <Input value={mTitle} onChange={(e) => setMTitle(e.target.value)} placeholder="留空则使用类型名称" />
               </div>
               <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">日期</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">日期</label>
                 <DatePicker value={mDate} onChange={setMDate} placeholder="选择日期" />
               </div>
               <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">描述</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">描述</label>
                 <Textarea value={mDesc} onChange={(e) => setMDesc(e.target.value)} placeholder="可选..." />
               </div>
               <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">图片 / 视频</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">图片 / 视频</label>
                 <div className="flex flex-wrap gap-2">
                   {mPreviews.map((p, idx) => (
                     <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">

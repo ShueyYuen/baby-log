@@ -46,7 +46,7 @@ export function Slider({
         </SliderPrimitive.Track>
         <SliderPrimitive.Thumb className="block h-6 w-6 rounded-full border-2 border-primary-500 bg-white shadow-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:bg-gray-800 dark:focus-visible:ring-offset-gray-900" />
       </SliderPrimitive.Root>
-      <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500">
+      <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500">
         <span>{min}{unit}</span>
         <span>{max}{unit}</span>
       </div>

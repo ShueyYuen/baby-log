@@ -517,7 +517,7 @@ export default function RecordFormPage() {
         return (
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
                 左侧
               </label>
               <Slider
@@ -530,7 +530,7 @@ export default function RecordFormPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
                 右侧
               </label>
               <Slider
@@ -548,28 +548,28 @@ export default function RecordFormPage() {
         return (
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
                 奶类型
               </label>
               <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={() => setMilkType("formula")}
-                  className={`flex-1 py-2 rounded-lg border-2 text-sm ${milkType === "formula" ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
+                  className={`flex-1 py-2.5 rounded-lg border-2 text-base ${milkType === "formula" ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
                 >
                   配方奶
                 </button>
                 <button
                   type="button"
                   onClick={() => setMilkType("breast_milk")}
-                  className={`flex-1 py-2 rounded-lg border-2 text-sm ${milkType === "breast_milk" ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
+                  className={`flex-1 py-2.5 rounded-lg border-2 text-base ${milkType === "breast_milk" ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
                 >
                   母乳
                 </button>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
                 奶量
               </label>
               <Slider
@@ -587,7 +587,7 @@ export default function RecordFormPage() {
         return (
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
                 食物名称
               </label>
               <input
@@ -599,7 +599,7 @@ export default function RecordFormPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
                 食用量
               </label>
               <input
@@ -615,7 +615,7 @@ export default function RecordFormPage() {
       case "water":
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
               水量
             </label>
             <Slider
@@ -631,7 +631,7 @@ export default function RecordFormPage() {
       case "diaper":
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
               类型
             </label>
             <div className="flex gap-3">
@@ -644,7 +644,7 @@ export default function RecordFormPage() {
                   key={item.value}
                   type="button"
                   onClick={() => setDiaperType(item.value)}
-                  className={`flex-1 py-2 rounded-lg border-2 text-sm ${diaperType === item.value ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
+                  className={`flex-1 py-2.5 rounded-lg border-2 text-base ${diaperType === item.value ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
                 >
                   {item.label}
                 </button>
@@ -655,7 +655,7 @@ export default function RecordFormPage() {
       case "supplement":
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
               名称
             </label>
             <input
@@ -665,7 +665,7 @@ export default function RecordFormPage() {
               className="input"
               placeholder="如：维生素D"
             />
-            <div className="flex flex-wrap gap-1.5 mt-2">
+            <div className="flex flex-wrap gap-2 mt-3">
               {[
                 "维生素D",
                 "DHA",
@@ -681,7 +681,7 @@ export default function RecordFormPage() {
                   key={name}
                   type="button"
                   onClick={() => setSupplementName(name)}
-                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                  className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
                     supplementName === name
                       ? "border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400"
                       : "border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500"
@@ -697,7 +697,7 @@ export default function RecordFormPage() {
         return (
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
                 温度
               </label>
               <Slider
@@ -710,7 +710,7 @@ export default function RecordFormPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
                 测量部位
               </label>
               <div className="flex gap-2">
@@ -724,7 +724,7 @@ export default function RecordFormPage() {
                     key={item.value}
                     type="button"
                     onClick={() => setTempLocation(item.value)}
-                    className={`flex-1 py-2 rounded-lg border-2 text-sm ${tempLocation === item.value ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
+                    className={`flex-1 py-2.5 rounded-lg border-2 text-base ${tempLocation === item.value ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
                   >
                     {item.label}
                   </button>
@@ -736,7 +736,7 @@ export default function RecordFormPage() {
       case "sleep":
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
               持续时间
             </label>
             <Slider
@@ -752,7 +752,7 @@ export default function RecordFormPage() {
       case "bath":
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
               持续时间
             </label>
             <Slider
@@ -763,13 +763,13 @@ export default function RecordFormPage() {
               step={1}
               unit="分钟"
             />
-            <div className="flex flex-wrap gap-1.5 mt-2">
+            <div className="flex flex-wrap gap-2 mt-3">
               {[5, 10, 15, 20, 30].map((min) => (
                 <button
                   key={min}
                   type="button"
                   onClick={() => setBathDuration(min)}
-                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                  className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
                     bathDuration === min
                       ? "border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400"
                       : "border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400"
@@ -784,7 +784,7 @@ export default function RecordFormPage() {
       case "play":
         return (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
               持续时间
             </label>
             <Slider
@@ -795,13 +795,13 @@ export default function RecordFormPage() {
               step={5}
               unit="分钟"
             />
-            <div className="flex flex-wrap gap-1.5 mt-2">
+            <div className="flex flex-wrap gap-2 mt-3">
               {[10, 15, 20, 30, 45, 60].map((min) => (
                 <button
                   key={min}
                   type="button"
                   onClick={() => setPlayDuration(min)}
-                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                  className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
                     playDuration === min
                       ? "border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400"
                       : "border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400"
@@ -855,7 +855,7 @@ export default function RecordFormPage() {
       <form
         id="record-form"
         onSubmit={handleSubmit}
-        className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-5"
+        className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6"
       >
         {/* Category & Type Selection - only show when not pre-selected */}
         {!urlType && !isEditing && (
@@ -933,7 +933,7 @@ export default function RecordFormPage() {
 
         {/* Note */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
             备注
           </label>
           <Textarea

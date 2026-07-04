@@ -147,7 +147,7 @@ export default function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* Mobile Header */}
-      <header className={`md:hidden fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50 px-4 py-3 flex items-center justify-between ${isSecondaryPage ? 'hidden' : ''}`}>
+      <header className={`md:hidden fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50 px-4 py-3.5 flex items-center justify-between ${isSecondaryPage ? 'hidden' : ''}`}>
         <h1 className="text-lg font-bold text-primary-600">宝宝日志</h1>
         <div className="flex items-center gap-3">
           <button
@@ -179,7 +179,7 @@ export default function Layout({ children }: LayoutProps) {
       </header>
 
       {/* Main Content */}
-      <main className={`h-full md:pt-6 md:pb-6 px-4 md:px-8 overflow-y-auto custom-scrollbar ${isSecondaryPage ? 'pt-0 pb-0' : 'pt-16 pb-20'}`}>
+      <main className={`h-full md:pt-6 md:pb-6 px-4 md:px-8 overflow-y-auto custom-scrollbar ${isSecondaryPage ? 'pt-0 pb-0' : 'pt-[60px] pb-[72px]'}`}>
         <div className="max-w-4xl mx-auto">
           {!babyLoading && !currentBaby && (
             <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/30">
@@ -201,12 +201,12 @@ export default function Layout({ children }: LayoutProps) {
             <Link
               key={item.path}
               to={item.path}
-              className={`flex-1 flex flex-col items-center py-2 ${
+              className={`flex-1 flex flex-col items-center py-2.5 ${
                 active ? 'text-primary-500' : 'text-gray-400 dark:text-gray-500'
               }`}
             >
-              <item.icon size={20} />
-              <span className="text-xs mt-1">{item.label}</span>
+              <item.icon size={22} />
+              <span className="text-[11px] mt-1 font-medium">{item.label}</span>
             </Link>
           );
         })}

@@ -4,6 +4,9 @@ export default {
   darkMode: 'selector',
   theme: {
     extend: {
+      spacing: {
+        '13': '3.25rem',
+      },
       colors: {
         primary: {
           50: '#fef7ee',
