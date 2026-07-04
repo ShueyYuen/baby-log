@@ -73,7 +73,7 @@ function formatRecordDetail(record: RecordItem): string {
       return `${data.value}°C (${loc[data.location] || data.location})`;
     }
     case 'play':
-      return data.durationMinutes ? `${data.durationMinutes}分钟` : '';
+      return data.ongoing ? '进行中' : data.durationMinutes ? `${data.durationMinutes}分钟` : '';
     case 'bath':
       return data.ongoing ? '进行中' : data.durationMinutes ? `${data.durationMinutes}分钟` : '';
     default:
@@ -82,7 +82,7 @@ function formatRecordDetail(record: RecordItem): string {
 }
 
 // 支持“开始/结束”两阶段记录的活动类型（长按入口即可开始）。
-const twoPhaseTypes = ['sleep', 'bath'];
+const twoPhaseTypes = ['sleep', 'bath', 'play'];
 
 // formatElapsed 将毫秒时长格式化为 mm:ss 或 h:mm:ss。
 function formatElapsed(ms: number): string {
