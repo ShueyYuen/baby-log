@@ -19,6 +19,6 @@ export { Popover, PopoverTrigger, PopoverContent } from './popover';
 export { DatePicker, DateTimePicker } from './date-picker';
 export { TimePicker } from './time-picker';
 export { ScrollDateTimePicker } from './scroll-datetime-picker';
-export { ImageViewer } from './image-viewer';
+export { ImageViewer, type ViewerImage } from './image-viewer';
 export { ConfirmDialog } from './confirm-dialog';
 export { ToastProvider, useToast } from './toast';

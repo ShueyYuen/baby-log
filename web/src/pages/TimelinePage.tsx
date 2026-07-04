@@ -9,7 +9,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
 import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock, Square, Play } from 'lucide-react';
-import { ImageViewer, useToast } from '../components/ui';
+import { ImageViewer, useToast, type ViewerImage } from '../components/ui';
 import { TimelineSkeleton } from '../components/ui/skeleton';
 import { TwoPhaseTypeButton } from '../components/TwoPhaseTypeButton';
 import { isPushSupported, subscribePush, isSubscribed } from '../lib/push';
@@ -125,15 +125,14 @@ function minutesSince(time: string, now: number): number {
   return Math.max(0, Math.round((now - new Date(time).getTime()) / 60000));
 }
 
-function getImageUrls(images: RecordItem['images']): string[] {
-  return (images ?? []).map((img) => img.url);
+function getViewerImages(images: RecordItem['images']): ViewerImage[] {
+  return (images ?? []).map((img) => ({ url: img.url, rawUrl: img.rawUrl }));
 }
 
-// RecordCardItem uses useViewTransitionState so it must be its own component
 interface RecordCardItemProps {
   record: RecordItem;
   isViewer: boolean;
-  onImageClick: (images: string[], index: number) => void;
+  onImageClick: (images: ViewerImage[], index: number) => void;
 }
 
 function RecordCardItem({ record, isViewer, onImageClick }: RecordCardItemProps) {
@@ -152,7 +151,7 @@ function RecordCardItem({ record, isViewer, onImageClick }: RecordCardItemProps)
     }
   };
 
-  const urls = getImageUrls(record.images);
+  const urls = getViewerImages(record.images);
 
   return (
     <div
@@ -217,7 +216,7 @@ export default function TimelinePage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('');
   const [showTypePanel, setShowTypePanel] = useState(false);
-  const [viewerImages, setViewerImages] = useState<string[]>([]);
+  const [viewerImages, setViewerImages] = useState<ViewerImage[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(isSubscribed());

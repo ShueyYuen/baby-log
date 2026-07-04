@@ -1,12 +1,21 @@
 import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+
+export interface ViewerImage {
+  url: string;
+  rawUrl?: string;
+}
 
 interface ImageViewerProps {
-  images: string[];
+  images: (string | ViewerImage)[];
   initialIndex?: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+function resolveImage(img: string | ViewerImage): ViewerImage {
+  return typeof img === 'string' ? { url: img } : img;
 }
 
 export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: ImageViewerProps) {
@@ -48,6 +57,8 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
 
   if (images.length === 0) return null;
 
+  const current = resolveImage(images[currentIndex]);
+
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
@@ -60,17 +71,34 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
         >
           <DialogPrimitive.Title className="sr-only">查看图片</DialogPrimitive.Title>
 
-          {/* Close */}
-          <DialogPrimitive.Close className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors">
-            <X size={20} />
-          </DialogPrimitive.Close>
+          {/* Top bar */}
+          <div className="absolute top-4 left-0 right-0 z-10 flex items-center justify-between px-4">
+            {/* Counter */}
+            {images.length > 1 ? (
+              <span className="text-white/80 text-sm font-medium bg-black/40 px-3 py-1 rounded-full">
+                {currentIndex + 1} / {images.length}
+              </span>
+            ) : (
+              <span />
+            )}
 
-          {/* Counter */}
-          {images.length > 1 && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 text-white/80 text-sm font-medium bg-black/40 px-3 py-1 rounded-full">
-              {currentIndex + 1} / {images.length}
+            <div className="flex items-center gap-2">
+              {current.rawUrl && (
+                <a
+                  href={current.rawUrl}
+                  download
+                  className="flex items-center gap-1 text-white/70 hover:text-white text-sm bg-black/40 px-3 py-1.5 rounded-full transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Download size={14} />
+                  <span>原图</span>
+                </a>
+              )}
+              <DialogPrimitive.Close className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors">
+                <X size={20} />
+              </DialogPrimitive.Close>
             </div>
-          )}
+          </div>
 
           {/* Prev */}
           {images.length > 1 && currentIndex > 0 && (
@@ -94,7 +122,7 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
 
           {/* Image */}
           <img
-            src={images[currentIndex]}
+            src={current.url}
             alt=""
             className="max-w-[90vw] max-h-[85vh] object-contain select-none"
             draggable={false}

@@ -869,7 +869,7 @@ export default function RecordFormPage() {
       </Dialog>
 
       <ImageViewer
-        images={images.map((img) => img.url)}
+        images={images.map((img) => ({ url: img.url, rawUrl: img.rawUrl }))}
         initialIndex={viewerIndex}
         open={viewerOpen}
         onOpenChange={setViewerOpen}
