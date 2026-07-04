@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 import { cropAndResizeAvatar } from '../lib/avatar-crop';
 import dayjs from 'dayjs';
-import { UserPlus, Trash2, KeyRound, Copy, Check, ShieldCheck, Eye, User as UserIcon, HardDrive, Camera } from 'lucide-react';
+import { UserPlus, Trash2, KeyRound, Copy, Check, User as UserIcon, HardDrive, Camera, Pencil } from 'lucide-react';
 import { Button, Input, Card, CardContent, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, ConfirmDialog, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 
@@ -32,15 +32,16 @@ export default function AdminPage() {
     id: string;
     name: string;
   } | null>(null);
-  const [roleChangeTarget, setRoleChangeTarget] = useState<UserItem | null>(null);
-  const [newRole, setNewRole] = useState('');
+  const [editTarget, setEditTarget] = useState<UserItem | null>(null);
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editRole, setEditRole] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
   const [cleanupResult, setCleanupResult] = useState<{
     found: number;
     deleted: number;
     errors?: string[];
   } | null>(null);
   const [cleaningUp, setCleaningUp] = useState(false);
-  const [avatarTarget, setAvatarTarget] = useState<UserItem | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const createAvatarFileRef = useRef<HTMLInputElement>(null);
@@ -115,16 +116,34 @@ export default function AdminPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleChangeRole = async () => {
-    if (!roleChangeTarget || !newRole) return;
+  const handleSaveEdit = async () => {
+    if (!editTarget) return;
+    setEditSaving(true);
     try {
-      await api.put(`/auth/users/${roleChangeTarget.id}/role`, { role: newRole });
-      toast('角色已更新', 'success');
-      setRoleChangeTarget(null);
+      const payload: Record<string, string> = {};
+      if (editDisplayName.trim() !== editTarget.displayName) {
+        payload.displayName = editDisplayName.trim();
+      }
+      if (editRole !== editTarget.role && editTarget.id !== currentUser?.id) {
+        payload.role = editRole;
+      }
+      if (Object.keys(payload).length > 0) {
+        await api.put(`/auth/users/${editTarget.id}`, payload);
+      }
+      toast('用户信息已更新', 'success');
+      setEditTarget(null);
       loadUsers();
     } catch (err: any) {
       toast(err.message || '更新失败', 'error');
+    } finally {
+      setEditSaving(false);
     }
+  };
+
+  const openEditUser = (u: UserItem) => {
+    setEditTarget(u);
+    setEditDisplayName(u.displayName);
+    setEditRole(u.role);
   };
 
   const runCleanup = async () => {
@@ -146,15 +165,17 @@ export default function AdminPage() {
       const cropped = await cropAndResizeAvatar(file);
       const formData = new FormData();
       formData.append('file', cropped);
-      const uploadRes = await api.post<{ success: boolean; data: { url: string; key: string } }>('/upload', formData);
-      const { url, key } = uploadRes.data;
-
-      if (userId) {
-        await api.put(`/auth/users/${userId}/avatar`, { avatar: url });
+      const targetId = userId || editTarget?.id;
+      if (targetId) {
+        const res = await api.put<{ success: boolean; data: { id: string; avatar: string } }>(`/auth/users/${targetId}/avatar`, formData);
         toast('头像已更新', 'success');
-        setAvatarTarget(null);
         loadUsers();
+        if (editTarget) {
+          setEditTarget({ ...editTarget, avatar: res.data.avatar });
+        }
       } else {
+        const uploadRes = await api.post<{ success: boolean; data: { url: string; key: string } }>('/upload', formData);
+        const { url, key } = uploadRes.data;
         setNewAvatarPreview(url);
         setNewAvatarKey(key);
       }
@@ -163,18 +184,12 @@ export default function AdminPage() {
     } finally {
       setAvatarUploading(false);
     }
-  }, []);
+  }, [editTarget]);
 
   const roleBadge = (role: string) => {
     if (role === 'admin') return <Badge variant="info">管理员</Badge>;
     if (role === 'viewer') return <Badge variant="secondary">只读</Badge>;
     return <Badge variant="secondary">普通用户</Badge>;
-  };
-
-  const roleIcon = (role: string) => {
-    if (role === 'admin') return <ShieldCheck size={14} className="text-blue-500" />;
-    if (role === 'viewer') return <Eye size={14} className="text-gray-400" />;
-    return <UserIcon size={14} className="text-gray-400" />;
   };
 
   return (
@@ -190,39 +205,35 @@ export default function AdminPage() {
         {users.map((u) => (
           <Card key={u.id}>
             <CardContent className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setAvatarTarget(u)}
-                  className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-gray-700 flex items-center justify-center group"
-                  title="修改头像"
-                >
+              <div
+                className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                onClick={() => openEditUser(u)}
+              >
+                <div className="relative w-11 h-11 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-gray-700 flex items-center justify-center group">
                   {u.avatar ? (
                     <img src={u.avatar} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <UserIcon size={18} className="text-gray-400" />
+                    <UserIcon size={20} className="text-gray-400" />
                   )}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                    <Camera size={14} className="text-white" />
-                  </div>
-                </button>
-                <div>
+                </div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium dark:text-gray-100">{u.displayName}</span>
+                    <span className="font-medium text-base dark:text-gray-100">{u.displayName}</span>
                     {roleBadge(u.role)}
                   </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    @{u.username} · 创建于 {dayjs(u.createdAt).format('YYYY-MM-DD')}
+                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                    @{u.username} · {dayjs(u.createdAt).format('YYYY-MM-DD')}
                   </p>
                 </div>
               </div>
               {u.id !== currentUser?.id && (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 flex-shrink-0">
                   <button
-                    onClick={() => { setRoleChangeTarget(u); setNewRole(u.role); }}
+                    onClick={() => openEditUser(u)}
                     className="p-2 rounded-md text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    title="更改角色"
+                    title="编辑用户"
                   >
-                    {roleIcon(u.role)}
+                    <Pencil size={16} />
                   </button>
                   <button
                     onClick={() => setConfirmAction({ type: 'reset', id: u.id, name: u.displayName })}
@@ -259,26 +270,94 @@ export default function AdminPage() {
         onConfirm={handleConfirm}
       />
 
-      {/* Change Role Dialog */}
-      <Dialog open={!!roleChangeTarget} onOpenChange={(open) => { if (!open) setRoleChangeTarget(null); }}>
+      {/* Edit User Dialog */}
+      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>更改角色 — {roleChangeTarget?.displayName}</DialogTitle>
+            <DialogTitle>编辑用户 — {editTarget?.username}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <Select value={newRole} onValueChange={setNewRole}>
-              <SelectTrigger>
-                <SelectValue placeholder="选择角色" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="admin">管理员（可管理所有用户）</SelectItem>
-                <SelectItem value="user">普通用户（可记录宝宝数据）</SelectItem>
-                <SelectItem value="viewer">只读用户（仅可查看 + 发朋友圈）</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex gap-2 justify-end">
-              <Button variant="secondary" onClick={() => setRoleChangeTarget(null)}>取消</Button>
-              <Button onClick={handleChangeRole}>保存</Button>
+          <div className="space-y-5 pt-2">
+            {/* Avatar */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative w-20 h-20 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center group">
+                {editTarget?.avatar ? (
+                  <img src={editTarget.avatar} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <UserIcon size={32} className="text-gray-400" />
+                )}
+                <button
+                  onClick={() => avatarFileRef.current?.click()}
+                  className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                >
+                  <Camera size={20} className="text-white" />
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={avatarUploading}
+                  onClick={() => avatarFileRef.current?.click()}
+                >
+                  {avatarUploading ? '上传中...' : '更换头像'}
+                </Button>
+                {editTarget?.avatar && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      if (!editTarget) return;
+                      await api.put(`/auth/users/${editTarget.id}/avatar`, { avatar: null });
+                      toast('头像已移除', 'success');
+                      setEditTarget({ ...editTarget, avatar: null });
+                      loadUsers();
+                    }}
+                  >
+                    移除
+                  </Button>
+                )}
+              </div>
+              <input
+                ref={avatarFileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f && editTarget) handleAvatarUpload(f, editTarget.id);
+                  e.target.value = '';
+                }}
+              />
+            </div>
+
+            {/* Display Name */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">称呼</label>
+              <Input value={editDisplayName} onChange={(e) => setEditDisplayName(e.target.value)} placeholder="如：爸爸/妈妈/奶奶" />
+            </div>
+
+            {/* Role */}
+            {editTarget?.id !== currentUser?.id && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">角色</label>
+                <Select value={editRole} onValueChange={setEditRole}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择角色" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">管理员（可管理所有用户）</SelectItem>
+                    <SelectItem value="user">普通用户（可记录宝宝数据）</SelectItem>
+                    <SelectItem value="viewer">只读用户（仅可查看 + 发朋友圈）</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-end pt-1">
+              <Button variant="secondary" onClick={() => setEditTarget(null)}>取消</Button>
+              <Button onClick={handleSaveEdit} disabled={editSaving}>
+                {editSaving ? '保存中...' : '保存'}
+              </Button>
             </div>
           </div>
         </DialogContent>
@@ -452,59 +531,6 @@ export default function AdminPage() {
         </Dialog>
       )}
 
-      {/* Avatar Edit Dialog */}
-      <Dialog open={!!avatarTarget} onOpenChange={(open) => { if (!open) setAvatarTarget(null); }}>
-        <DialogContent className="max-w-xs">
-          <DialogHeader>
-            <DialogTitle>修改头像 — {avatarTarget?.displayName}</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-4 pt-2">
-            <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-              {avatarTarget?.avatar ? (
-                <img src={avatarTarget.avatar} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <UserIcon size={40} className="text-gray-400" />
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={avatarUploading}
-                onClick={() => avatarFileRef.current?.click()}
-              >
-                {avatarUploading ? '上传中...' : '选择图片'}
-              </Button>
-              {avatarTarget?.avatar && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={async () => {
-                    if (!avatarTarget) return;
-                    await api.put(`/auth/users/${avatarTarget.id}/avatar`, { avatar: null });
-                    toast('头像已移除', 'success');
-                    setAvatarTarget(null);
-                    loadUsers();
-                  }}
-                >
-                  移除
-                </Button>
-              )}
-            </div>
-            <input
-              ref={avatarFileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f && avatarTarget) handleAvatarUpload(f, avatarTarget.id);
-                e.target.value = '';
-              }}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

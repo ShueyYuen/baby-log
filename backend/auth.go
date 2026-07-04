@@ -491,6 +491,73 @@ func handleSetUserRole(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, map[string]string{"id": targetID, "role": body.Role})
 }
 
+// PUT /auth/users/{id} （管理员：编辑用户基本信息）
+func handleUpdateUser(w http.ResponseWriter, r *http.Request) {
+	if !isAdminCtx(r) {
+		writeErr(w, http.StatusForbidden, "仅管理员可操作")
+		return
+	}
+
+	targetID := chiURLParam(r, "id")
+
+	var body struct {
+		DisplayName *string `json:"displayName"`
+		Role        *string `json:"role"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, http.StatusBadRequest, "Invalid input")
+		return
+	}
+
+	if body.Role != nil {
+		if targetID == getUserID(r) {
+			writeErr(w, http.StatusBadRequest, "不能修改自己的角色")
+			return
+		}
+		validRoles := map[string]bool{"admin": true, "user": true, "viewer": true}
+		if !validRoles[*body.Role] {
+			writeErr(w, http.StatusBadRequest, "无效的角色")
+			return
+		}
+	}
+
+	if body.DisplayName != nil && len(strings.TrimSpace(*body.DisplayName)) == 0 {
+		writeErr(w, http.StatusBadRequest, "显示名称不能为空")
+		return
+	}
+
+	setClauses := []string{}
+	args := []interface{}{}
+	if body.DisplayName != nil {
+		setClauses = append(setClauses, `displayName = ?`)
+		args = append(args, strings.TrimSpace(*body.DisplayName))
+	}
+	if body.Role != nil {
+		setClauses = append(setClauses, `role = ?`)
+		args = append(args, *body.Role)
+	}
+	if len(setClauses) == 0 {
+		writeErr(w, http.StatusBadRequest, "没有要更新的字段")
+		return
+	}
+
+	setClauses = append(setClauses, `updatedAt = ?`)
+	args = append(args, int64(nowMillis()))
+	args = append(args, targetID)
+
+	query := fmt.Sprintf(`UPDATE "User" SET %s WHERE id = ?`, strings.Join(setClauses, ", "))
+	res, err := db.Exec(query, args...)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeErr(w, http.StatusNotFound, "User not found")
+		return
+	}
+	writeOK(w, map[string]string{"id": targetID})
+}
+
 // PUT /auth/users/{id}/avatar （管理员）
 func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 	if !isAdminCtx(r) {
