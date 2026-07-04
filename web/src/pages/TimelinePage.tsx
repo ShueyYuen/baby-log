@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock } from 'lucide-react';
+import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock, Square } from 'lucide-react';
 import { ImageViewer, useToast } from '../components/ui';
 import { isPushSupported, subscribePush, isSubscribed } from '../lib/push';
 import { addFeedingReminderToCalendar } from '../lib/calendar';
@@ -79,7 +79,7 @@ function formatRecordDetail(record: RecordItem): string {
     case 'diaper':
       return data.type === 'wet' ? '尿' : data.type === 'dirty' ? '便' : '尿+便';
     case 'sleep':
-      return data.durationMinutes ? `${data.durationMinutes}分钟` : '进行中';
+      return data.ongoing ? '进行中' : data.durationMinutes ? `${data.durationMinutes}分钟` : '进行中';
     case 'supplement':
       return data.name || '';
     case 'temperature': {
@@ -89,10 +89,24 @@ function formatRecordDetail(record: RecordItem): string {
     case 'play':
       return data.durationMinutes ? `${data.durationMinutes}分钟` : '';
     case 'bath':
-      return data.durationMinutes ? `${data.durationMinutes}分钟` : '';
+      return data.ongoing ? '进行中' : data.durationMinutes ? `${data.durationMinutes}分钟` : '';
     default:
       return record.note || '';
   }
+}
+
+// 支持“开始/结束”两阶段记录的活动类型（长按入口即可开始）。
+const twoPhaseTypes = ['sleep', 'bath'];
+const LONG_PRESS_MS = 450;
+
+// formatElapsed 将毫秒时长格式化为 mm:ss 或 h:mm:ss。
+function formatElapsed(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
 function formatTimeAgo(minutes: number): string {
@@ -133,9 +147,79 @@ export default function TimelinePage() {
     return () => clearInterval(timer);
   }, []);
 
+  const ongoingRecords = records.filter((r) => r.data?.ongoing);
+
+  // 存在进行中的活动时，每秒刷新一次以实时显示已用时长。
+  useEffect(() => {
+    if (ongoingRecords.length === 0) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [ongoingRecords.length]);
+
   const handleAddType = (type: string, category: string) => {
     setShowTypePanel(false);
     navigate(`/record/new?type=${type}&category=${category}`);
+  };
+
+  const longPressTimer = useRef<number | null>(null);
+  const longPressFired = useRef(false);
+
+  const startLongPress = (type: string, category: string) => {
+    longPressFired.current = false;
+    longPressTimer.current = window.setTimeout(() => {
+      longPressFired.current = true;
+      handleStartOngoing(type, category);
+    }, LONG_PRESS_MS);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  // 长按开始一个进行中的活动（睡眠/洗澡）：直接落一条 ongoing 记录，不进表单。
+  const handleStartOngoing = async (type: string, category: string) => {
+    if (!currentBaby) return;
+    const label = typeConfig[type]?.label || '活动';
+    const existing = records.find((r) => r.type === type && r.data?.ongoing);
+    if (existing) {
+      toast(`${label}已在进行中`, 'info');
+      setShowTypePanel(false);
+      return;
+    }
+    const nowIso = new Date().toISOString();
+    try {
+      await api.post('/records', {
+        babyId: currentBaby.id,
+        category,
+        type,
+        data: { ongoing: true, startTime: nowIso },
+        occurredAt: nowIso,
+      });
+      setShowTypePanel(false);
+      toast(`${label}已开始`, 'success');
+      loadData();
+    } catch {
+      toast('开始失败', 'error');
+    }
+  };
+
+  // 结束一个进行中的活动：补充结束时间与时长并完成记录。
+  const handleEndOngoing = async (record: RecordItem) => {
+    const startTime = record.data?.startTime || record.occurredAt;
+    const endIso = new Date().toISOString();
+    const durationMinutes = Math.max(1, Math.round((Date.now() - new Date(startTime).getTime()) / 60000));
+    try {
+      await api.put(`/records/${record.id}`, {
+        data: { ...record.data, ongoing: undefined, startTime, endTime: endIso, durationMinutes },
+      });
+      toast(`${typeConfig[record.type]?.label || '活动'}已结束（${durationMinutes}分钟）`, 'success');
+      loadData();
+    } catch {
+      toast('结束失败', 'error');
+    }
   };
 
   const handleEnablePush = async () => {
@@ -212,6 +296,45 @@ export default function TimelinePage() {
   return (
     <>
     <div className="space-y-6">
+      {/* 进行中的活动（睡眠/洗澡） */}
+      {ongoingRecords.length > 0 && (
+        <div className="space-y-2">
+          {ongoingRecords.map((record) => {
+            const config = typeConfig[record.type] || typeConfig.other;
+            const Icon = config.icon;
+            const startTime = record.data?.startTime || record.occurredAt;
+            const elapsed = formatElapsed(now - new Date(startTime).getTime());
+            return (
+              <div
+                key={record.id}
+                className="card flex items-center gap-3 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/30 dark:to-blue-950/30 border border-indigo-200 dark:border-indigo-900/50"
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
+                  <Icon size={18} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm dark:text-gray-100">{config.label}进行中</span>
+                    <span className="flex items-center gap-1 text-xs text-indigo-500 dark:text-indigo-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                      {dayjs(startTime).format('HH:mm')} 开始
+                    </span>
+                  </div>
+                  <p className="text-lg font-semibold tabular-nums text-indigo-600 dark:text-indigo-300">{elapsed}</p>
+                </div>
+                <button
+                  onClick={() => handleEndOngoing(record)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-indigo-500 text-white text-sm font-medium hover:bg-indigo-600 active:bg-indigo-700 transition-colors flex-shrink-0"
+                >
+                  <Square size={14} fill="currentColor" />
+                  结束
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Summary Cards */}
       {summary && (
         <div className="grid grid-cols-3 gap-3">
@@ -429,19 +552,34 @@ export default function TimelinePage() {
                 <X size={20} />
               </button>
             </div>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">长按睡眠 / 洗澡可直接开始计时</p>
             <div className="grid grid-cols-4 gap-4">
               {allRecordTypes.map((item) => {
                 const Icon = item.icon;
+                const twoPhase = twoPhaseTypes.includes(item.type);
                 return (
                   <button
                     key={item.type}
-                    onClick={() => handleAddType(item.type, item.category)}
-                    className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    onClick={() => {
+                      if (longPressFired.current) {
+                        longPressFired.current = false;
+                        return;
+                      }
+                      handleAddType(item.type, item.category);
+                    }}
+                    onPointerDown={twoPhase ? () => startLongPress(item.type, item.category) : undefined}
+                    onPointerUp={twoPhase ? cancelLongPress : undefined}
+                    onPointerLeave={twoPhase ? cancelLongPress : undefined}
+                    onContextMenu={twoPhase ? (e) => e.preventDefault() : undefined}
+                    className="relative flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   >
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center ${item.color}`}>
                       <Icon size={22} />
                     </div>
                     <span className="text-xs text-gray-700 dark:text-gray-300">{item.label}</span>
+                    {twoPhase && (
+                      <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-indigo-400" title="可长按开始" />
+                    )}
                   </button>
                 );
               })}

@@ -290,6 +290,134 @@ func handleStatsDaily(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// dailyAgg 表示单日聚合结果，字段与 /stats/daily 返回一致。
+type dailyAgg struct {
+	feedingCount   int
+	diaperCount    int
+	peeCount       int
+	poopCount      int
+	sleepMinutes   float64
+	feedingDetails map[string]int
+}
+
+// GET /stats/range?babyId=&startDate=&endDate=&tz=
+// 一次性返回 [startDate, endDate] 区间内每天的统计，替代前端按天多次调用 /stats/daily。
+func handleStatsRange(w http.ResponseWriter, r *http.Request) {
+	userID := getUserID(r)
+	q := r.URL.Query()
+	babyID := q.Get("babyId")
+	if babyID == "" {
+		writeErr(w, http.StatusBadRequest, "babyId required")
+		return
+	}
+
+	ok, err := findMembership(babyID, userID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	if !ok {
+		writeErr(w, http.StatusForbidden, "Permission denied")
+		return
+	}
+
+	startDate := q.Get("startDate")
+	endDate := q.Get("endDate")
+	if startDate == "" || endDate == "" {
+		writeErr(w, http.StatusBadRequest, "startDate and endDate required")
+		return
+	}
+	startT, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "Invalid startDate")
+		return
+	}
+	endT, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "Invalid endDate")
+		return
+	}
+	if endT.Before(startT) {
+		writeErr(w, http.StatusBadRequest, "endDate must be >= startDate")
+		return
+	}
+	numDays := int(endT.Sub(startT).Hours()/24) + 1
+	if numDays > 92 {
+		writeErr(w, http.StatusBadRequest, "range too large")
+		return
+	}
+
+	tzOffset := parseIntDefault(q.Get("tz"), 0)
+	const dayMs = 24 * 60 * 60 * 1000
+	firstStart := startT.UnixMilli() + int64(tzOffset)*60000
+	rangeEnd := endT.UnixMilli() + int64(tzOffset)*60000 + dayMs - 1
+
+	dates := make([]string, numDays)
+	aggs := make([]*dailyAgg, numDays)
+	for i := 0; i < numDays; i++ {
+		dates[i] = startT.AddDate(0, 0, i).Format("2006-01-02")
+		aggs[i] = &dailyAgg{feedingDetails: map[string]int{"breastfeed": 0, "bottle": 0, "solid": 0}}
+	}
+
+	rows, err := db.Query(`SELECT category, type, data, occurredAt FROM "Record" WHERE babyId = ? AND occurredAt >= ? AND occurredAt <= ?`,
+		babyID, firstStart, rangeEnd)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var category, typ, dataStr string
+		var occurred int64
+		if err := rows.Scan(&category, &typ, &dataStr, &occurred); err != nil {
+			writeErr(w, http.StatusInternalServerError, "Server error")
+			return
+		}
+		idx := int((occurred - firstStart) / dayMs)
+		if idx < 0 || idx >= numDays {
+			continue
+		}
+		agg := aggs[idx]
+		switch {
+		case category == "feeding":
+			agg.feedingCount++
+			if _, ok := agg.feedingDetails[typ]; ok {
+				agg.feedingDetails[typ]++
+			}
+		case typ == "diaper":
+			agg.diaperCount++
+			m := map[string]interface{}{}
+			_ = json.Unmarshal([]byte(dataStr), &m)
+			dt, _ := m["type"].(string)
+			if dt == "wet" || dt == "both" {
+				agg.peeCount++
+			}
+			if dt == "dirty" || dt == "both" {
+				agg.poopCount++
+			}
+		case typ == "sleep":
+			m := map[string]interface{}{}
+			_ = json.Unmarshal([]byte(dataStr), &m)
+			agg.sleepMinutes += numField(m, "durationMinutes")
+		}
+	}
+
+	out := make([]map[string]interface{}, numDays)
+	for i, agg := range aggs {
+		out[i] = map[string]interface{}{
+			"date":           dates[i],
+			"feedingCount":   agg.feedingCount,
+			"diaperCount":    agg.diaperCount,
+			"peeCount":       agg.peeCount,
+			"poopCount":      agg.poopCount,
+			"sleepMinutes":   sleepMinutesValue(agg.sleepMinutes),
+			"feedingDetails": agg.feedingDetails,
+		}
+	}
+	writeOK(w, out)
+}
+
 // sleepMinutes 在原实现中是数值相加，可能是整数或小数，这里保持数值类型。
 func sleepMinutesValue(v float64) interface{} {
 	if v == math.Trunc(v) {

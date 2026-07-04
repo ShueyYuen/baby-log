@@ -70,19 +70,27 @@ export default function StatsPage() {
     setLoading(true);
 
     const tz = new Date().getTimezoneOffset();
-    const days: DailyData[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = dayjs().subtract(i, 'day').format('YYYY-MM-DD');
-      try {
-        const res = await api.get<{ success: boolean; data: DailyData }>(`/stats/daily?babyId=${currentBaby.id}&date=${date}&tz=${tz}`);
-        days.push(res.data);
-      } catch {
-        days.push({ date, feedingCount: 0, diaperCount: 0, peeCount: 0, poopCount: 0, sleepMinutes: 0, feedingDetails: { breastfeed: 0, bottle: 0, solid: 0 } });
+    const startDate = dayjs().subtract(6, 'day').format('YYYY-MM-DD');
+    const endDate = dayjs().format('YYYY-MM-DD');
+    try {
+      const res = await api.get<{ success: boolean; data: DailyData[] }>(
+        `/stats/range?babyId=${currentBaby.id}&startDate=${startDate}&endDate=${endDate}&tz=${tz}`
+      );
+      setWeekData(res.data);
+    } catch {
+      // 兜底：填充 7 天空数据
+      const days: DailyData[] = [];
+      for (let i = 6; i >= 0; i--) {
+        days.push({
+          date: dayjs().subtract(i, 'day').format('YYYY-MM-DD'),
+          feedingCount: 0, diaperCount: 0, peeCount: 0, poopCount: 0, sleepMinutes: 0,
+          feedingDetails: { breastfeed: 0, bottle: 0, solid: 0 },
+        });
       }
+      setWeekData(days);
+    } finally {
+      setLoading(false);
     }
-
-    setWeekData(days);
-    setLoading(false);
   };
 
   const chartData = weekData.map((d) => ({

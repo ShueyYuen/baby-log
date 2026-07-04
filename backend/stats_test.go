@@ -172,6 +172,71 @@ func TestStatsPredictAverageFallback(t *testing.T) {
 	}
 }
 
+func TestStatsRange(t *testing.T) {
+	s := newTestServer(t)
+	uid := insertUser(t, "u", "U", "user")
+	bid := createBabyFor(t, uid, "宝宝")
+
+	// 06-01 两次喂养 + 一次小便；06-03 一次睡眠 45 分钟。
+	createRecord(t, s, uid, bid, "feeding", "bottle", map[string]interface{}{"amountMl": 100}, "2025-06-01T08:00:00.000Z")
+	createRecord(t, s, uid, bid, "feeding", "breastfeed", map[string]interface{}{"leftMinutes": 10}, "2025-06-01T12:00:00.000Z")
+	createRecord(t, s, uid, bid, "nursing", "diaper", map[string]interface{}{"type": "wet"}, "2025-06-01T09:00:00.000Z")
+	createRecord(t, s, uid, bid, "activity", "sleep", map[string]interface{}{"durationMinutes": 45}, "2025-06-03T14:00:00.000Z")
+
+	e := mustOK(t, s.do(http.MethodGet, "/stats/range?babyId="+bid+"&startDate=2025-06-01&endDate=2025-06-03&tz=0", uid, nil))
+	var days []struct {
+		Date         string  `json:"date"`
+		FeedingCount int     `json:"feedingCount"`
+		DiaperCount  int     `json:"diaperCount"`
+		PeeCount     int     `json:"peeCount"`
+		SleepMinutes float64 `json:"sleepMinutes"`
+	}
+	jsonUnmarshal(e.Data, &days)
+	if len(days) != 3 {
+		t.Fatalf("expected 3 days, got %d", len(days))
+	}
+	if days[0].Date != "2025-06-01" || days[0].FeedingCount != 2 || days[0].PeeCount != 1 {
+		t.Errorf("day0 wrong: %+v", days[0])
+	}
+	if days[1].FeedingCount != 0 || days[1].DiaperCount != 0 {
+		t.Errorf("day1 (06-02) should be empty: %+v", days[1])
+	}
+	if days[2].Date != "2025-06-03" || days[2].SleepMinutes != 45 {
+		t.Errorf("day2 wrong: %+v", days[2])
+	}
+}
+
+func TestStatsRangeValidation(t *testing.T) {
+	s := newTestServer(t)
+	uid := insertUser(t, "u", "U", "user")
+	bid := createBabyFor(t, uid, "宝宝")
+
+	// 缺少日期
+	if r := s.do(http.MethodGet, "/stats/range?babyId="+bid, uid, nil); r.status != http.StatusBadRequest {
+		t.Errorf("missing dates expected 400, got %d", r.status)
+	}
+	// endDate < startDate
+	if r := s.do(http.MethodGet, "/stats/range?babyId="+bid+"&startDate=2025-06-05&endDate=2025-06-01", uid, nil); r.status != http.StatusBadRequest {
+		t.Errorf("reversed range expected 400, got %d", r.status)
+	}
+	// 区间过大
+	if r := s.do(http.MethodGet, "/stats/range?babyId="+bid+"&startDate=2020-01-01&endDate=2025-01-01", uid, nil); r.status != http.StatusBadRequest {
+		t.Errorf("huge range expected 400, got %d", r.status)
+	}
+}
+
+func TestStatsRangePermission(t *testing.T) {
+	s := newTestServer(t)
+	owner := insertUser(t, "owner", "Owner", "user")
+	bid := createBabyFor(t, owner, "宝宝")
+	other := insertUser(t, "other", "Other", "user")
+
+	r := s.do(http.MethodGet, "/stats/range?babyId="+bid+"&startDate=2025-06-01&endDate=2025-06-07", other, nil)
+	if r.status != http.StatusForbidden {
+		t.Fatalf("non-member expected 403, got %d", r.status)
+	}
+}
+
 func TestStatsPermission(t *testing.T) {
 	s := newTestServer(t)
 	owner := insertUser(t, "owner", "Owner", "user")

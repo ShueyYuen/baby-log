@@ -116,6 +116,7 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				r.Get("/summary", handleStatsSummary)
 				r.Get("/predict", handleStatsPredict)
 				r.Get("/daily", handleStatsDaily)
+				r.Get("/range", handleStatsRange)
 			})
 
 			r.Route("/upload", func(r chi.Router) {
