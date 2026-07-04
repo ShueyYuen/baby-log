@@ -217,6 +217,15 @@ func handleCreateMoment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Wait for any async uploads to finish before persisting
+	for _, item := range body.MediaItems {
+		if err := waitForUpload(item.Key); err != nil {
+			log.Printf("[Moments] Async upload failed for key=%s: %v", item.Key, err)
+			writeErr(w, http.StatusInternalServerError, "文件上传处理失败")
+			return
+		}
+	}
+
 	mediaJSON := "[]"
 	if len(body.MediaItems) > 0 {
 		b, err := json.Marshal(body.MediaItems)

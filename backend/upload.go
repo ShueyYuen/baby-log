@@ -4,6 +4,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"path/filepath"
+	"strings"
+
+	"github.com/google/uuid"
 )
 
 const maxUploadSize = 10 * 1024 * 1024 // 10MB per file (regular uploads)
@@ -119,8 +123,8 @@ func handleUploadMultiple(w http.ResponseWriter, r *http.Request) {
 
 // POST /moments/upload — upload media files for moments (images + videos).
 // Returns an array of uploadResult objects with mediaType field set.
+// If S3 storage is used, the actual upload happens asynchronously for faster response.
 func handleUploadMomentMedia(w http.ResponseWriter, r *http.Request) {
-	// 32MB in memory, rest spills to temp files
 	if err := r.ParseMultipartForm(32 * 1024 * 1024); err != nil {
 		writeErr(w, http.StatusBadRequest, "No files uploaded")
 		return
@@ -132,8 +136,10 @@ func handleUploadMomentMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	headers := r.MultipartForm.File["files"]
+	cfg := getStorageConfig()
+	useAsync := cfg.typ == storageS3 && cfg.s3 != nil
 
-	log.Printf("[Upload] Moment media: count=%d storage=%s", len(headers), getStorageType())
+	log.Printf("[Upload] Moment media: count=%d storage=%s async=%v", len(headers), cfg.typ, useAsync)
 
 	results := make([]*uploadResult, 0, len(headers))
 	for _, header := range headers {
@@ -154,19 +160,64 @@ func handleUploadMomentMedia(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadRequest, "文件过大")
 			return
 		}
-		result, err := uploadMomentFile(header.Filename, contentType, data)
-		if err != nil {
-			log.Printf("[Upload] Moment failed: %v", err)
-			writeErr(w, http.StatusInternalServerError, "Upload failed")
-			return
-		}
-		if isImageMIME(contentType) {
-			result.MediaType = "image"
+
+		if useAsync {
+			uid := uuid.NewString()
+			origExt := strings.ToLower(filepath.Ext(header.Filename))
+			if origExt == "" {
+				origExt = mimeToExt(contentType)
+			}
+			compExt := origExt
+			if isImageMIME(contentType) {
+				compExt = ".jpg"
+			}
+
+			compKey := "moments/" + uid + compExt
+			var rawKey string
+			if isImageMIME(contentType) {
+				rawKey = "moments/raw/" + uid + origExt
+			}
+
+			result := &uploadResult{
+				Key:    compKey,
+				RawKey: rawKey,
+			}
+			if cfg.s3.publicURL != "" {
+				result.URL = buildPublicURL(cfg.s3, compKey)
+				if rawKey != "" {
+					result.RawURL = buildPublicURL(cfg.s3, rawKey)
+				}
+			}
+			if isImageMIME(contentType) {
+				result.MediaType = "image"
+			} else {
+				result.MediaType = "video"
+			}
+
+			trackUploadedFile(compKey, rawKey)
+
+			dataCopy := data
+			ct := contentType
+			startAsyncUpload(compKey, func() error {
+				return uploadToS3Async(cfg.s3, compKey, rawKey, ct, dataCopy)
+			})
+
+			results = append(results, result)
 		} else {
-			result.MediaType = "video"
+			result, err := uploadMomentFile(header.Filename, contentType, data)
+			if err != nil {
+				log.Printf("[Upload] Moment failed: %v", err)
+				writeErr(w, http.StatusInternalServerError, "Upload failed")
+				return
+			}
+			if isImageMIME(contentType) {
+				result.MediaType = "image"
+			} else {
+				result.MediaType = "video"
+			}
+			trackUploadedFile(result.Key, result.RawKey)
+			results = append(results, result)
 		}
-		trackUploadedFile(result.Key, result.RawKey)
-		results = append(results, result)
 	}
 
 	writeOK(w, results)

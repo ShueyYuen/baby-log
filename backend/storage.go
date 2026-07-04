@@ -552,6 +552,59 @@ func deleteFilesBestEffort(values []string) {
 	}
 }
 
+// uploadToS3Async compresses and uploads a file to S3 using pre-determined keys.
+// Used by the async upload path — key and rawKey are already assigned by the handler.
+func uploadToS3Async(s3cfg *s3Config, compKey, rawKey, contentType string, data []byte) error {
+	client := getS3Client()
+
+	var compressedData []byte
+	var compressedMIME string
+
+	if isImageMIME(contentType) {
+		compressedData, compressedMIME = compressImage(data, contentType)
+	} else {
+		compressedData = data
+		compressedMIME = contentType
+	}
+
+	type result struct{ err error }
+	compCh := make(chan result, 1)
+	rawCh := make(chan result, 1)
+
+	go func() {
+		_, err := client.PutObject(context.Background(), &s3.PutObjectInput{
+			Bucket:       aws.String(s3cfg.bucket),
+			Key:          aws.String(compKey),
+			Body:         bytes.NewReader(compressedData),
+			ContentType:  aws.String(compressedMIME),
+			CacheControl: aws.String(s3CacheControl),
+		})
+		compCh <- result{err}
+	}()
+
+	if rawKey != "" && isImageMIME(contentType) {
+		go func() {
+			_, err := client.PutObject(context.Background(), &s3.PutObjectInput{
+				Bucket:       aws.String(s3cfg.bucket),
+				Key:          aws.String(rawKey),
+				Body:         bytes.NewReader(data),
+				ContentType:  aws.String(contentType),
+				CacheControl: aws.String(s3CacheControl),
+			})
+			if err != nil {
+				log.Printf("[Storage] S3 async raw upload failed (non-fatal): %v", err)
+			}
+			rawCh <- result{nil}
+		}()
+	} else {
+		rawCh <- result{}
+	}
+
+	compRes := <-compCh
+	<-rawCh
+	return compRes.err
+}
+
 // localUploadPath returns the filesystem path for a local storage key.
 // Kept for legacy usage in tests.
 func localUploadPath(cfg storageConfig, key string) string {
