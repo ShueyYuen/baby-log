@@ -59,8 +59,17 @@ function avatarColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
+function Avatar({ name, avatar, size = "md" }: { name: string; avatar?: string | null; size?: "sm" | "md" }) {
   const cls = size === "sm" ? "w-7 h-7 text-xs" : "w-10 h-10 text-sm";
+  if (avatar) {
+    return (
+      <img
+        src={avatar}
+        alt={name}
+        className={`${cls} rounded-full object-cover shrink-0`}
+      />
+    );
+  }
   return (
     <div
       className={`${cls} ${avatarColor(name)} rounded-full flex items-center justify-center text-white font-bold shrink-0`}
@@ -341,7 +350,7 @@ function CommentSection({
         <div className="space-y-2 mb-3">
           {comments.map((c) => (
             <div key={c.id} className="flex items-start gap-2 group">
-              <Avatar name={c.displayName} size="sm" />
+              <Avatar name={c.displayName} avatar={c.avatar} size="sm" />
               <div className="flex-1 min-w-0">
                 <span className="text-xs font-medium text-primary-600 dark:text-primary-400 mr-1">
                   {c.displayName}:
@@ -413,7 +422,7 @@ function MomentCard({
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Avatar name={moment.displayName} />
+          <Avatar name={moment.displayName} avatar={moment.avatar} />
           <div>
             <p className="font-semibold text-sm text-gray-800 dark:text-gray-100">
               {moment.displayName}

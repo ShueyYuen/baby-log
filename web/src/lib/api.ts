@@ -75,6 +75,7 @@ export interface MomentComment {
   momentId: string;
   userId: string;
   displayName: string;
+  avatar?: string | null;
   content: string;
   createdAt: string;
 }
@@ -83,6 +84,7 @@ export interface Moment {
   id: string;
   userId: string;
   displayName: string;
+  avatar?: string | null;
   content: string | null;
   mediaItems: MediaItemDisplay[];
   commentCount: number;

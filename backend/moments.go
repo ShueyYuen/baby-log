@@ -28,18 +28,20 @@ type MediaItemDisplay struct {
 }
 
 type momentCommentOut struct {
-	ID          string `json:"id"`
-	MomentID    string `json:"momentId"`
-	UserID      string `json:"userId"`
-	DisplayName string `json:"displayName"`
-	Content     string `json:"content"`
-	CreatedAt   Millis `json:"createdAt"`
+	ID          string  `json:"id"`
+	MomentID    string  `json:"momentId"`
+	UserID      string  `json:"userId"`
+	DisplayName string  `json:"displayName"`
+	Avatar      *string `json:"avatar"`
+	Content     string  `json:"content"`
+	CreatedAt   Millis  `json:"createdAt"`
 }
 
 type momentOut struct {
 	ID           string             `json:"id"`
 	UserID       string             `json:"userId"`
 	DisplayName  string             `json:"displayName"`
+	Avatar       *string            `json:"avatar"`
 	Content      *string            `json:"content"`
 	MediaItems   []MediaItemDisplay `json:"mediaItems"`
 	CommentCount int                `json:"commentCount"`
@@ -98,7 +100,7 @@ func handleListMoments(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := db.Query(`
-		SELECT m.id, m.userId, u.displayName, m.content, m.mediaItems, m.createdAt, m.updatedAt
+		SELECT m.id, m.userId, u.displayName, u.avatar, m.content, m.mediaItems, m.createdAt, m.updatedAt
 		FROM "Moment" m
 		JOIN "User" u ON m.userId = u.id
 		ORDER BY m.createdAt DESC
@@ -114,6 +116,7 @@ func handleListMoments(w http.ResponseWriter, r *http.Request) {
 		id          string
 		userID      string
 		displayName string
+		avatar      *string
 		content     sql.NullString
 		mediaItems  sql.NullString
 		createdAt   int64
@@ -125,7 +128,7 @@ func handleListMoments(w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		var row rawRow
-		if err := rows.Scan(&row.id, &row.userID, &row.displayName, &row.content, &row.mediaItems, &row.createdAt, &row.updatedAt); err != nil {
+		if err := rows.Scan(&row.id, &row.userID, &row.displayName, &row.avatar, &row.content, &row.mediaItems, &row.createdAt, &row.updatedAt); err != nil {
 			continue
 		}
 		rawRows = append(rawRows, row)
@@ -141,7 +144,7 @@ func handleListMoments(w http.ResponseWriter, r *http.Request) {
 			args[i] = id
 		}
 		crows, err := db.Query(`
-			SELECT c.id, c.momentId, c.userId, u.displayName, c.content, c.createdAt
+			SELECT c.id, c.momentId, c.userId, u.displayName, u.avatar, c.content, c.createdAt
 			FROM "MomentComment" c
 			JOIN "User" u ON c.userId = u.id
 			WHERE c.momentId IN (`+ph+`)
@@ -152,7 +155,7 @@ func handleListMoments(w http.ResponseWriter, r *http.Request) {
 			for crows.Next() {
 				var c momentCommentOut
 				var ca int64
-				if err := crows.Scan(&c.ID, &c.MomentID, &c.UserID, &c.DisplayName, &c.Content, &ca); err != nil {
+				if err := crows.Scan(&c.ID, &c.MomentID, &c.UserID, &c.DisplayName, &c.Avatar, &c.Content, &ca); err != nil {
 					continue
 				}
 				c.CreatedAt = Millis(ca)
@@ -167,6 +170,7 @@ func handleListMoments(w http.ResponseWriter, r *http.Request) {
 			ID:          row.id,
 			UserID:      row.userID,
 			DisplayName: row.displayName,
+			Avatar:      row.avatar,
 			CreatedAt:   Millis(row.createdAt),
 			UpdatedAt:   Millis(row.updatedAt),
 			IsOwner:     row.userID == currentUserID,
@@ -270,14 +274,16 @@ func handleCreateMoment(w http.ResponseWriter, r *http.Request) {
 	}
 	markUploadedFilesUsed(usedKeys)
 
-	// Fetch display name
+	// Fetch display name and avatar
 	var displayName string
-	db.QueryRow(`SELECT displayName FROM "User" WHERE id = ?`, currentUserID).Scan(&displayName)
+	var avatar *string
+	db.QueryRow(`SELECT displayName, avatar FROM "User" WHERE id = ?`, currentUserID).Scan(&displayName, &avatar)
 
 	out := momentOut{
 		ID:           id,
 		UserID:       currentUserID,
 		DisplayName:  displayName,
+		Avatar:       avatar,
 		Content:      body.Content,
 		MediaItems:   mediaItemsToDisplay(body.MediaItems),
 		Comments:     []momentCommentOut{},
@@ -454,13 +460,15 @@ func handleCreateMomentComment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var displayName string
-	db.QueryRow(`SELECT displayName FROM "User" WHERE id = ?`, currentUserID).Scan(&displayName)
+	var commentAvatar *string
+	db.QueryRow(`SELECT displayName, avatar FROM "User" WHERE id = ?`, currentUserID).Scan(&displayName, &commentAvatar)
 
 	writeOK(w, momentCommentOut{
 		ID:          commentID,
 		MomentID:    momentID,
 		UserID:      currentUserID,
 		DisplayName: displayName,
+		Avatar:      commentAvatar,
 		Content:     body.Content,
 		CreatedAt:   Millis(now),
 	})
