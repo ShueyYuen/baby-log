@@ -50,8 +50,9 @@ func TestLoginSuccess(t *testing.T) {
 	if err := jsonUnmarshal(e.Data, &data); err != nil {
 		t.Fatal(err)
 	}
-	if data.Token != uid {
-		t.Errorf("token should equal user id, got %q want %q", data.Token, uid)
+	expected := uid + ":1"
+	if data.Token != expected {
+		t.Errorf("token should equal user id:version, got %q want %q", data.Token, expected)
 	}
 	if data.User.Username != "alice" || data.User.DisplayName != "Alice" {
 		t.Errorf("user payload wrong: %+v", data.User)

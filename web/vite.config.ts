@@ -15,10 +15,13 @@ export default defineConfig({
         name: '宝宝日志',
         short_name: '宝宝日志',
         description: '新生儿照护记录与管理系统',
+        lang: 'zh-CN',
+        dir: 'ltr',
         theme_color: '#6366f1',
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
+        categories: ['lifestyle', 'health'],
         icons: [
           { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

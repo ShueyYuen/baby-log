@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
@@ -232,7 +232,7 @@ export default function TimelinePage() {
     return () => clearInterval(timer);
   }, []);
 
-  const ongoingRecords = records.filter((r) => r.data?.ongoing);
+  const ongoingRecords = useMemo(() => records.filter((r) => r.data?.ongoing), [records]);
 
   // 存在进行中的活动时，每秒刷新一次以实时显示已用时长。
   useEffect(() => {
@@ -368,7 +368,7 @@ export default function TimelinePage() {
   };
 
 
-  const groupedRecords = records.reduce<Record<string, RecordItem[]>>((acc, record) => {
+  const groupedRecords = useMemo(() => records.reduce<Record<string, RecordItem[]>>((acc, record) => {
     const date = dayjs(record.occurredAt);
     const today = dayjs().startOf('day');
     const yesterday = today.subtract(1, 'day');
@@ -381,7 +381,7 @@ export default function TimelinePage() {
     if (!acc[group]) acc[group] = [];
     acc[group].push(record);
     return acc;
-  }, {});
+  }, {}), [records]);
 
   return (
     <>

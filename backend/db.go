@@ -58,7 +58,22 @@ func initDB() {
 		log.Fatalf("[DB] Failed to init schema: %v", err)
 	}
 
+	runMigrations()
+
 	log.Printf("[DB] Connected: %s", path)
+}
+
+func runMigrations() {
+	migrations := []string{
+		`ALTER TABLE "User" ADD COLUMN "tokenVersion" INTEGER NOT NULL DEFAULT 1`,
+	}
+	for _, m := range migrations {
+		if _, err := db.Exec(m); err != nil {
+			if !strings.Contains(err.Error(), "duplicate column") {
+				log.Printf("[DB] Migration skipped: %v", err)
+			}
+		}
+	}
 }
 
 // schemaSQL 与原 Prisma migration 完全一致，使用 IF NOT EXISTS 保证对已有库幂等。
@@ -69,6 +84,7 @@ CREATE TABLE IF NOT EXISTS "User" (
     "password" TEXT NOT NULL,
     "displayName" TEXT NOT NULL,
     "role" TEXT NOT NULL DEFAULT 'user',
+    "tokenVersion" INTEGER NOT NULL DEFAULT 1,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );

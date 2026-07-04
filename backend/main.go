@@ -61,12 +61,11 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 		// 静态文件（上传目录）
 		r.Handle("/uploads/*", http.StripPrefix(apiPrefix+"/uploads/", http.FileServer(http.Dir(uploadDir))))
 
-		// auth（login/me 公开，users 需要鉴权）
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/login", handleLogin)
-			r.Get("/me", handleMe)
 			r.Group(func(r chi.Router) {
 				r.Use(authMiddleware)
+				r.Get("/me", handleMe)
 				r.Post("/users", handleCreateUser)
 				r.Get("/users", handleListUsers)
 				r.Delete("/users/{id}", handleDeleteUser)

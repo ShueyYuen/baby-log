@@ -4,9 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -23,7 +27,8 @@ func getUserID(r *http.Request) string {
 	return ""
 }
 
-// authMiddleware：Bearer <userId> 简易 token 鉴权，与原实现保持一致。
+// authMiddleware：Bearer <userId:tokenVersion> 鉴权。
+// 兼容旧格式 Bearer <userId>（无版本号时跳过版本检查）。
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
@@ -33,14 +38,31 @@ func authMiddleware(next http.Handler) http.Handler {
 		}
 		token := strings.TrimPrefix(authHeader, "Bearer ")
 
+		var userID string
+		var tokenVer int = -1
+		if idx := strings.LastIndex(token, ":"); idx > 0 {
+			userID = token[:idx]
+			if v, err := strconv.Atoi(token[idx+1:]); err == nil {
+				tokenVer = v
+			}
+		} else {
+			userID = token
+		}
+
 		var id string
-		err := db.QueryRow(`SELECT id FROM "User" WHERE id = ?`, token).Scan(&id)
+		var dbTokenVer int
+		err := db.QueryRow(`SELECT id, "tokenVersion" FROM "User" WHERE id = ?`, userID).Scan(&id, &dbTokenVer)
 		if err != nil {
 			if isNoRows(err) {
 				writeErr(w, http.StatusUnauthorized, "Invalid token")
 				return
 			}
 			writeErr(w, http.StatusInternalServerError, "Auth error")
+			return
+		}
+
+		if tokenVer >= 0 && tokenVer != dbTokenVer {
+			writeErr(w, http.StatusUnauthorized, "Token 已失效，请重新登录")
 			return
 		}
 
@@ -94,6 +116,55 @@ func checkPassword(hashed, plain string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(plain)) == nil
 }
 
+// ── Login rate limiting ──────────────────────────────────────────────────────
+
+type loginAttempt struct {
+	failures int
+	lastFail time.Time
+}
+
+var (
+	loginMu       sync.Mutex
+	loginAttempts = map[string]*loginAttempt{}
+)
+
+const (
+	maxLoginFailures  = 5
+	loginLockDuration = 15 * time.Minute
+)
+
+func checkLoginRate(username string) bool {
+	loginMu.Lock()
+	defer loginMu.Unlock()
+	a, ok := loginAttempts[username]
+	if !ok {
+		return true
+	}
+	if time.Since(a.lastFail) > loginLockDuration {
+		delete(loginAttempts, username)
+		return true
+	}
+	return a.failures < maxLoginFailures
+}
+
+func recordLoginFailure(username string) {
+	loginMu.Lock()
+	defer loginMu.Unlock()
+	a, ok := loginAttempts[username]
+	if !ok {
+		a = &loginAttempt{}
+		loginAttempts[username] = a
+	}
+	a.failures++
+	a.lastFail = time.Now()
+}
+
+func clearLoginFailures(username string) {
+	loginMu.Lock()
+	defer loginMu.Unlock()
+	delete(loginAttempts, username)
+}
+
 func isAdmin(userID string) bool {
 	var role string
 	err := db.QueryRow(`SELECT role FROM "User" WHERE id = ?`, userID).Scan(&role)
@@ -114,31 +185,42 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !checkLoginRate(*body.Username) {
+		writeErr(w, http.StatusTooManyRequests, "登录尝试次数过多，请 15 分钟后再试")
+		return
+	}
+
 	var id, username, storedHash, displayName, role string
-	err := db.QueryRow(`SELECT id, username, password, displayName, role FROM "User" WHERE username = ?`, *body.Username).
-		Scan(&id, &username, &storedHash, &displayName, &role)
+	var tokenVersion int
+	err := db.QueryRow(`SELECT id, username, password, displayName, role, "tokenVersion" FROM "User" WHERE username = ?`, *body.Username).
+		Scan(&id, &username, &storedHash, &displayName, &role, &tokenVersion)
 	if err != nil || !checkPassword(storedHash, *body.Password) {
+		if body.Username != nil {
+			recordLoginFailure(*body.Username)
+		}
 		writeErr(w, http.StatusUnauthorized, "用户名或密码错误")
 		return
 	}
 
+	clearLoginFailures(*body.Username)
+
+	token := fmt.Sprintf("%s:%d", id, tokenVersion)
 	writeOK(w, map[string]interface{}{
-		"token": id,
+		"token": token,
 		"user":  userPublic{ID: id, Username: username, DisplayName: displayName, Role: role},
 	})
 }
 
 // GET /auth/me
 func handleMe(w http.ResponseWriter, r *http.Request) {
-	authHeader := r.Header.Get("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
+	userID := getUserID(r)
+	if userID == "" {
 		writeErr(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
-	token := strings.TrimPrefix(authHeader, "Bearer ")
 
 	var id, username, displayName, role string
-	err := db.QueryRow(`SELECT id, username, displayName, role FROM "User" WHERE id = ?`, token).
+	err := db.QueryRow(`SELECT id, username, displayName, role FROM "User" WHERE id = ?`, userID).
 		Scan(&id, &username, &displayName, &role)
 	if err != nil {
 		writeErr(w, http.StatusUnauthorized, "Invalid token")
@@ -311,7 +393,7 @@ func handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	plainPwd := generatePassword(16)
 	now := nowMillis()
 
-	res, err := db.Exec(`UPDATE "User" SET password = ?, updatedAt = ? WHERE id = ?`, hashPassword(plainPwd), int64(now), targetID)
+	res, err := db.Exec(`UPDATE "User" SET password = ?, "tokenVersion" = "tokenVersion" + 1, updatedAt = ? WHERE id = ?`, hashPassword(plainPwd), int64(now), targetID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
