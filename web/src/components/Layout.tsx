@@ -55,10 +55,10 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { path: '/', icon: Clock, label: '时间线' },
-    { path: '/moments', icon: Images, label: '朋友圈' },
     { path: '/plans', icon: Calendar, label: '计划' },
     { path: '/growth', icon: TrendingUp, label: '成长' },
     { path: '/stats', icon: BarChart3, label: '统计' },
+    { path: '/moments', icon: Images, label: '朋友圈' },
     ...(isAdmin ? [{ path: '/admin', icon: Users, label: '管理' }] : []),
   ];
 

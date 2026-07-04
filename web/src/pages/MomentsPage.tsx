@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { ImagePlus, Send, Trash2, Edit2, MessageCircle, X, Download, ChevronDown, Play } from 'lucide-react';
+import { ImagePlus, Send, Trash2, Edit2, MessageCircle, X, Download, ChevronDown, Play, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api, type Moment, type MomentComment, type MediaItem, type MediaItemDisplay, type UploadMomentResult } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, ConfirmDialog } from '../components/ui';
 
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
@@ -89,20 +89,28 @@ function Lightbox({ items, startIndex, onClose }: {
   onClose: () => void;
 }) {
   const [current, setCurrent] = useState(startIndex);
-  const item = items[current];
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+  const SWIPE_THRESHOLD = 50;
+
+  const prev = () => setCurrent(i => Math.max(0, i - 1));
+  const next = () => setCurrent(i => Math.min(items.length - 1, i + 1));
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowLeft') setCurrent(i => Math.max(0, i - 1));
-      if (e.key === 'ArrowRight') setCurrent(i => Math.min(items.length - 1, i + 1));
+      if (e.key === 'ArrowLeft') prev();
+      if (e.key === 'ArrowRight') next();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [items.length, onClose]);
 
+  const item = items[current];
+
   return (
     <div className="fixed inset-0 z-50 bg-black/95 flex flex-col" onClick={onClose}>
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3" onClick={e => e.stopPropagation()}>
         <span className="text-white/60 text-sm">{current + 1} / {items.length}</span>
         <div className="flex items-center gap-3">
@@ -123,14 +131,51 @@ function Lightbox({ items, startIndex, onClose }: {
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center px-4 pb-4" onClick={e => e.stopPropagation()}>
+      {/* Media area: swipe on mobile, arrows on desktop */}
+      <div
+        className="flex-1 relative flex items-center justify-center px-4 pb-4"
+        onClick={e => e.stopPropagation()}
+        onTouchStart={e => { touchStartX.current = e.targetTouches[0].clientX; touchEndX.current = null; }}
+        onTouchMove={e => { touchEndX.current = e.targetTouches[0].clientX; }}
+        onTouchEnd={() => {
+          if (touchStartX.current === null || touchEndX.current === null) return;
+          const delta = touchStartX.current - touchEndX.current;
+          if (Math.abs(delta) > SWIPE_THRESHOLD) {
+            delta > 0 ? next() : prev();
+          }
+          touchStartX.current = null;
+          touchEndX.current = null;
+        }}
+      >
+        {/* Left arrow — desktop only */}
+        {current > 0 && (
+          <button
+            className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 items-center justify-center w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors z-10"
+            onClick={(e) => { e.stopPropagation(); prev(); }}
+          >
+            <ChevronLeft size={24} />
+          </button>
+        )}
+
+        {/* Media */}
         {item?.mediaType === 'video' ? (
           <video src={item.url} controls autoPlay className="max-h-full max-w-full rounded-lg" />
         ) : (
-          <img src={item.url} alt="" className="max-h-full max-w-full object-contain rounded-lg" />
+          <img src={item.url} alt="" className="max-h-full max-w-full object-contain rounded-lg select-none" draggable={false} />
+        )}
+
+        {/* Right arrow — desktop only */}
+        {current < items.length - 1 && (
+          <button
+            className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 items-center justify-center w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors z-10"
+            onClick={(e) => { e.stopPropagation(); next(); }}
+          >
+            <ChevronRight size={24} />
+          </button>
         )}
       </div>
 
+      {/* Dot indicators */}
       {items.length > 1 && (
         <div className="flex justify-center gap-1.5 pb-4" onClick={e => e.stopPropagation()}>
           {items.map((_, i) => (
@@ -524,6 +569,8 @@ export default function MomentsPage() {
   const [hasMore, setHasMore] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [editMoment, setEditMoment] = useState<Moment | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const PAGE_SIZE = 10;
 
@@ -565,10 +612,20 @@ export default function MomentsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确认删除这条动态？')) return;
-    await api.moments.delete(id);
-    setMoments(prev => prev.filter(m => m.id !== id));
-    setTotal(t => t - 1);
+    setDeleteTarget(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.moments.delete(deleteTarget);
+      setMoments(prev => prev.filter(m => m.id !== deleteTarget));
+      setTotal(t => t - 1);
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
   };
 
   const handleAddComment = async (momentId: string, content: string) => {
@@ -647,6 +704,18 @@ export default function MomentsPage() {
         onClose={() => { setShowCreate(false); setEditMoment(null); }}
         onSave={editMoment ? handleUpdate : handleCreate}
         editMoment={editMoment}
+      />
+
+      {/* Delete confirm dialog */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="删除动态"
+        description="确认删除这条动态？此操作不可撤销，相关图片和视频也将一并删除。"
+        confirmLabel="删除"
+        variant="danger"
+        loading={deleting}
+        onConfirm={confirmDelete}
       />
     </div>
   );
