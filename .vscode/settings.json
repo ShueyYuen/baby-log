@@ -35,7 +35,8 @@
 
   "explorer.fileNesting.enabled": true,
   "explorer.fileNesting.patterns": {
-    "package.json": "pnpm-lock.yaml, .npmrc, pnpm-workspace.yaml, .pnpm-approve-builds.json",
+    "package.json": "pnpm-lock.yaml, .npmrc, .pnpm-approve-builds.json",
+    "go.mod": "go.sum",
     "vite.config.ts": ".editorconfig, playwright.config.ts",
     "tsconfig.json": "tsconfig.json, tsconfig.*.json",
     "README.md": "CHANGELOG.md, LICENSE, CONTRIBUTING.md, AUTHORS.md, CODE_OF_CONDUCT.md, ROADMAP.md",

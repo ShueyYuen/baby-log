@@ -129,13 +129,15 @@ dist
 .pnpm-store
 .pnpm-approve-builds.json
 
-# Database
-packages/server/prisma/dev.db
-packages/server/prisma/dev.db-journal
+# Database (Go backend, local dev)
+backend/*.db
+backend/*.db-journal
+backend/*.db-wal
+backend/*.db-shm
 
 # Uploads
-packages/server/uploads/*
-!packages/server/uploads/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
 
 # yarn v3
 .pnp.*

@@ -12,63 +12,63 @@
 ## 技术栈
 
 - **前端**: React 18 + TypeScript + Vite + TailwindCSS + Recharts
-- **后端**: Node.js + Express + TypeScript + Prisma
-- **数据库**: SQLite (可升级至 PostgreSQL)
-- **架构**: pnpm Monorepo
+- **后端**: Go + chi + modernc.org/sqlite（纯 Go，无需 CGO）
+- **数据库**: SQLite（表结构与原 Prisma 迁移完全一致，启动时自动建表）
+- **架构**: 前后端独立目录（无 monorepo/workspace）
 
 ## 快速开始
 
 ### 环境要求
 
-- Node.js >= 18
-- pnpm >= 8
+- Go >= 1.21
+- Node.js >= 18 与 pnpm >= 8（仅前端开发需要）
 
-### 安装与启动
+### 启动后端
 
 ```bash
-# 安装依赖
+cd backend
+# 首次运行会在 backend/dev.db 自动建表
+DATABASE_URL="file:./dev.db" \
+ADMIN_USERNAME=admin ADMIN_PASSWORD=YourStr0ngP@ss \
+PORT=3001 go run .
+```
+
+### 启动前端
+
+```bash
+cd web
 pnpm install
-
-# 初始化数据库
-cd packages/server
-npx prisma migrate dev
-npx tsx src/seed.ts
-cd ../..
-
-# 启动开发服务器（前后端同时启动）
 pnpm dev
 ```
 
 ### 访问
 
-- 前端: http://localhost:5173
+- 前端: http://localhost:5173（开发时通过 Vite 代理到后端 3001）
 - 后端 API: http://localhost:3001/api/v1
-- 演示账号: `demo` / `demo123`
 
 ## 项目结构
 
 ```
 baby-log/
-├── packages/
-│   ├── shared/      # 共享类型定义
-│   ├── server/      # 后端 API 服务
-│   │   ├── prisma/  # 数据库 Schema & 迁移
-│   │   └── src/     # 路由、中间件
-│   └── web/         # 前端 React 应用
-│       └── src/
-│           ├── components/  # 通用组件
-│           ├── contexts/    # React Context
-│           ├── lib/         # 工具库
-│           └── pages/       # 页面组件
+├── backend/         # Go 后端 API 服务（自动建表，兼容原接口与数据库）
+│   ├── main.go      # 路由、CORS、静态资源、引导
+│   ├── db.go        # SQLite 连接与 Schema
+│   └── *.go         # auth / records / plans / growth / ...
+├── web/             # 前端 React 应用（独立 pnpm 项目）
+│   └── src/
+│       ├── components/  # 通用组件
+│       ├── contexts/    # React Context
+│       ├── lib/         # 工具库
+│       └── pages/       # 页面组件
+├── deploy/          # 部署脚本（entrypoint.sh）
 ├── docs/            # 产品与架构文档
-└── package.json     # Monorepo 配置
+└── Dockerfile       # 多阶段构建：Node 打包前端 + Go 编译后端
 ```
 
 ## API 概览
 
 | 路径 | 说明 |
 |------|------|
-| POST /api/v1/auth/register | 注册 |
 | POST /api/v1/auth/login | 登录 |
 | GET /api/v1/babies | 获取宝宝列表 |
 | GET /api/v1/records | 获取记录(分页/筛选) |
@@ -122,7 +122,7 @@ docker compose up -d
 
 ```yaml
 ports:
-  - "你的端口:3001"
+  - "你的端口:3000"
 ```
 
 ### 数据持久化
@@ -134,11 +134,10 @@ ports:
 备份命令:
 ```bash
 docker cp baby-log:/app/data ./backup-data
-docker cp baby-log:/app/packages/server/uploads ./backup-uploads
+docker cp baby-log:/app/uploads ./backup-uploads
 ```
 
 ## 开发说明
 
-- 后端热重载: `pnpm --filter server dev`
-- 前端热重载: `pnpm --filter web dev`
-- 数据库管理: `pnpm --filter server db:studio`
+- 后端: `cd backend && go run .`（修改后重启；也可用 `air` 等工具热重载）
+- 前端热重载: `cd web && pnpm dev`

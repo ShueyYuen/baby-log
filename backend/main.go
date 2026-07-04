@@ -1,0 +1,252 @@
+package main
+
+import (
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+)
+
+const apiPrefix = "/api/v1"
+
+func main() {
+	initDB()
+
+	if err := ensureAdmin(); err != nil {
+		log.Fatalf("Failed to bootstrap admin: %v", err)
+	}
+	if err := ensureAllMemberships(); err != nil {
+		log.Printf("[Membership] ensureAllMemberships failed: %v", err)
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "3001"
+	}
+
+	r := chi.NewRouter()
+	r.Use(corsMiddleware)
+	r.Use(httpLogger)
+
+	uploadDir := os.Getenv("UPLOAD_DIR")
+	if uploadDir == "" {
+		uploadDir = "uploads"
+	}
+
+	r.Route(apiPrefix, func(r chi.Router) {
+		// 静态文件（上传目录）
+		r.Handle("/uploads/*", http.StripPrefix(apiPrefix+"/uploads/", http.FileServer(http.Dir(uploadDir))))
+
+		// auth（login/me 公开，users 需要鉴权）
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/login", handleLogin)
+			r.Get("/me", handleMe)
+			r.Group(func(r chi.Router) {
+				r.Use(authMiddleware)
+				r.Post("/users", handleCreateUser)
+				r.Get("/users", handleListUsers)
+				r.Delete("/users/{id}", handleDeleteUser)
+				r.Post("/users/{id}/reset-password", handleResetPassword)
+			})
+		})
+
+		// 需鉴权的业务路由
+		r.Group(func(r chi.Router) {
+			r.Use(authMiddleware)
+
+			r.Route("/babies", func(r chi.Router) {
+				r.Get("/", handleListBabies)
+				r.Post("/", handleCreateBaby)
+				r.Get("/{id}", handleGetBaby)
+				r.Put("/{id}", handleUpdateBaby)
+			})
+
+			r.Route("/records", func(r chi.Router) {
+				r.Get("/", handleListRecords)
+				r.Post("/", handleCreateRecord)
+				r.Put("/{id}", handleUpdateRecord)
+				r.Delete("/{id}", handleDeleteRecord)
+			})
+
+			r.Route("/plans", func(r chi.Router) {
+				r.Get("/", handleListPlans)
+				r.Post("/", handleCreatePlan)
+				r.Put("/{id}", handleUpdatePlan)
+				r.Delete("/{id}", handleDeletePlan)
+			})
+
+			r.Route("/growth", func(r chi.Router) {
+				r.Get("/", handleListGrowth)
+				r.Post("/", handleCreateGrowth)
+				r.Put("/{id}", handleUpdateGrowth)
+				r.Delete("/{id}", handleDeleteGrowth)
+			})
+
+			r.Route("/milestones", func(r chi.Router) {
+				r.Get("/", handleListMilestones)
+				r.Post("/", handleCreateMilestone)
+				r.Put("/{id}", handleUpdateMilestone)
+				r.Delete("/{id}", handleDeleteMilestone)
+			})
+
+			r.Route("/stats", func(r chi.Router) {
+				r.Get("/summary", handleStatsSummary)
+				r.Get("/predict", handleStatsPredict)
+				r.Get("/daily", handleStatsDaily)
+			})
+
+			r.Route("/upload", func(r chi.Router) {
+				r.Post("/", handleUploadSingle)
+				r.Post("/multiple", handleUploadMultiple)
+			})
+
+			r.Route("/push", func(r chi.Router) {
+				r.Get("/vapid-key", handleVapidKey)
+				r.Post("/subscribe", handlePushSubscribe)
+				r.Delete("/subscribe", handlePushUnsubscribe)
+				r.Post("/reminder", handleCreateReminder)
+				r.Get("/reminder", handleListReminders)
+				r.Get("/due-reminders", handleDueReminders)
+			})
+		})
+
+		r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"status":    "ok",
+				"timestamp": time.Now().UTC().Format(isoLayout),
+			})
+		})
+	})
+
+	// SPA 静态资源与回退
+	webDist := resolveWebDistDir()
+	log.Printf("[Static] Web dist dir: %s", orNotFound(webDist))
+	if webDist != "" {
+		indexHTML := filepath.Join(webDist, "index.html")
+		if _, err := os.Stat(indexHTML); err == nil {
+			log.Printf("[Static] index.html exists: true")
+		}
+		r.Handle("/*", spaHandler(webDist))
+	} else {
+		log.Println("[Static] No web dist directory found, SPA fallback disabled")
+	}
+
+	if vapidConfigured() {
+		log.Println("[Push] VAPID keys configured")
+	}
+
+	startReminderScheduler()
+
+	addr := ":" + port
+	log.Printf("Server running on http://localhost:%s", port)
+	if err := http.ListenAndServe(addr, r); err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
+}
+
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,PATCH")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func httpLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api/") {
+			log.Printf("[HTTP] %s %s", r.Method, r.URL.Path)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func spaHandler(webDist string) http.HandlerFunc {
+	fileServer := http.FileServer(http.Dir(webDist))
+	indexHTML := filepath.Join(webDist, "index.html")
+	return func(w http.ResponseWriter, r *http.Request) {
+		clean := filepath.Clean(r.URL.Path)
+		full := filepath.Join(webDist, clean)
+		if info, err := os.Stat(full); err == nil && !info.IsDir() {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		http.ServeFile(w, r, indexHTML)
+	}
+}
+
+func resolveWebDistDir() string {
+	candidates := []string{
+		os.Getenv("WEB_DIST_DIR"),
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		candidates = append(candidates,
+			filepath.Join(cwd, "../web/dist"),
+			filepath.Join(cwd, "packages/web/dist"),
+		)
+	}
+	for _, dir := range candidates {
+		if dir == "" {
+			continue
+		}
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			return dir
+		}
+	}
+	return ""
+}
+
+func orNotFound(s string) string {
+	if s == "" {
+		return "NOT FOUND"
+	}
+	return s
+}
+
+func ensureAdmin() error {
+	username := os.Getenv("ADMIN_USERNAME")
+	password := os.Getenv("ADMIN_PASSWORD")
+	if username == "" || password == "" {
+		log.Println("ADMIN_USERNAME/ADMIN_PASSWORD not set, skipping admin bootstrap")
+		return nil
+	}
+	if len(password) < 8 {
+		log.Println("ADMIN_PASSWORD must be at least 8 characters")
+		os.Exit(1)
+	}
+
+	var id, role, existingPassword string
+	err := db.QueryRow(`SELECT id, role, password FROM "User" WHERE username = ?`, username).Scan(&id, &role, &existingPassword)
+	if err == nil {
+		if role != "admin" || existingPassword != password {
+			now := nowMillis()
+			if _, err := db.Exec(`UPDATE "User" SET role = 'admin', password = ?, updatedAt = ? WHERE username = ?`,
+				password, int64(now), username); err != nil {
+				return err
+			}
+			log.Printf("Admin account %q updated", username)
+		}
+		return nil
+	}
+	if !isNoRows(err) {
+		return err
+	}
+
+	now := nowMillis()
+	if _, err := db.Exec(`INSERT INTO "User" (id, username, password, displayName, role, createdAt, updatedAt) VALUES (?, ?, ?, '管理员', 'admin', ?, ?)`,
+		uuid.NewString(), username, password, int64(now), int64(now)); err != nil {
+		return err
+	}
+	log.Printf("Admin account %q created", username)
+	return nil
+}

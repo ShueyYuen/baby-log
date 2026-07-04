@@ -7,7 +7,7 @@ services:
       - "10880:3000"
     volumes:
       - baby-log-data:/app/data
-      - baby-log-uploads:/app/packages/server/uploads
+      - baby-log-uploads:/app/uploads
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/app/data/baby-log.db

@@ -1,12 +1,8 @@
 #!/bin/sh
 set -e
 
-mkdir -p /app/data /app/packages/server/uploads
+# 准备数据与上传目录（Go 后端会在启动时自动建表，无需迁移工具）
+mkdir -p /app/data /app/uploads
 
-cd /app/packages/server
-
-# Run database migration
-npx prisma migrate deploy 2>/dev/null || npx prisma migrate dev --name init --skip-generate
-
-# Start server
-exec node dist/index.js
+# 启动 Go 后端
+exec /app/babylog-server

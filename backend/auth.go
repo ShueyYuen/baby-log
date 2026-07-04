@@ -1,0 +1,298 @@
+package main
+
+import (
+	"context"
+	"crypto/rand"
+	"database/sql"
+	"net/http"
+	"strings"
+
+	"github.com/google/uuid"
+)
+
+type ctxKey string
+
+const userIDKey ctxKey = "userId"
+
+func getUserID(r *http.Request) string {
+	if v, ok := r.Context().Value(userIDKey).(string); ok {
+		return v
+	}
+	return ""
+}
+
+// authMiddleware：Bearer <userId> 简易 token 鉴权，与原实现保持一致。
+func authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			writeErr(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+
+		var id string
+		err := db.QueryRow(`SELECT id FROM "User" WHERE id = ?`, token).Scan(&id)
+		if err != nil {
+			if isNoRows(err) {
+				writeErr(w, http.StatusUnauthorized, "Invalid token")
+				return
+			}
+			writeErr(w, http.StatusInternalServerError, "Auth error")
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), userIDKey, id)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+const (
+	upperChars  = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+	lowerChars  = "abcdefghjkmnpqrstuvwxyz"
+	digitChars  = "23456789"
+	symbolChars = "!@#$%&*"
+	allChars    = upperChars + lowerChars + digitChars + symbolChars
+)
+
+func generatePassword(length int) string {
+	for {
+		bytes := make([]byte, length)
+		_, _ = rand.Read(bytes)
+		var sb strings.Builder
+		for i := 0; i < length; i++ {
+			sb.WriteByte(allChars[int(bytes[i])%len(allChars)])
+		}
+		pw := sb.String()
+		if validatePasswordStrength(pw) {
+			return pw
+		}
+	}
+}
+
+func validatePasswordStrength(pw string) bool {
+	if len(pw) < 8 {
+		return false
+	}
+	return strings.ContainsAny(pw, upperChars) &&
+		strings.ContainsAny(pw, lowerChars) &&
+		strings.ContainsAny(pw, digitChars) &&
+		strings.ContainsAny(pw, symbolChars)
+}
+
+func isAdmin(userID string) bool {
+	var role string
+	err := db.QueryRow(`SELECT role FROM "User" WHERE id = ?`, userID).Scan(&role)
+	if err != nil {
+		return false
+	}
+	return role == "admin"
+}
+
+// POST /auth/login
+func handleLogin(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Username *string `json:"username"`
+		Password *string `json:"password"`
+	}
+	if err := decodeJSON(r, &body); err != nil || body.Username == nil || body.Password == nil {
+		writeErr(w, http.StatusBadRequest, "Required")
+		return
+	}
+
+	var id, username, password, displayName, role string
+	err := db.QueryRow(`SELECT id, username, password, displayName, role FROM "User" WHERE username = ?`, *body.Username).
+		Scan(&id, &username, &password, &displayName, &role)
+	if err != nil || password != *body.Password {
+		writeErr(w, http.StatusUnauthorized, "用户名或密码错误")
+		return
+	}
+
+	writeOK(w, map[string]interface{}{
+		"token": id,
+		"user":  userPublic{ID: id, Username: username, DisplayName: displayName, Role: role},
+	})
+}
+
+// GET /auth/me
+func handleMe(w http.ResponseWriter, r *http.Request) {
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		writeErr(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+
+	var id, username, displayName, role string
+	err := db.QueryRow(`SELECT id, username, displayName, role FROM "User" WHERE id = ?`, token).
+		Scan(&id, &username, &displayName, &role)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, "Invalid token")
+		return
+	}
+
+	writeOK(w, userPublic{ID: id, Username: username, DisplayName: displayName, Role: role})
+}
+
+// POST /auth/users （管理员）
+func handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	if !isAdmin(getUserID(r)) {
+		writeErr(w, http.StatusForbidden, "仅管理员可操作")
+		return
+	}
+
+	var body struct {
+		Username    string `json:"username"`
+		DisplayName string `json:"displayName"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, http.StatusBadRequest, "Invalid input")
+		return
+	}
+	if len(body.Username) < 2 || len(body.Username) > 50 || len(body.DisplayName) < 1 || len(body.DisplayName) > 50 {
+		writeErr(w, http.StatusBadRequest, "Invalid input")
+		return
+	}
+
+	var exists string
+	if err := db.QueryRow(`SELECT id FROM "User" WHERE username = ?`, body.Username).Scan(&exists); err == nil {
+		writeErr(w, http.StatusBadRequest, "用户名已存在")
+		return
+	}
+
+	password := generatePassword(16)
+	id := uuid.NewString()
+	now := nowMillis()
+	_, err := db.Exec(`INSERT INTO "User" (id, username, password, displayName, role, createdAt, updatedAt) VALUES (?, ?, ?, ?, 'user', ?, ?)`,
+		id, body.Username, password, body.DisplayName, int64(now), int64(now))
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+
+	if err := addUserToAllBabies(id, defaultRole); err != nil {
+		logInfo("[Auth] addUserToAllBabies failed: %v", err)
+	}
+
+	writeOK(w, map[string]interface{}{
+		"id":                id,
+		"username":          body.Username,
+		"displayName":       body.DisplayName,
+		"role":              "user",
+		"generatedPassword": password,
+	})
+}
+
+// GET /auth/users （管理员）
+func handleListUsers(w http.ResponseWriter, r *http.Request) {
+	if !isAdmin(getUserID(r)) {
+		writeErr(w, http.StatusForbidden, "仅管理员可操作")
+		return
+	}
+
+	rows, err := db.Query(`SELECT id, username, displayName, role, createdAt FROM "User" ORDER BY createdAt ASC`)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	defer rows.Close()
+
+	type userListItem struct {
+		ID          string `json:"id"`
+		Username    string `json:"username"`
+		DisplayName string `json:"displayName"`
+		Role        string `json:"role"`
+		CreatedAt   Millis `json:"createdAt"`
+	}
+
+	list := []userListItem{}
+	for rows.Next() {
+		var it userListItem
+		var created int64
+		if err := rows.Scan(&it.ID, &it.Username, &it.DisplayName, &it.Role, &created); err != nil {
+			writeErr(w, http.StatusInternalServerError, "Server error")
+			return
+		}
+		it.CreatedAt = Millis(created)
+		list = append(list, it)
+	}
+
+	writeOK(w, list)
+}
+
+// DELETE /auth/users/{id} （管理员）
+func handleDeleteUser(w http.ResponseWriter, r *http.Request) {
+	adminID := getUserID(r)
+	if !isAdmin(adminID) {
+		writeErr(w, http.StatusForbidden, "仅管理员可操作")
+		return
+	}
+
+	targetID := chiURLParam(r, "id")
+	if targetID == adminID {
+		writeErr(w, http.StatusBadRequest, "不能删除自己")
+		return
+	}
+
+	var exists string
+	if err := db.QueryRow(`SELECT id FROM "User" WHERE id = ?`, targetID).Scan(&exists); err != nil {
+		writeErr(w, http.StatusNotFound, "用户不存在")
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	stmts := []struct {
+		q    string
+		args []interface{}
+	}{
+		{`DELETE FROM "BabyMember" WHERE userId = ?`, []interface{}{targetID}},
+		{`DELETE FROM "PushSubscription" WHERE userId = ?`, []interface{}{targetID}},
+		{`UPDATE "Record" SET createdBy = ? WHERE createdBy = ?`, []interface{}{adminID, targetID}},
+		{`UPDATE "Plan" SET createdBy = ? WHERE createdBy = ?`, []interface{}{adminID, targetID}},
+		{`DELETE FROM "User" WHERE id = ?`, []interface{}{targetID}},
+	}
+	for _, s := range stmts {
+		if _, err := tx.Exec(s.q, s.args...); err != nil {
+			tx.Rollback()
+			writeErr(w, http.StatusInternalServerError, "Server error")
+			return
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+
+	writeSuccess(w)
+}
+
+// POST /auth/users/{id}/reset-password （管理员）
+func handleResetPassword(w http.ResponseWriter, r *http.Request) {
+	if !isAdmin(getUserID(r)) {
+		writeErr(w, http.StatusForbidden, "仅管理员可操作")
+		return
+	}
+
+	targetID := chiURLParam(r, "id")
+	password := generatePassword(16)
+	now := nowMillis()
+
+	res, err := db.Exec(`UPDATE "User" SET password = ?, updatedAt = ? WHERE id = ?`, password, int64(now), targetID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		// 原实现即使目标不存在也不会显式报错（update 会抛错→500），这里保持 500 语义。
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+
+	writeOK(w, map[string]interface{}{"generatedPassword": password})
+}
+
+var _ = sql.ErrNoRows
