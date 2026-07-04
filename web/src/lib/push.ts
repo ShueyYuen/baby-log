@@ -56,10 +56,8 @@ export async function unsubscribePush(): Promise<void> {
       await subscription.unsubscribe();
       await fetch('/api/v1/push/subscribe', {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ endpoint }),
       });
     }
@@ -74,14 +72,7 @@ export function isSubscribed(): boolean {
 }
 
 export function setupServiceWorkerMessageHandler() {
-  if (!('serviceWorker' in navigator)) return;
-
-  navigator.serviceWorker.addEventListener('message', (event) => {
-    if (event.data?.type === 'GET_TOKEN') {
-      const token = localStorage.getItem('token');
-      event.ports[0]?.postMessage({ token });
-    }
-  });
+  // Cookie-based auth: no message handler needed, kept for compatibility
 }
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {

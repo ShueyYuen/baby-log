@@ -123,6 +123,17 @@ func handleCreateMilestone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(body.Images) > 0 {
+		keys := make([]string, 0, len(body.Images))
+		for _, img := range body.Images {
+			keys = append(keys, img.Key)
+		}
+		if err := validateUploadKeys(keys); err != nil {
+			writeErr(w, http.StatusBadRequest, "Invalid image key")
+			return
+		}
+	}
+
 	var imagesStore sql.NullString
 	if len(body.Images) > 0 {
 		b, _ := json.Marshal(body.Images)

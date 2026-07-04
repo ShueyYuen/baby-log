@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -257,6 +258,21 @@ func trackUploadedFile(key, rawKey string) {
 	if err != nil {
 		log.Printf("[Upload] Failed to track uploaded file %s: %v", key, err)
 	}
+}
+
+// validateUploadKeys ensures all referenced keys exist in UploadedFile table.
+// Returns error with the first invalid key, or nil if all are valid.
+func validateUploadKeys(keys []string) error {
+	for _, key := range keys {
+		if key == "" {
+			continue
+		}
+		var exists bool
+		if err := db.QueryRow(`SELECT COUNT(*) > 0 FROM "UploadedFile" WHERE "key" = ?`, key).Scan(&exists); err != nil || !exists {
+			return fmt.Errorf("invalid file key: %s", key)
+		}
+	}
+	return nil
 }
 
 func markUploadedFilesUsed(keys []string) {

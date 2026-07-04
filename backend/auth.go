@@ -37,17 +37,21 @@ func getUserRole(r *http.Request) string {
 	return ""
 }
 
-// authMiddleware：Bearer <userId:tokenVersion> 鉴权。
-// 一次查询获取 id、role、tokenVersion 并全部缓存到 context 中，
-// 避免后续 requireEditorRole / isAdmin 重复查库。
+// authMiddleware：从 HttpOnly cookie 或 Authorization header 读取 token。
+// token 格式为 userId:tokenVersion。
+// 一次查询获取 id、role、tokenVersion 并全部缓存到 context 中。
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if !strings.HasPrefix(authHeader, "Bearer ") {
+		var token string
+		if c, err := r.Cookie("token"); err == nil && c.Value != "" {
+			token = c.Value
+		} else if authHeader := r.Header.Get("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+		if token == "" {
 			writeErr(w, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
-		token := strings.TrimPrefix(authHeader, "Bearer ")
 
 		idx := strings.LastIndex(token, ":")
 		if idx <= 0 {
@@ -213,10 +217,33 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	clearLoginFailures(*body.Username)
 
 	token := fmt.Sprintf("%s:%d", id, tokenVersion)
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
+		MaxAge:   30 * 24 * 60 * 60, // 30 days
+	})
+
 	writeOK(w, map[string]interface{}{
 		"token": token,
 		"user":  userPublic{ID: id, Username: username, DisplayName: displayName, Role: role},
 	})
+}
+
+// POST /auth/logout
+func handleLogout(w http.ResponseWriter, _ *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   -1,
+	})
+	writeSuccess(w)
 }
 
 // GET /auth/me

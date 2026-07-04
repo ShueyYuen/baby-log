@@ -204,6 +204,14 @@ func handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 	var parsedImages []RecordImageStore
 	if len(body.Images) > 0 && string(body.Images) != "null" {
 		if err := json.Unmarshal(body.Images, &parsedImages); err == nil && len(parsedImages) > 0 {
+			keys := make([]string, 0, len(parsedImages))
+			for _, img := range parsedImages {
+				keys = append(keys, img.Key)
+			}
+			if err := validateUploadKeys(keys); err != nil {
+				writeErr(w, http.StatusBadRequest, "Invalid image key")
+				return
+			}
 			b, _ := json.Marshal(parsedImages)
 			imagesStore = sql.NullString{String: string(b), Valid: true}
 		}

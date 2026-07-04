@@ -21,11 +21,16 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
     headers['Content-Type'] = 'application/json';
   }
 
-  if (token) {
+  // Fallback: keep Authorization header for backward compatibility
+  if (token && !headers['Authorization']) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${url}`, { ...options, headers });
+  const res = await fetch(`${API_BASE}${url}`, {
+    ...options,
+    headers,
+    credentials: 'same-origin',
+  });
   const data = await res.json();
 
   if (!res.ok) {
@@ -229,6 +234,7 @@ export const api = {
         xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
 
         xhr.open('POST', `${API_BASE}/moments/upload`);
+        xhr.withCredentials = true;
         const token = getToken();
         if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.send(formData);

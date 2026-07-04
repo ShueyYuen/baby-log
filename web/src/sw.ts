@@ -9,12 +9,9 @@ const POLL_INTERVAL = 600_000; // 10 minutes
 
 async function checkReminders() {
   try {
-    const token = await getToken();
-    if (!token) return;
-
     const res = await fetch('/api/v1/push/due-reminders', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'same-origin',
     });
 
     if (!res.ok) return;
@@ -34,24 +31,6 @@ async function checkReminders() {
   } catch {
     // silently fail
   }
-}
-
-async function getToken(): Promise<string | null> {
-  const clients = await self.clients.matchAll({ type: 'window' });
-  for (const client of clients) {
-    const msg = await sendMessageToClient(client, { type: 'GET_TOKEN' });
-    if (msg?.token) return msg.token;
-  }
-  return null;
-}
-
-function sendMessageToClient(client: Client, message: any): Promise<any> {
-  return new Promise((resolve) => {
-    const channel = new MessageChannel();
-    channel.port1.onmessage = (event) => resolve(event.data);
-    client.postMessage(message, [channel.port2]);
-    setTimeout(() => resolve(null), 3000);
-  });
 }
 
 // Start polling

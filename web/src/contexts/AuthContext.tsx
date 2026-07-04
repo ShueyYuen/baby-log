@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { api } from '../lib/api';
+import { cacheInvalidate } from '../lib/queryCache';
 
 interface User {
   id: string;
@@ -24,25 +25,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      api.get<{ success: boolean; data: User }>('/auth/me')
-        .then((res) => setUser(res.data))
-        .catch(() => localStorage.removeItem('token'))
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    // Cookie-based auth: try /auth/me — cookie is sent automatically
+    api.get<{ success: boolean; data: User }>('/auth/me')
+      .then((res) => setUser(res.data))
+      .catch(() => {
+        // Also clear any legacy localStorage token
+        localStorage.removeItem('token');
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const login = async (username: string, password: string) => {
     const res = await api.post<{ success: boolean; data: { token: string; user: User } }>('/auth/login', { username, password });
+    // Token is now set as HttpOnly cookie by the server; keep localStorage for backward compat
     localStorage.setItem('token', res.data.token);
     setUser(res.data.user);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout', {});
+    } catch { /* ignore */ }
     localStorage.removeItem('token');
+    cacheInvalidate('');
     setUser(null);
   };
 

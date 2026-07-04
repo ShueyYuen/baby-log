@@ -10,6 +10,9 @@ func TestCreateMilestone(t *testing.T) {
 	uid := insertUser(t, "u", "U", "user")
 	bid := createBabyFor(t, uid, "宝宝")
 
+	registerUploadKey(t, "a.jpg")
+	registerUploadKey(t, "b.jpg")
+
 	r := s.do(http.MethodPost, "/milestones/", uid, map[string]interface{}{
 		"babyId":     bid,
 		"type":       "first_smile",

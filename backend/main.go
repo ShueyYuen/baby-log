@@ -60,11 +60,9 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 	r.Use(httpLogger)
 
 	r.Route(apiPrefix, func(r chi.Router) {
-		// 静态文件（上传目录）
-		r.Handle("/uploads/*", http.StripPrefix(apiPrefix+"/uploads/", http.FileServer(http.Dir(uploadDir))))
-
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/login", handleLogin)
+			r.Post("/logout", handleLogout)
 			r.Group(func(r chi.Router) {
 				r.Use(authMiddleware)
 				r.Get("/me", handleMe)
@@ -80,6 +78,9 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware)
 			r.Use(idempotencyMiddleware)
+
+			// 静态文件（上传目录）— 需认证，cookie 自动随 <img> 请求发送
+			r.Handle("/uploads/*", http.StripPrefix(apiPrefix+"/uploads/", http.FileServer(http.Dir(uploadDir))))
 
 			r.Route("/babies", func(r chi.Router) {
 				r.Get("/", handleListBabies)
@@ -194,7 +195,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,PATCH")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Idempotency-Key")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

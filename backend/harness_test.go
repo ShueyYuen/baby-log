@@ -179,6 +179,13 @@ func extractItems(data []byte) []byte {
 	return data
 }
 
+// registerUploadKey inserts a key into UploadedFile so it passes validation.
+func registerUploadKey(t *testing.T, key string) {
+	t.Helper()
+	now := int64(nowMillis())
+	db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "createdAt", "used") VALUES (?, ?, 0)`, key, now)
+}
+
 // insertReminder 直接向库中写入一条未发送提醒，remindAt 用 ISO 字符串。
 func insertReminder(t *testing.T, babyID, remindAtISO, title, body string) string {
 	t.Helper()

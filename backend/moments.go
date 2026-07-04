@@ -217,6 +217,18 @@ func handleCreateMoment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate referenced upload keys
+	if len(body.MediaItems) > 0 {
+		keys := make([]string, 0, len(body.MediaItems))
+		for _, item := range body.MediaItems {
+			keys = append(keys, item.Key)
+		}
+		if err := validateUploadKeys(keys); err != nil {
+			writeErr(w, http.StatusBadRequest, "Invalid media key")
+			return
+		}
+	}
+
 	// Wait for any async uploads to finish before persisting
 	for _, item := range body.MediaItems {
 		if err := waitForUpload(item.Key); err != nil {

@@ -30,7 +30,10 @@ func writeErr(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, apiResponse{Success: false, Error: msg})
 }
 
+const maxJSONBodySize = 2 << 20 // 2 MB
+
 func decodeJSON(r *http.Request, v interface{}) error {
+	r.Body = http.MaxBytesReader(nil, r.Body, maxJSONBodySize)
 	defer r.Body.Close()
 	dec := json.NewDecoder(r.Body)
 	return dec.Decode(v)
