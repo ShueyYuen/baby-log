@@ -8,7 +8,7 @@ COPY web/ ./
 RUN pnpm build
 
 # ---- Build backend (Go) ----
-FROM golang:1.23-alpine AS go-build
+FROM golang:1.25-alpine AS go-build
 WORKDIR /src
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download

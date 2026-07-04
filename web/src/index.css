@@ -107,3 +107,27 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* ─── View Transitions ─────────────────────────────────────── */
+
+/* Default page crossfade */
+@keyframes vt-fade-in {
+  from { opacity: 0; }
+}
+@keyframes vt-fade-out {
+  to { opacity: 0; }
+}
+
+::view-transition-old(root) {
+  animation: 0.2s ease vt-fade-out;
+}
+::view-transition-new(root) {
+  animation: 0.2s ease vt-fade-in;
+}
+
+/* Shared-element card → form expansion: browser morphs automatically,
+   just set duration and easing for smooth feel */
+::view-transition-group(*) {
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}

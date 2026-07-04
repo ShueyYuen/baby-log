@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useViewTransitionState } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
@@ -121,6 +121,65 @@ function formatTimeAgo(minutes: number): string {
 
 function minutesSince(time: string, now: number): number {
   return Math.max(0, Math.round((now - new Date(time).getTime()) / 60000));
+}
+
+// RecordCardItem uses useViewTransitionState so it must be its own component
+interface RecordCardItemProps {
+  record: RecordItem;
+  isViewer: boolean;
+  onImageClick: (images: string[], index: number) => void;
+}
+
+function RecordCardItem({ record, isViewer, onImageClick }: RecordCardItemProps) {
+  const navigate = useNavigate();
+  const href = `/record/${record.id}/edit`;
+  const isTransitioning = useViewTransitionState(href);
+  const config = typeConfig[record.type] || typeConfig.other;
+  const Icon = config.icon;
+  return (
+    <div
+      key={record.id}
+      style={{ viewTransitionName: isTransitioning ? `record-card-${record.id}` : undefined }}
+      className={`card flex items-center gap-3 transition-colors ${!isViewer ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700' : ''}`}
+      onClick={() => !isViewer && navigate(href, { viewTransition: true, state: { record } })}
+    >
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
+        <Icon size={18} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-sm dark:text-gray-100">{config.label}</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            {dayjs(record.occurredAt).format('HH:mm')}
+          </span>
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+          {formatRecordDetail(record)}
+        </p>
+      </div>
+      {record.images && record.images.length > 0 && (
+        <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+          {record.images.slice(0, 2).map((url, i) => (
+            <img
+              key={i}
+              src={url}
+              alt=""
+              className="w-10 h-10 rounded-lg object-cover cursor-zoom-in"
+              onClick={() => onImageClick(record.images!, i)}
+            />
+          ))}
+          {record.images.length > 2 && (
+            <span
+              className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500 cursor-zoom-in"
+              onClick={() => onImageClick(record.images!, 2)}
+            >
+              +{record.images.length - 2}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function TimelinePage() {
@@ -490,50 +549,13 @@ export default function TimelinePage() {
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">{group}</h3>
               <div className="space-y-2">
                 {items.map((record) => {
-                  const config = typeConfig[record.type] || typeConfig.other;
-                  const Icon = config.icon;
                   return (
-                    <div
+                    <RecordCardItem
                       key={record.id}
-                      className={`card flex items-center gap-3 transition-colors ${!isViewer ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700' : ''}`}
-                      onClick={() => !isViewer && navigate(`/record/${record.id}/edit`, { state: { record } })}
-                    >
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
-                        <Icon size={18} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm dark:text-gray-100">{config.label}</span>
-                          <span className="text-xs text-gray-400 dark:text-gray-500">
-                            {dayjs(record.occurredAt).format('HH:mm')}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                          {formatRecordDetail(record)}
-                        </p>
-                      </div>
-                      {record.images && record.images.length > 0 && (
-                        <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                          {record.images.slice(0, 2).map((url, i) => (
-                            <img
-                              key={i}
-                              src={url}
-                              alt=""
-                              className="w-10 h-10 rounded-lg object-cover cursor-zoom-in"
-                              onClick={() => { setViewerImages(record.images!); setViewerIndex(i); setViewerOpen(true); }}
-                            />
-                          ))}
-                          {record.images.length > 2 && (
-                            <span
-                              className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500 cursor-zoom-in"
-                              onClick={() => { setViewerImages(record.images!); setViewerIndex(2); setViewerOpen(true); }}
-                            >
-                              +{record.images.length - 2}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                      record={record}
+                      isViewer={isViewer}
+                      onImageClick={(images, index) => { setViewerImages(images); setViewerIndex(index); setViewerOpen(true); }}
+                    />
                   );
                 })}
               </div>
