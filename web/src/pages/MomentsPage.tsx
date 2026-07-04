@@ -1,34 +1,68 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import 'dayjs/locale/zh-cn';
-import { ImagePlus, Send, Trash2, Edit2, MessageCircle, X, Download, ChevronDown, Play, ChevronLeft, ChevronRight } from 'lucide-react';
-import { api, type Moment, type MomentComment, type MediaItem, type MediaItemDisplay, type UploadMomentResult } from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, ConfirmDialog } from '../components/ui';
+import dayjs from "dayjs";
+import "dayjs/locale/zh-cn";
+import relativeTime from "dayjs/plugin/relativeTime";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Edit2,
+  ImagePlus,
+  MessageCircle,
+  Play,
+  Send,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Button,
+  ConfirmDialog,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  api,
+  type MediaItem,
+  type MediaItemDisplay,
+  type Moment,
+  type MomentComment,
+  type UploadMomentResult,
+} from "../lib/api";
 
 dayjs.extend(relativeTime);
-dayjs.locale('zh-cn');
+dayjs.locale("zh-cn");
 
 // ── Utility ──────────────────────────────────────────────────────────────────
 
 function avatarColor(name: string): string {
   const colors = [
-    'bg-rose-400', 'bg-orange-400', 'bg-amber-400', 'bg-green-400',
-    'bg-teal-400', 'bg-cyan-400', 'bg-blue-400', 'bg-violet-400',
-    'bg-pink-400', 'bg-indigo-400',
+    "bg-rose-400",
+    "bg-orange-400",
+    "bg-amber-400",
+    "bg-green-400",
+    "bg-teal-400",
+    "bg-cyan-400",
+    "bg-blue-400",
+    "bg-violet-400",
+    "bg-pink-400",
+    "bg-indigo-400",
   ];
   let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < name.length; i++)
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return colors[Math.abs(hash) % colors.length];
 }
 
-function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
-  const cls = size === 'sm'
-    ? 'w-7 h-7 text-xs'
-    : 'w-10 h-10 text-sm';
+function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
+  const cls = size === "sm" ? "w-7 h-7 text-xs" : "w-10 h-10 text-sm";
   return (
-    <div className={`${cls} ${avatarColor(name)} rounded-full flex items-center justify-center text-white font-bold shrink-0`}>
+    <div
+      className={`${cls} ${avatarColor(name)} rounded-full flex items-center justify-center text-white font-bold shrink-0`}
+    >
       {name.charAt(0).toUpperCase()}
     </div>
   );
@@ -36,23 +70,34 @@ function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
 
 // ── Media grid ───────────────────────────────────────────────────────────────
 
-function MediaGrid({ items, onClickImage }: { items: MediaItemDisplay[]; onClickImage: (idx: number) => void }) {
+function MediaGrid({
+  items,
+  onClickImage,
+}: {
+  items: MediaItemDisplay[];
+  onClickImage: (idx: number) => void;
+}) {
   if (items.length === 0) return null;
 
   const gridClass =
-    items.length === 1 ? 'grid-cols-1' :
-    items.length === 2 ? 'grid-cols-2' :
-    'grid-cols-3';
+    items.length === 1
+      ? "grid-cols-1"
+      : items.length === 2
+        ? "grid-cols-2"
+        : "grid-cols-3";
 
   return (
     <div className={`grid gap-1 mt-2 ${gridClass}`}>
       {items.map((item, idx) => (
         <div
           key={idx}
-          className={`relative overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-700 ${items.length === 1 ? 'aspect-[4/3] max-w-sm' : 'aspect-square'}`}
+          className={`relative overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-700 ${items.length === 1 ? "aspect-[4/3] max-w-sm" : "aspect-square"}`}
         >
-          {item.mediaType === 'video' ? (
-            <div className="w-full h-full relative cursor-pointer" onClick={() => onClickImage(idx)}>
+          {item.mediaType === "video" ? (
+            <div
+              className="w-full h-full relative cursor-pointer"
+              onClick={() => onClickImage(idx)}
+            >
               <video
                 src={item.url}
                 className="w-full h-full object-cover"
@@ -83,7 +128,11 @@ function MediaGrid({ items, onClickImage }: { items: MediaItemDisplay[]; onClick
 
 // ── Light-box ────────────────────────────────────────────────────────────────
 
-function Lightbox({ items, startIndex, onClose }: {
+function Lightbox({
+  items,
+  startIndex,
+  onClose,
+}: {
   items: MediaItemDisplay[];
   startIndex: number;
   onClose: () => void;
@@ -93,33 +142,41 @@ function Lightbox({ items, startIndex, onClose }: {
   const touchEndX = useRef<number | null>(null);
   const SWIPE_THRESHOLD = 50;
 
-  const prev = () => setCurrent(i => Math.max(0, i - 1));
-  const next = () => setCurrent(i => Math.min(items.length - 1, i + 1));
+  const prev = () => setCurrent((i) => Math.max(0, i - 1));
+  const next = () => setCurrent((i) => Math.min(items.length - 1, i + 1));
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowLeft') prev();
-      if (e.key === 'ArrowRight') next();
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, [items.length, onClose]);
 
   const item = items[current];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/95 flex flex-col" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 bg-black/95 flex flex-col"
+      onClick={onClose}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3" onClick={e => e.stopPropagation()}>
-        <span className="text-white/60 text-sm">{current + 1} / {items.length}</span>
+      <div
+        className="flex items-center justify-between px-4 py-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="text-white/60 text-sm">
+          {current + 1} / {items.length}
+        </span>
         <div className="flex items-center gap-3">
           {item?.rawUrl && (
             <a
               href={item.rawUrl}
               download
               className="flex items-center gap-1 text-white/70 hover:text-white text-sm"
-              onClick={e => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
             >
               <Download size={16} />
               <span>原图</span>
@@ -134,11 +191,17 @@ function Lightbox({ items, startIndex, onClose }: {
       {/* Media area: swipe on mobile, arrows on desktop */}
       <div
         className="flex-1 relative flex items-center justify-center px-4 pb-4"
-        onClick={e => e.stopPropagation()}
-        onTouchStart={e => { touchStartX.current = e.targetTouches[0].clientX; touchEndX.current = null; }}
-        onTouchMove={e => { touchEndX.current = e.targetTouches[0].clientX; }}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => {
+          touchStartX.current = e.targetTouches[0].clientX;
+          touchEndX.current = null;
+        }}
+        onTouchMove={(e) => {
+          touchEndX.current = e.targetTouches[0].clientX;
+        }}
         onTouchEnd={() => {
-          if (touchStartX.current === null || touchEndX.current === null) return;
+          if (touchStartX.current === null || touchEndX.current === null)
+            return;
           const delta = touchStartX.current - touchEndX.current;
           if (Math.abs(delta) > SWIPE_THRESHOLD) {
             delta > 0 ? next() : prev();
@@ -151,24 +214,40 @@ function Lightbox({ items, startIndex, onClose }: {
         {current > 0 && (
           <button
             className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 items-center justify-center w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors z-10"
-            onClick={(e) => { e.stopPropagation(); prev(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              prev();
+            }}
           >
             <ChevronLeft size={24} />
           </button>
         )}
 
         {/* Media */}
-        {item?.mediaType === 'video' ? (
-          <video src={item.url} controls autoPlay className="max-h-full max-w-full rounded-lg" />
+        {item?.mediaType === "video" ? (
+          <video
+            src={item.url}
+            controls
+            autoPlay
+            className="max-h-full max-w-full rounded-lg"
+          />
         ) : (
-          <img src={item.url} alt="" className="max-h-full max-w-full object-contain rounded-lg select-none" draggable={false} />
+          <img
+            src={item.url}
+            alt=""
+            className="max-h-full max-w-full object-contain rounded-lg select-none"
+            draggable={false}
+          />
         )}
 
         {/* Right arrow — desktop only */}
         {current < items.length - 1 && (
           <button
             className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 items-center justify-center w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors z-10"
-            onClick={(e) => { e.stopPropagation(); next(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              next();
+            }}
           >
             <ChevronRight size={24} />
           </button>
@@ -177,12 +256,15 @@ function Lightbox({ items, startIndex, onClose }: {
 
       {/* Dot indicators */}
       {items.length > 1 && (
-        <div className="flex justify-center gap-1.5 pb-4" onClick={e => e.stopPropagation()}>
+        <div
+          className="flex justify-center gap-1.5 pb-4"
+          onClick={(e) => e.stopPropagation()}
+        >
           {items.map((_, i) => (
             <button
               key={i}
               onClick={() => setCurrent(i)}
-              className={`w-1.5 h-1.5 rounded-full transition-all ${i === current ? 'bg-white scale-125' : 'bg-white/40'}`}
+              className={`w-1.5 h-1.5 rounded-full transition-all ${i === current ? "bg-white scale-125" : "bg-white/40"}`}
             />
           ))}
         </div>
@@ -208,7 +290,7 @@ function CommentSection({
   onDeleteComment: (momentId: string, commentId: string) => Promise<void>;
   currentUserId: string;
 }) {
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -217,7 +299,7 @@ function CommentSection({
     setSubmitting(true);
     try {
       await onAddComment(momentId, input.trim());
-      setInput('');
+      setInput("");
     } finally {
       setSubmitting(false);
     }
@@ -229,14 +311,20 @@ function CommentSection({
     <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
       {comments.length > 0 && (
         <div className="space-y-2 mb-3">
-          {comments.map(c => (
+          {comments.map((c) => (
             <div key={c.id} className="flex items-start gap-2 group">
               <Avatar name={c.displayName} size="sm" />
               <div className="flex-1 min-w-0">
-                <span className="text-xs font-medium text-primary-600 dark:text-primary-400 mr-1">{c.displayName}:</span>
-                <span className="text-sm text-gray-700 dark:text-gray-300 break-words">{c.content}</span>
+                <span className="text-xs font-medium text-primary-600 dark:text-primary-400 mr-1">
+                  {c.displayName}:
+                </span>
+                <span className="text-sm text-gray-700 dark:text-gray-300 break-words">
+                  {c.content}
+                </span>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-xs text-gray-400">{dayjs(c.createdAt).fromNow()}</span>
+                  <span className="text-xs text-gray-400">
+                    {dayjs(c.createdAt).fromNow()}
+                  </span>
                   {c.userId === currentUserId && (
                     <button
                       onClick={() => onDeleteComment(momentId, c.id)}
@@ -255,8 +343,8 @@ function CommentSection({
         <input
           ref={inputRef}
           value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && submit()}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && submit()}
           placeholder="写评论..."
           className="flex-1 text-sm bg-gray-100 dark:bg-gray-700 rounded-full px-3 py-1.5 outline-none focus:ring-2 focus:ring-primary-400 dark:text-gray-200"
         />
@@ -299,8 +387,12 @@ function MomentCard({
         <div className="flex items-center gap-2">
           <Avatar name={moment.displayName} />
           <div>
-            <p className="font-semibold text-sm text-gray-800 dark:text-gray-100">{moment.displayName}</p>
-            <p className="text-xs text-gray-400">{dayjs(moment.createdAt).fromNow()}</p>
+            <p className="font-semibold text-sm text-gray-800 dark:text-gray-100">
+              {moment.displayName}
+            </p>
+            <p className="text-xs text-gray-400">
+              {dayjs(moment.createdAt).fromNow()}
+            </p>
           </div>
         </div>
         {moment.isOwner && (
@@ -331,29 +423,36 @@ function MomentCard({
       {/* Media */}
       <MediaGrid
         items={moment.mediaItems}
-        onClickImage={idx => setLightboxIdx(idx)}
+        onClickImage={(idx) => setLightboxIdx(idx)}
       />
 
       {/* Actions */}
       <div className="mt-3 flex items-center justify-between">
         <button
-          onClick={() => setExpanded(v => !v)}
+          onClick={() => setExpanded((v) => !v)}
           className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-500"
         >
           <MessageCircle size={16} />
-          <span>{moment.commentCount > 0 ? `${moment.commentCount} 条评论` : '评论'}</span>
+          <span>
+            {moment.commentCount > 0 ? `${moment.commentCount} 条评论` : "评论"}
+          </span>
           {moment.commentCount > 0 && (
-            <ChevronDown size={14} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+            <ChevronDown
+              size={14}
+              className={`transition-transform ${expanded ? "rotate-180" : ""}`}
+            />
           )}
         </button>
-        <span className="text-xs text-gray-400">{dayjs(moment.createdAt).format('MM/DD HH:mm')}</span>
+        <span className="text-xs text-gray-400">
+          {dayjs(moment.createdAt).format("MM/DD HH:mm")}
+        </span>
       </div>
 
       {/* Comments */}
       <CommentSection
         momentId={moment.id}
         comments={moment.comments}
-        isExpanded={expanded || moment.commentCount > 0 && expanded}
+        isExpanded={expanded || (moment.commentCount > 0 && expanded)}
         onAddComment={onAddComment}
         onDeleteComment={onDeleteComment}
         currentUserId={currentUserId}
@@ -377,7 +476,7 @@ interface MediaPreview {
   file?: File;
   url: string;
   result?: UploadMomentResult;
-  type: 'image' | 'video';
+  type: "image" | "video";
 }
 
 function MomentFormDialog({
@@ -391,7 +490,7 @@ function MomentFormDialog({
   onSave: (content: string, mediaItems: MediaItem[]) => Promise<void>;
   editMoment?: Moment | null;
 }) {
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState("");
   const [previews, setPreviews] = useState<MediaPreview[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -399,54 +498,65 @@ function MomentFormDialog({
 
   useEffect(() => {
     if (open) {
-      setContent(editMoment?.content ?? '');
+      setContent(editMoment?.content ?? "");
       if (editMoment) {
-        setPreviews(editMoment.mediaItems.map(item => ({
-          url: item.url,
-          result: { url: item.url, key: item.key, rawUrl: item.rawUrl, rawKey: item.rawKey, mediaType: item.mediaType },
-          type: item.mediaType,
-        })));
+        setPreviews(
+          editMoment.mediaItems.map((item) => ({
+            url: item.url,
+            result: {
+              url: item.url,
+              key: item.key,
+              rawUrl: item.rawUrl,
+              rawKey: item.rawKey,
+              mediaType: item.mediaType,
+            },
+            type: item.mediaType,
+          })),
+        );
       } else {
         setPreviews([]);
       }
     }
   }, [open, editMoment]);
 
-  const handleFiles = useCallback(async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const allowed = Array.from(files).slice(0, 9 - previews.length);
-    if (allowed.length === 0) return;
+  const handleFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      const allowed = Array.from(files).slice(0, 9 - previews.length);
+      if (allowed.length === 0) return;
 
-    const newPreviews: MediaPreview[] = allowed.map(f => ({
-      file: f,
-      url: URL.createObjectURL(f),
-      type: f.type.startsWith('video/') ? 'video' : 'image',
-    }));
-    setPreviews(prev => [...prev, ...newPreviews]);
+      const newPreviews: MediaPreview[] = allowed.map((f) => ({
+        file: f,
+        url: URL.createObjectURL(f),
+        type: f.type.startsWith("video/") ? "video" : "image",
+      }));
+      setPreviews((prev) => [...prev, ...newPreviews]);
 
-    setUploading(true);
-    try {
-      const results = await api.moments.uploadMedia(allowed);
-      setPreviews(prev => {
-        const next = [...prev];
-        let ri = 0;
-        for (let i = 0; i < next.length; i++) {
-          if (!next[i].result && next[i].file) {
-            next[i] = { ...next[i], result: results[ri++] };
-            if (ri >= results.length) break;
+      setUploading(true);
+      try {
+        const results = await api.moments.uploadMedia(allowed);
+        setPreviews((prev) => {
+          const next = [...prev];
+          let ri = 0;
+          for (let i = 0; i < next.length; i++) {
+            if (!next[i].result && next[i].file) {
+              next[i] = { ...next[i], result: results[ri++] };
+              if (ri >= results.length) break;
+            }
           }
-        }
-        return next;
-      });
-    } catch (e) {
-      console.error('Upload failed', e);
-    } finally {
-      setUploading(false);
-    }
-  }, [previews.length]);
+          return next;
+        });
+      } catch (e) {
+        console.error("Upload failed", e);
+      } finally {
+        setUploading(false);
+      }
+    },
+    [previews.length],
+  );
 
   const removePreview = (idx: number) => {
-    setPreviews(prev => {
+    setPreviews((prev) => {
       const next = [...prev];
       const removed = next.splice(idx, 1)[0];
       if (removed.file) URL.revokeObjectURL(removed.url);
@@ -457,8 +567,8 @@ function MomentFormDialog({
   const handleSave = async () => {
     if (uploading) return;
     const mediaItems: MediaItem[] = previews
-      .filter(p => p.result)
-      .map(p => ({
+      .filter((p) => p.result)
+      .map((p) => ({
         key: p.result!.key,
         rawKey: p.result!.rawKey,
         mediaType: p.result!.mediaType,
@@ -474,30 +584,54 @@ function MomentFormDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-lg">
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent
+        className={[
+          // Mobile: full-width bottom sheet, no gap at bottom
+          "bottom-0 left-0 right-0 top-auto translate-x-0 translate-y-0",
+          "rounded-t-2xl rounded-b-none h-[80svh] overflow-y-auto pb-6 flex flex-col",
+          "sm:h-auto sm:max-h-[80svh]",
+          // Desktop (sm+): centered modal with max width
+          "sm:left-1/2 sm:top-1/2 sm:bottom-auto",
+          "sm:-translate-x-1/2 sm:-translate-y-1/2",
+          "sm:rounded-xl sm:max-w-lg sm:max-h-none sm:overflow-visible",
+        ].join(" ")}
+      >
         <DialogHeader>
-          <DialogTitle>{editMoment ? '编辑动态' : '发布动态'}</DialogTitle>
+          <DialogTitle>{editMoment ? "编辑动态" : "发布动态"}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 pt-1">
+        <div className="space-y-4 pt-1 flex-1 flex flex-col">
           <textarea
             value={content}
-            onChange={e => setContent(e.target.value)}
+            onChange={(e) => setContent(e.target.value)}
             placeholder="分享宝宝的精彩时刻..."
-            rows={4}
+            rows={3}
             className="w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 p-3 text-sm outline-none focus:ring-2 focus:ring-primary-400 resize-none dark:text-gray-100"
           />
 
           {/* Preview grid */}
           {previews.length > 0 && (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2 flex-1">
               {previews.map((p, idx) => (
-                <div key={idx} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
-                  {p.type === 'video' ? (
-                    <video src={p.url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+                <div
+                  key={idx}
+                  className="relative aspect-[4/5] rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700"
+                >
+                  {p.type === "video" ? (
+                    <video
+                      src={p.url}
+                      className="w-full h-full object-cover"
+                      muted
+                      playsInline
+                      preload="metadata"
+                    />
                   ) : (
-                    <img src={p.url} alt="" className="w-full h-full object-cover" />
+                    <img
+                      src={p.url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
                   )}
                   {!p.result && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -515,7 +649,7 @@ function MomentFormDialog({
               {previews.length < 9 && (
                 <button
                   onClick={() => fileRef.current?.click()}
-                  className="aspect-square rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors"
+                  className="aspect-[4/5] rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors"
                 >
                   <ImagePlus size={20} />
                   <span className="text-xs">添加</span>
@@ -527,9 +661,9 @@ function MomentFormDialog({
           {previews.length === 0 && (
             <button
               onClick={() => fileRef.current?.click()}
-              className="w-full py-8 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors"
+              className="w-full flex-1 min-h-[180px] rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors"
             >
-              <ImagePlus size={28} />
+              <ImagePlus size={36} />
               <span className="text-sm">点击添加照片 / 视频（最多 9 个）</span>
             </button>
           )}
@@ -540,16 +674,28 @@ function MomentFormDialog({
             accept="image/*,video/*"
             multiple
             className="hidden"
-            onChange={e => handleFiles(e.target.files)}
+            onChange={(e) => handleFiles(e.target.files)}
           />
 
           <div className="flex justify-end gap-2 pt-1">
-            <Button variant="secondary" onClick={onClose}>取消</Button>
+            <Button variant="secondary" onClick={onClose}>
+              取消
+            </Button>
             <Button
               onClick={handleSave}
-              disabled={saving || uploading || (!content.trim() && previews.length === 0)}
+              disabled={
+                saving ||
+                uploading ||
+                (!content.trim() && previews.length === 0)
+              }
             >
-              {saving ? '发布中...' : uploading ? '上传中...' : editMoment ? '保存' : '发布'}
+              {saving
+                ? "发布中..."
+                : uploading
+                  ? "上传中..."
+                  : editMoment
+                    ? "保存"
+                    : "发布"}
             </Button>
           </div>
         </div>
@@ -581,7 +727,7 @@ export default function MomentsPage() {
       const data = res.data;
       setTotal(data.total);
       setHasMore(p * PAGE_SIZE < data.total);
-      setMoments(prev => replace ? data.items : [...prev, ...data.items]);
+      setMoments((prev) => (replace ? data.items : [...prev, ...data.items]));
       setPage(p);
     } catch (e) {
       console.error(e);
@@ -595,19 +741,35 @@ export default function MomentsPage() {
   }, [fetchMoments]);
 
   const handleCreate = async (content: string, mediaItems: MediaItem[]) => {
-    const res = await api.moments.create({ content: content || undefined, mediaItems });
-    setMoments(prev => [res.data, ...prev]);
-    setTotal(t => t + 1);
+    const res = await api.moments.create({
+      content: content || undefined,
+      mediaItems,
+    });
+    setMoments((prev) => [res.data, ...prev]);
+    setTotal((t) => t + 1);
   };
 
   const handleUpdate = async (content: string, mediaItems: MediaItem[]) => {
     if (!editMoment) return;
-    await api.moments.update(editMoment.id, { content: content || undefined, mediaItems });
-    setMoments(prev => prev.map(m => m.id === editMoment.id ? {
-      ...m,
-      content: content || null,
-      mediaItems: mediaItems.map(mi => ({ ...mi, url: '', rawUrl: '' })),
-    } : m));
+    await api.moments.update(editMoment.id, {
+      content: content || undefined,
+      mediaItems,
+    });
+    setMoments((prev) =>
+      prev.map((m) =>
+        m.id === editMoment.id
+          ? {
+              ...m,
+              content: content || null,
+              mediaItems: mediaItems.map((mi) => ({
+                ...mi,
+                url: "",
+                rawUrl: "",
+              })),
+            }
+          : m,
+      ),
+    );
     await fetchMoments(1, true);
   };
 
@@ -620,8 +782,8 @@ export default function MomentsPage() {
     setDeleting(true);
     try {
       await api.moments.delete(deleteTarget);
-      setMoments(prev => prev.filter(m => m.id !== deleteTarget));
-      setTotal(t => t - 1);
+      setMoments((prev) => prev.filter((m) => m.id !== deleteTarget));
+      setTotal((t) => t - 1);
     } finally {
       setDeleting(false);
       setDeleteTarget(null);
@@ -630,18 +792,30 @@ export default function MomentsPage() {
 
   const handleAddComment = async (momentId: string, content: string) => {
     const res = await api.moments.addComment(momentId, content);
-    setMoments(prev => prev.map(m => {
-      if (m.id !== momentId) return m;
-      return { ...m, comments: [...m.comments, res.data], commentCount: m.commentCount + 1 };
-    }));
+    setMoments((prev) =>
+      prev.map((m) => {
+        if (m.id !== momentId) return m;
+        return {
+          ...m,
+          comments: [...m.comments, res.data],
+          commentCount: m.commentCount + 1,
+        };
+      }),
+    );
   };
 
   const handleDeleteComment = async (momentId: string, commentId: string) => {
     await api.moments.deleteComment(momentId, commentId);
-    setMoments(prev => prev.map(m => {
-      if (m.id !== momentId) return m;
-      return { ...m, comments: m.comments.filter(c => c.id !== commentId), commentCount: m.commentCount - 1 };
-    }));
+    setMoments((prev) =>
+      prev.map((m) => {
+        if (m.id !== momentId) return m;
+        return {
+          ...m,
+          comments: m.comments.filter((c) => c.id !== commentId),
+          commentCount: m.commentCount - 1,
+        };
+      }),
+    );
   };
 
   return (
@@ -649,7 +823,9 @@ export default function MomentsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">朋友圈</h1>
+          <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">
+            朋友圈
+          </h1>
           <p className="text-xs text-gray-400 mt-0.5">共 {total} 条动态</p>
         </div>
         <button
@@ -663,13 +839,16 @@ export default function MomentsPage() {
 
       {/* Feed */}
       <div className="space-y-3">
-        {moments.map(moment => (
+        {moments.map((moment) => (
           <MomentCard
             key={moment.id}
             moment={moment}
-            currentUserId={user?.id ?? ''}
+            currentUserId={user?.id ?? ""}
             onDelete={handleDelete}
-            onEdit={m => { setEditMoment(m); setShowCreate(true); }}
+            onEdit={(m) => {
+              setEditMoment(m);
+              setShowCreate(true);
+            }}
             onAddComment={handleAddComment}
             onDeleteComment={handleDeleteComment}
           />
@@ -701,7 +880,10 @@ export default function MomentsPage() {
       {/* Create / Edit dialog */}
       <MomentFormDialog
         open={showCreate}
-        onClose={() => { setShowCreate(false); setEditMoment(null); }}
+        onClose={() => {
+          setShowCreate(false);
+          setEditMoment(null);
+        }}
         onSave={editMoment ? handleUpdate : handleCreate}
         editMoment={editMoment}
       />
@@ -709,7 +891,9 @@ export default function MomentsPage() {
       {/* Delete confirm dialog */}
       <ConfirmDialog
         open={deleteTarget !== null}
-        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
         title="删除动态"
         description="确认删除这条动态？此操作不可撤销，相关图片和视频也将一并删除。"
         confirmLabel="删除"
