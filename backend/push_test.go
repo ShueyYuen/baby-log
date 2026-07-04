@@ -28,15 +28,16 @@ func TestPushSubscribeAndUnsubscribe(t *testing.T) {
 	}
 	mustOK(t, s.do(http.MethodPost, "/push/subscribe", uid, sub))
 
+	userID := tokenToUserID(uid)
 	var cnt int
-	db.QueryRow(`SELECT COUNT(*) FROM "PushSubscription" WHERE userId = ?`, uid).Scan(&cnt)
+	db.QueryRow(`SELECT COUNT(*) FROM "PushSubscription" WHERE userId = ?`, userID).Scan(&cnt)
 	if cnt != 1 {
 		t.Fatalf("expected 1 subscription, got %d", cnt)
 	}
 
 	// 相同 endpoint 再订阅应 upsert，不新增
 	mustOK(t, s.do(http.MethodPost, "/push/subscribe", uid, sub))
-	db.QueryRow(`SELECT COUNT(*) FROM "PushSubscription" WHERE userId = ?`, uid).Scan(&cnt)
+	db.QueryRow(`SELECT COUNT(*) FROM "PushSubscription" WHERE userId = ?`, userID).Scan(&cnt)
 	if cnt != 1 {
 		t.Fatalf("upsert should keep 1 subscription, got %d", cnt)
 	}
@@ -110,7 +111,7 @@ func TestDueReminders(t *testing.T) {
 	// 直接插入过期提醒（handler 不接受过去时间的自动过滤，这里手动构造）
 	insertReminder(t, bid, past, "到点了", "body")
 
-	e := mustOK(t, s.do(http.MethodGet, "/push/due-reminders", uid, nil))
+	e := mustOK(t, s.do(http.MethodPost, "/push/due-reminders", uid, nil))
 	var notifs []struct {
 		ID    string `json:"id"`
 		Title string `json:"title"`

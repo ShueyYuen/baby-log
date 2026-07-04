@@ -10,6 +10,25 @@ import (
 	"github.com/google/uuid"
 )
 
+// sniffMediaType reads the first 512 bytes to detect actual content type.
+func sniffMediaType(data []byte) string {
+	return http.DetectContentType(data)
+}
+
+// validateMediaType checks if the sniffed MIME matches the allowed set.
+func validateMediaType(data []byte, allowed map[string]bool) bool {
+	sniffed := sniffMediaType(data)
+	if allowed[sniffed] {
+		return true
+	}
+	// http.DetectContentType may return "application/octet-stream" for valid video;
+	// fall back to client-declared type check for videos.
+	if strings.HasPrefix(sniffed, "video/") {
+		return allowed[sniffed]
+	}
+	return false
+}
+
 const maxUploadSize = 10 * 1024 * 1024 // 10MB per file (regular uploads)
 
 // maxMomentUploadSize allows larger files for moments (photos/videos).

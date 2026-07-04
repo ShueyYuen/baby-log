@@ -160,7 +160,7 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				r.Delete("/subscribe", handlePushUnsubscribe)
 				r.Post("/reminder", handleCreateReminder)
 				r.Get("/reminder", handleListReminders)
-				r.Get("/due-reminders", handleDueReminders)
+				r.Post("/due-reminders", handleDueReminders)
 			})
 
 			r.Post("/admin/cleanup", handleManualCleanup)
@@ -227,9 +227,14 @@ func panicRecovery(next http.Handler) http.Handler {
 func spaHandler(webDist string) http.HandlerFunc {
 	fileServer := http.FileServer(http.Dir(webDist))
 	indexHTML := filepath.Join(webDist, "index.html")
+	absWebDist, _ := filepath.Abs(webDist)
 	return func(w http.ResponseWriter, r *http.Request) {
-		clean := filepath.Clean(r.URL.Path)
-		full := filepath.Join(webDist, clean)
+		clean := filepath.Clean("/" + r.URL.Path)
+		full := filepath.Join(absWebDist, clean)
+		if !strings.HasPrefix(full, absWebDist) {
+			http.ServeFile(w, r, indexHTML)
+			return
+		}
 		if info, err := os.Stat(full); err == nil && !info.IsDir() {
 			fileServer.ServeHTTP(w, r)
 			return

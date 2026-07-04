@@ -49,20 +49,21 @@ func authMiddleware(next http.Handler) http.Handler {
 		}
 		token := strings.TrimPrefix(authHeader, "Bearer ")
 
-		var userID string
-		var tokenVer int = -1
-		if idx := strings.LastIndex(token, ":"); idx > 0 {
-			userID = token[:idx]
-			if v, err := strconv.Atoi(token[idx+1:]); err == nil {
-				tokenVer = v
-			}
-		} else {
-			userID = token
+		idx := strings.LastIndex(token, ":")
+		if idx <= 0 {
+			writeErr(w, http.StatusUnauthorized, "Invalid token format")
+			return
+		}
+		userID := token[:idx]
+		tokenVer, err := strconv.Atoi(token[idx+1:])
+		if err != nil {
+			writeErr(w, http.StatusUnauthorized, "Invalid token format")
+			return
 		}
 
 		var id, role string
 		var dbTokenVer int
-		err := db.QueryRow(`SELECT id, role, "tokenVersion" FROM "User" WHERE id = ?`, userID).Scan(&id, &role, &dbTokenVer)
+		err = db.QueryRow(`SELECT id, role, "tokenVersion" FROM "User" WHERE id = ?`, userID).Scan(&id, &role, &dbTokenVer)
 		if err != nil {
 			if isNoRows(err) {
 				writeErr(w, http.StatusUnauthorized, "Invalid token")
@@ -72,7 +73,7 @@ func authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if tokenVer >= 0 && tokenVer != dbTokenVer {
+		if tokenVer != dbTokenVer {
 			writeErr(w, http.StatusUnauthorized, "Token 已失效，请重新登录")
 			return
 		}

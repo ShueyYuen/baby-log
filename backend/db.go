@@ -227,6 +227,13 @@ CREATE INDEX IF NOT EXISTS "Moment_createdAt_idx" ON "Moment"("createdAt");
 CREATE INDEX IF NOT EXISTS "Moment_userId_idx" ON "Moment"("userId");
 CREATE INDEX IF NOT EXISTS "MomentComment_momentId_idx" ON "MomentComment"("momentId");
 
+CREATE TABLE IF NOT EXISTS "ReminderDelivered" (
+    "reminderId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "deliveredAt" INTEGER NOT NULL,
+    PRIMARY KEY ("reminderId", "userId")
+);
+
 CREATE TABLE IF NOT EXISTS "UploadedFile" (
     "key" TEXT NOT NULL PRIMARY KEY,
     "rawKey" TEXT,

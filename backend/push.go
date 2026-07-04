@@ -198,7 +198,9 @@ func handleListReminders(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, list)
 }
 
-// GET /push/due-reminders
+// POST /push/due-reminders — 轮询到期提醒并标记已发送。
+// 使用 POST 因为此端点有副作用（标记 sent）。
+// 只标记当前用户已轮询的提醒，不影响其他家庭成员。
 func handleDueReminders(w http.ResponseWriter, r *http.Request) {
 	userID := getUserID(r)
 	now := int64(nowMillis())
@@ -229,11 +231,13 @@ func handleDueReminders(w http.ResponseWriter, r *http.Request) {
 	for _, b := range babyIDs {
 		args = append(args, b)
 	}
-	args = append(args, now)
+	args = append(args, now, userID)
 	rows, err := db.Query(`
 		SELECT r.id, r.title, r.body, b.name
 		FROM "Reminder" r JOIN "Baby" b ON b.id = r.babyId
-		WHERE r.babyId IN (`+placeholders(len(babyIDs))+`) AND r.sent = 0 AND r.remindAt <= ?`, args...)
+		WHERE r.babyId IN (`+placeholders(len(babyIDs))+`)
+		  AND r.remindAt <= ?
+		  AND r.id NOT IN (SELECT reminderId FROM "ReminderDelivered" WHERE userId = ?)`, args...)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
@@ -268,11 +272,11 @@ func handleDueReminders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	markArgs := []interface{}{}
+	// 标记这些提醒对当前用户已投递
 	for _, id := range ids {
-		markArgs = append(markArgs, id)
+		db.Exec(`INSERT OR IGNORE INTO "ReminderDelivered" (reminderId, userId, deliveredAt) VALUES (?, ?, ?)`,
+			id, userID, now)
 	}
-	_, _ = db.Exec(`UPDATE "Reminder" SET sent = 1 WHERE id IN (`+placeholders(len(ids))+`)`, markArgs...)
 
 	log.Printf("[Push] Served %d due reminder(s) via polling to user %s", len(notifications), userID)
 	writeOK(w, notifications)

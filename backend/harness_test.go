@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -122,6 +123,7 @@ func (s *testServer) rawRequest(req *http.Request) resp {
 
 // ---- 测试数据构造助手 ----
 
+// insertUser creates a test user and returns "userId:tokenVersion" as the auth token.
 func insertUser(t *testing.T, username, displayName, role string) string {
 	t.Helper()
 	id := uuid.NewString()
@@ -131,11 +133,21 @@ func insertUser(t *testing.T, username, displayName, role string) string {
 	if err != nil {
 		t.Fatalf("insert user: %v", err)
 	}
-	return id
+	return id + ":1"
+}
+
+// tokenToUserID extracts the user ID from a "userId:tokenVersion" token.
+func tokenToUserID(token string) string {
+	if i := strings.LastIndex(token, ":"); i > 0 {
+		return token[:i]
+	}
+	return token
 }
 
 // createBabyFor 直接在库中创建宝宝并把 userID 设为 admin 成员，返回 babyId。
+// userID 可以是 "id:version" 格式的 token，会自动提取 id 部分。
 func createBabyFor(t *testing.T, userID, name string) string {
+	userID = tokenToUserID(userID)
 	t.Helper()
 	id := uuid.NewString()
 	now := int64(nowMillis())
@@ -173,6 +185,7 @@ func insertReminder(t *testing.T, babyID, remindAtISO, title, body string) strin
 
 // insertFeeding 直接向库写入一条奶瓶喂养记录。
 func insertFeeding(t *testing.T, babyID, userID, typ string, amountMl float64, occurred time.Time) {
+	userID = tokenToUserID(userID)
 	t.Helper()
 	data := `{"amountMl":` + strconv.FormatFloat(amountMl, 'f', -1, 64) + `}`
 	now := int64(nowMillis())

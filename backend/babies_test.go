@@ -24,7 +24,7 @@ func TestCreateBaby(t *testing.T) {
 		t.Errorf("birthDate got %d", int64(b.BirthDate))
 	}
 	// 创建者应成为该宝宝成员
-	ok, _ := findMembership(b.ID, uid, "admin")
+	ok, _ := findMembership(b.ID, tokenToUserID(uid), "admin")
 	if !ok {
 		t.Errorf("creator should be admin member")
 	}

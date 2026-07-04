@@ -50,9 +50,8 @@ func TestLoginSuccess(t *testing.T) {
 	if err := jsonUnmarshal(e.Data, &data); err != nil {
 		t.Fatal(err)
 	}
-	expected := uid + ":1"
-	if data.Token != expected {
-		t.Errorf("token should equal user id:version, got %q want %q", data.Token, expected)
+	if data.Token != uid {
+		t.Errorf("token should equal user id:version, got %q want %q", data.Token, uid)
 	}
 	if data.User.Username != "alice" || data.User.DisplayName != "Alice" {
 		t.Errorf("user payload wrong: %+v", data.User)
@@ -86,7 +85,7 @@ func TestMeEndpoint(t *testing.T) {
 	e := mustOK(t, r)
 	var u userPublic
 	jsonUnmarshal(e.Data, &u)
-	if u.ID != uid || u.Username != "carol" {
+	if u.ID != tokenToUserID(uid) || u.Username != "carol" {
 		t.Errorf("me payload wrong: %+v", u)
 	}
 
@@ -185,9 +184,11 @@ func TestDeleteUser(t *testing.T) {
 	s := newTestServer(t)
 	admin := insertUser(t, "admin", "Admin", "admin")
 	target := insertUser(t, "target", "Target", "user")
+	adminID := tokenToUserID(admin)
+	targetID := tokenToUserID(target)
 
 	// 不能删除自己
-	self := s.do(http.MethodDelete, "/auth/users/"+admin, admin, nil)
+	self := s.do(http.MethodDelete, "/auth/users/"+adminID, admin, nil)
 	if self.status != http.StatusBadRequest {
 		t.Fatalf("delete self expected 400, got %d", self.status)
 	}
@@ -199,11 +200,11 @@ func TestDeleteUser(t *testing.T) {
 	}
 
 	// 删除目标用户成功
-	ok := s.do(http.MethodDelete, "/auth/users/"+target, admin, nil)
+	ok := s.do(http.MethodDelete, "/auth/users/"+targetID, admin, nil)
 	mustOK(t, ok)
 
 	var cnt int
-	db.QueryRow(`SELECT COUNT(*) FROM "User" WHERE id = ?`, target).Scan(&cnt)
+	db.QueryRow(`SELECT COUNT(*) FROM "User" WHERE id = ?`, targetID).Scan(&cnt)
 	if cnt != 0 {
 		t.Fatalf("target user should be deleted")
 	}
@@ -213,8 +214,9 @@ func TestResetPassword(t *testing.T) {
 	s := newTestServer(t)
 	admin := insertUser(t, "admin", "Admin", "admin")
 	target := insertUser(t, "target", "Target", "user")
+	targetID := tokenToUserID(target)
 
-	r := s.do(http.MethodPost, "/auth/users/"+target+"/reset-password", admin, nil)
+	r := s.do(http.MethodPost, "/auth/users/"+targetID+"/reset-password", admin, nil)
 	e := mustOK(t, r)
 	var data struct {
 		GeneratedPassword string `json:"generatedPassword"`

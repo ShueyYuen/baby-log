@@ -13,6 +13,7 @@ async function checkReminders() {
     if (!token) return;
 
     const res = await fetch('/api/v1/push/due-reminders', {
+      method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
 
