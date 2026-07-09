@@ -378,6 +378,34 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, list)
 }
 
+// GET /auth/members — lightweight user list for all authenticated users (visibility picker)
+func handleListMembers(w http.ResponseWriter, r *http.Request) {
+	rows, err := db.Query(`SELECT id, displayName, avatar FROM "User" ORDER BY createdAt ASC`)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	defer rows.Close()
+
+	type memberItem struct {
+		ID          string  `json:"id"`
+		DisplayName string  `json:"displayName"`
+		Avatar      *string `json:"avatar"`
+	}
+
+	list := []memberItem{}
+	for rows.Next() {
+		var it memberItem
+		if err := rows.Scan(&it.ID, &it.DisplayName, &it.Avatar); err != nil {
+			writeErr(w, http.StatusInternalServerError, "Server error")
+			return
+		}
+		list = append(list, it)
+	}
+
+	writeOK(w, list)
+}
+
 // DELETE /auth/users/{id} （管理员）
 func handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	adminID := getUserID(r)

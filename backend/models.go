@@ -36,18 +36,20 @@ type babyOut struct {
 
 // RecordImageStore is the JSON shape persisted in Record.images / Milestone.images.
 type RecordImageStore struct {
-	Key       string `json:"key"`
-	RawKey    string `json:"rawKey,omitempty"`
-	MediaType string `json:"mediaType,omitempty"`
+	Key       string   `json:"key"`
+	RawKey    string   `json:"rawKey,omitempty"`
+	MediaType string   `json:"mediaType,omitempty"`
+	VisibleTo []string `json:"visibleTo,omitempty"`
 }
 
 // RecordImageDisplay is the API response shape with resolved URLs.
 type RecordImageDisplay struct {
-	Key       string `json:"key"`
-	RawKey    string `json:"rawKey,omitempty"`
-	MediaType string `json:"mediaType,omitempty"`
-	URL       string `json:"url"`
-	RawURL    string `json:"rawUrl,omitempty"`
+	Key       string   `json:"key"`
+	RawKey    string   `json:"rawKey,omitempty"`
+	MediaType string   `json:"mediaType,omitempty"`
+	URL       string   `json:"url"`
+	RawURL    string   `json:"rawUrl,omitempty"`
+	VisibleTo []string `json:"visibleTo,omitempty"`
 }
 
 type recordOut struct {

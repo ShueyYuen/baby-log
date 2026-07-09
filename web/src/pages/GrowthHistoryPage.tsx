@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -28,15 +28,49 @@ export default function GrowthHistoryPage() {
   const [gHead, setGHead] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const PAGE_SIZE = 20;
 
   useEffect(() => {
-    if (currentBaby) loadRecords();
+    if (currentBaby) loadRecords(1, true);
   }, [currentBaby]);
 
-  const loadRecords = async () => {
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore || loadingMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          loadRecords(page + 1, false);
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, page]);
+
+  const loadRecords = async (p: number, replace: boolean) => {
     if (!currentBaby) return;
-    const res = await api.get<{ success: boolean; data: { items: GrowthItem[] } | GrowthItem[] }>(`/growth?babyId=${currentBaby.id}`);
-    setRecords(Array.isArray(res.data) ? res.data : res.data.items);
+    if (p > 1) setLoadingMore(true);
+    try {
+      const res = await api.get<{ success: boolean; data: { items: GrowthItem[]; total: number; hasMore: boolean } | GrowthItem[] }>(
+        `/growth?babyId=${currentBaby.id}&page=${p}&pageSize=${PAGE_SIZE}`
+      );
+      const items = Array.isArray(res.data) ? res.data : res.data.items;
+      const more = Array.isArray(res.data) ? false : res.data.hasMore;
+      const t = Array.isArray(res.data) ? items.length : res.data.total;
+      setHasMore(more);
+      setTotal(t);
+      setRecords((prev) => replace ? items : [...prev, ...items]);
+      setPage(p);
+    } finally {
+      setLoadingMore(false);
+    }
   };
 
   const openEdit = (r: GrowthItem) => {
@@ -57,7 +91,7 @@ export default function GrowthHistoryPage() {
       headCircumference: gHead ? +gHead : undefined,
     });
     setEditingRecord(null);
-    loadRecords();
+    loadRecords(1, true);
   };
 
   const confirmDelete = (id: string) => {
@@ -70,10 +104,8 @@ export default function GrowthHistoryPage() {
     await api.delete(`/growth/${deleteTarget}`);
     setShowDeleteConfirm(false);
     setDeleteTarget(null);
-    loadRecords();
+    loadRecords(1, true);
   };
-
-  const sorted = [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
     <div className="fixed inset-0 md:top-0 md:bottom-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900">
@@ -83,16 +115,16 @@ export default function GrowthHistoryPage() {
           <ArrowLeft size={20} />
         </Button>
         <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">成长记录历史</h2>
-        <span className="text-sm text-gray-400">{records.length}条</span>
+        <span className="text-sm text-gray-400">{total}条</span>
       </div>
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4">
-        {sorted.length === 0 ? (
+        {records.length === 0 ? (
           <p className="text-center text-gray-400 py-12">暂无记录</p>
         ) : (
           <div className="space-y-2 max-w-4xl mx-auto">
-            {sorted.map((r) => (
+            {records.map((r) => (
               <Card
                 key={r.id}
                 className={`transition-colors ${!isViewer ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700' : ''}`}
@@ -116,6 +148,19 @@ export default function GrowthHistoryPage() {
                 </CardContent>
               </Card>
             ))}
+            {loadingMore && (
+              <div className="flex justify-center py-4">
+                <div className="w-5 h-5 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            {hasMore && !loadingMore && (
+              <div ref={sentinelRef} className="h-4" />
+            )}
+            {!hasMore && records.length > 0 && !loadingMore && (
+              <div className="py-4 text-center text-xs text-gray-300 dark:text-gray-600">
+                已加载全部记录
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -55,6 +55,7 @@ export interface RecordImage {
   mediaType?: 'image' | 'video';
   url: string;
   rawUrl?: string;
+  visibleTo?: string[];
 }
 
 // ─── Moments types ────────────────────────────────────────────────────────────
@@ -63,6 +64,7 @@ export interface MediaItem {
   key: string;
   rawKey?: string;
   mediaType: 'image' | 'video';
+  visibleTo?: string[];
 }
 
 export interface MediaItemDisplay extends MediaItem {
@@ -139,6 +141,12 @@ export interface TimelineResponse {
   summary?: TimelineSummary;
   prediction?: FeedingPrediction;
   hasMore: boolean;
+}
+
+export interface Member {
+  id: string;
+  displayName: string;
+  avatar?: string | null;
 }
 
 // ─── API client ───────────────────────────────────────────────────────────────
@@ -243,5 +251,9 @@ export const api = {
         xhr.send(formData);
       });
     },
+  },
+
+  members: {
+    list: () => api.get<{ success: boolean; data: Member[] }>('/auth/members'),
   },
 };

@@ -31,10 +31,13 @@ func parseRecordImages(ns sql.NullString) []RecordImageStore {
 	return items
 }
 
-func recordImagesToDisplay(items []RecordImageStore) []RecordImageDisplay {
+func recordImagesToDisplay(items []RecordImageStore, currentUserID string, isAdmin bool) []RecordImageDisplay {
 	out := make([]RecordImageDisplay, 0, len(items))
 	for _, item := range items {
-		d := RecordImageDisplay{Key: item.Key, RawKey: item.RawKey, MediaType: item.MediaType}
+		if !isImageVisibleTo(item.VisibleTo, currentUserID, isAdmin) {
+			continue
+		}
+		d := RecordImageDisplay{Key: item.Key, RawKey: item.RawKey, MediaType: item.MediaType, VisibleTo: item.VisibleTo}
 		if item.Key != "" {
 			d.URL, _ = toDisplayURL(item.Key, 86400)
 		}
@@ -44,6 +47,21 @@ func recordImagesToDisplay(items []RecordImageStore) []RecordImageDisplay {
 		out = append(out, d)
 	}
 	return out
+}
+
+func isImageVisibleTo(visibleTo []string, userID string, isAdmin bool) bool {
+	if len(visibleTo) == 0 {
+		return true
+	}
+	if isAdmin {
+		return true
+	}
+	for _, id := range visibleTo {
+		if id == userID {
+			return true
+		}
+	}
+	return false
 }
 
 // GET /records
@@ -147,7 +165,7 @@ func handleListRecords(w http.ResponseWriter, r *http.Request) {
 		rec.CreatedAt = Millis(created)
 		rec.UpdatedAt = Millis(updated)
 		rec.Note = strPtr(note)
-		rec.Images = recordImagesToDisplay(parseRecordImages(images))
+		rec.Images = recordImagesToDisplay(parseRecordImages(images), userID, isAdminCtx(r))
 		rec.User = &memberUser{ID: uID, DisplayName: uName}
 		items = append(items, rec)
 	}
@@ -237,7 +255,7 @@ func handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 	out := recordOut{
 		ID: id, BabyID: body.BabyID, Category: body.Category, Type: body.Type,
 		Data: json.RawMessage(body.Data), OccurredAt: occurred, Note: body.Note,
-		Images: recordImagesToDisplay(parseRecordImages(imagesStore)), CreatedBy: userID,
+		Images: recordImagesToDisplay(parseRecordImages(imagesStore), userID, isAdminCtx(r)), CreatedBy: userID,
 		CreatedAt: now, UpdatedAt: now,
 	}
 	writeOK(w, out)
@@ -363,7 +381,7 @@ func handleUpdateRecord(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	out, err := loadRecordByID(id)
+	out, err := loadRecordByID(id, userID, isAdminCtx(r))
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
@@ -413,7 +431,7 @@ func handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 // loadRecordByID 返回不含 user 的记录（用于 PUT 响应，与原实现一致）。
-func loadRecordByID(id string) (*recordOut, error) {
+func loadRecordByID(id string, currentUserID string, isAdmin bool) (*recordOut, error) {
 	var rec recordOut
 	var dataStr string
 	var occurred, created, updated int64
@@ -428,7 +446,7 @@ func loadRecordByID(id string) (*recordOut, error) {
 	rec.CreatedAt = Millis(created)
 	rec.UpdatedAt = Millis(updated)
 	rec.Note = strPtr(note)
-	rec.Images = recordImagesToDisplay(parseRecordImages(images))
+	rec.Images = recordImagesToDisplay(parseRecordImages(images), currentUserID, isAdmin)
 	return &rec, nil
 }
 

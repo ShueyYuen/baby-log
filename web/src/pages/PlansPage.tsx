@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
@@ -125,48 +125,79 @@ export default function PlansPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('pending');
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const PAGE_SIZE = 20;
 
   useEffect(() => {
     if (!currentBaby) {
       setLoading(false);
       return;
     }
-    loadPlans();
+    loadPlans(1, true);
   }, [currentBaby, statusFilter]);
 
-  const loadPlans = async (invalidate = false) => {
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore || loadingMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          loadPlans(page + 1, false);
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, page]);
+
+  const loadPlans = async (p: number, replace: boolean) => {
     if (!currentBaby) return;
-    const params = new URLSearchParams({ babyId: currentBaby.id });
+    const params = new URLSearchParams({ babyId: currentBaby.id, page: String(p), pageSize: String(PAGE_SIZE) });
     if (statusFilter) params.set('status', statusFilter);
     const cKey = `/plans?${params}`;
 
-    if (invalidate) cacheInvalidate(`/plans`);
+    if (replace) cacheInvalidate(`/plans`);
 
-    type PlansRes = { success: boolean; data: { items: PlanItem[] } | PlanItem[] };
-    const cached = cacheRead<PlansRes>(cKey);
+    type PlansRes = { success: boolean; data: { items: PlanItem[]; total: number; hasMore: boolean } | PlanItem[] };
     const extract = (d: PlansRes['data']) => Array.isArray(d) ? d : d.items;
-    if (cached) {
-      setPlans(extract(cached.data));
-      setLoading(false);
+    const extractHasMore = (d: PlansRes['data']) => Array.isArray(d) ? false : (d as { hasMore: boolean }).hasMore;
+
+    if (p === 1) {
+      const cached = cacheRead<PlansRes>(cKey);
+      if (cached) {
+        setPlans(extract(cached.data));
+        setHasMore(extractHasMore(cached.data));
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
     } else {
-      setLoading(true);
+      setLoadingMore(true);
     }
 
     try {
       const res = await api.get<PlansRes>(cKey);
       cacheWrite(cKey, res);
-      setPlans(extract(res.data));
+      const items = extract(res.data);
+      setHasMore(extractHasMore(res.data));
+      setPlans((prev) => replace ? items : [...prev, ...items]);
+      setPage(p);
     } catch {
       // ignore
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
   const updateStatus = async (id: string, status: string) => {
     try {
       await api.put(`/plans/${id}`, { status });
-      loadPlans(true);
+      loadPlans(1, true);
     } catch {
       // ignore
     }
@@ -220,6 +251,19 @@ export default function PlansPage() {
               onCalendar={(title, scheduledAt, description, reminder) => addPlanToCalendar(title, scheduledAt, description, reminder)}
             />
           ))}
+          {loadingMore && (
+            <div className="flex justify-center py-4">
+              <div className="w-5 h-5 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+          {hasMore && !loadingMore && (
+            <div ref={sentinelRef} className="h-4" />
+          )}
+          {!hasMore && plans.length > 0 && !loadingMore && (
+            <div className="py-4 text-center text-xs text-gray-300 dark:text-gray-600">
+              已加载全部计划
+            </div>
+          )}
         </div>
       )}
 

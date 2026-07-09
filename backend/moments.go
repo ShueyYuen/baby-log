@@ -13,18 +13,20 @@ import (
 
 // MediaItem represents a stored media file (image or video) attached to a moment.
 type MediaItem struct {
-	Key       string `json:"key"`
-	RawKey    string `json:"rawKey,omitempty"`
-	MediaType string `json:"mediaType"` // "image" or "video"
+	Key       string   `json:"key"`
+	RawKey    string   `json:"rawKey,omitempty"`
+	MediaType string   `json:"mediaType"` // "image" or "video"
+	VisibleTo []string `json:"visibleTo,omitempty"`
 }
 
 // MediaItemDisplay extends MediaItem with resolved display URLs.
 type MediaItemDisplay struct {
-	Key       string `json:"key"`
-	RawKey    string `json:"rawKey,omitempty"`
-	MediaType string `json:"mediaType"`
-	URL       string `json:"url"`
-	RawURL    string `json:"rawUrl,omitempty"`
+	Key       string   `json:"key"`
+	RawKey    string   `json:"rawKey,omitempty"`
+	MediaType string   `json:"mediaType"`
+	URL       string   `json:"url"`
+	RawURL    string   `json:"rawUrl,omitempty"`
+	VisibleTo []string `json:"visibleTo,omitempty"`
 }
 
 type momentCommentOut struct {
@@ -52,13 +54,17 @@ type momentOut struct {
 }
 
 // mediaItemsToDisplay converts stored MediaItems to display form with resolved URLs.
-func mediaItemsToDisplay(items []MediaItem) []MediaItemDisplay {
+func mediaItemsToDisplay(items []MediaItem, currentUserID string, isAdmin bool) []MediaItemDisplay {
 	out := make([]MediaItemDisplay, 0, len(items))
 	for _, item := range items {
+		if !isImageVisibleTo(item.VisibleTo, currentUserID, isAdmin) {
+			continue
+		}
 		d := MediaItemDisplay{
 			Key:       item.Key,
 			RawKey:    item.RawKey,
 			MediaType: item.MediaType,
+			VisibleTo: item.VisibleTo,
 		}
 		if item.Key != "" {
 			d.URL, _ = toDisplayURL(item.Key, 86400)
@@ -181,7 +187,7 @@ func handleListMoments(w http.ResponseWriter, r *http.Request) {
 		if row.mediaItems.Valid && row.mediaItems.String != "" {
 			var items []MediaItem
 			if err := json.Unmarshal([]byte(row.mediaItems.String), &items); err == nil {
-				out.MediaItems = mediaItemsToDisplay(items)
+				out.MediaItems = mediaItemsToDisplay(items, currentUserID, isAdminCtx(r))
 			}
 		}
 		if out.MediaItems == nil {
@@ -285,7 +291,7 @@ func handleCreateMoment(w http.ResponseWriter, r *http.Request) {
 		DisplayName:  displayName,
 		Avatar:       avatar,
 		Content:      body.Content,
-		MediaItems:   mediaItemsToDisplay(body.MediaItems),
+		MediaItems:   mediaItemsToDisplay(body.MediaItems, currentUserID, isAdminCtx(r)),
 		Comments:     []momentCommentOut{},
 		CommentCount: 0,
 		CreatedAt:    Millis(now),

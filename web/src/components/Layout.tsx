@@ -77,16 +77,12 @@ export default function Layout({ children }: LayoutProps) {
         <div className="p-6 border-b border-gray-100 dark:border-gray-700">
           <h1 className="text-xl font-bold text-primary-600">宝宝日志</h1>
           {currentBaby ? (
-            isViewer ? (
-              <span className="text-sm text-gray-500 dark:text-gray-400 mt-1">{babyNameLabel}</span>
-            ) : (
               <button
                 onClick={openBabyEdit}
                 className="text-sm text-gray-500 dark:text-gray-400 mt-1 hover:text-primary-600 dark:hover:text-primary-400 transition-colors cursor-pointer"
               >
                 {babyNameLabel}
               </button>
-            )
           ) : babyLoading ? (
             <span className="text-sm text-gray-400 mt-1">…</span>
           ) : (
@@ -158,16 +154,12 @@ export default function Layout({ children }: LayoutProps) {
             {theme === 'dark' ? <Moon size={18} /> : theme === 'light' ? <Sun size={18} /> : <Monitor size={18} />}
           </button>
           {currentBaby ? (
-            isViewer ? (
-              <span className="text-sm text-gray-500 dark:text-gray-400">{babyNameLabel}</span>
-            ) : (
               <button
                 onClick={openBabyEdit}
                 className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
               >
                 {babyNameLabel}
               </button>
-            )
           ) : babyLoading ? (
             <span className="text-sm text-gray-400">…</span>
           ) : (
@@ -179,7 +171,7 @@ export default function Layout({ children }: LayoutProps) {
       </header>
 
       {/* Main Content */}
-      <main className={`h-full md:pt-6 md:pb-6 px-4 md:px-8 overflow-y-auto custom-scrollbar ${isSecondaryPage ? 'pt-0 pb-0' : 'pt-[60px] pb-[72px]'}`}>
+      <main className={`h-full md:pt-6 md:pb-6 px-4 md:px-8 overflow-y-auto custom-scrollbar ${isSecondaryPage ? 'pt-0 pb-0' : 'pt-[72px] pb-[72px]'}`}>
         <div className="max-w-4xl mx-auto">
           {!babyLoading && !currentBaby && (
             <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/30">

@@ -189,7 +189,7 @@ func handleUpdateBaby(w http.ResponseWriter, r *http.Request) {
 	userID := getUserID(r)
 	id := chiURLParam(r, "id")
 
-	ok, err := findMembership(id, userID, "admin", "editor")
+	ok, err := findMembership(id, userID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return

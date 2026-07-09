@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,6 +11,7 @@ import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog,
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { Textarea } from '../components/ui';
 import { GrowthSkeleton } from '../components/ui/skeleton';
+import { VisibilityPicker } from '../components/ui/visibility-picker';
 import { getPercentileData, PercentileData } from '../lib/growth-standards';
 
 interface MilestonePreview {
@@ -21,6 +22,7 @@ interface MilestonePreview {
   error?: boolean;
   type: 'image' | 'video';
   existing?: RecordImage;
+  visibleTo?: string[];
 }
 
 const M_CONCURRENT = 5;
@@ -52,6 +54,7 @@ function recordImageToPreview(img: RecordImage): MilestonePreview {
     url: img.url,
     type: (img.mediaType === 'video' ? 'video' : 'image') as 'image' | 'video',
     existing: img,
+    visibleTo: img.visibleTo,
     result: { url: img.url, key: img.key, rawUrl: img.rawUrl, rawKey: img.rawKey, mediaType: img.mediaType || 'image' },
   };
 }
@@ -95,6 +98,11 @@ export default function GrowthPage() {
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
   const [activeChart, setActiveChart] = useState<'weight' | 'height' | 'head'>('weight');
   const [deletingMilestoneId, setDeletingMilestoneId] = useState<string | null>(null);
+  const [milestonePage, setMilestonePage] = useState(1);
+  const [milestoneHasMore, setMilestoneHasMore] = useState(false);
+  const [milestoneLoadingMore, setMilestoneLoadingMore] = useState(false);
+  const milestoneSentinelRef = useRef<HTMLDivElement>(null);
+  const MILESTONE_PAGE_SIZE = 20;
 
   const [loading, setLoading] = useState(true);
 
@@ -118,26 +126,44 @@ export default function GrowthPage() {
     loadData(true);
   }, [currentBaby]);
 
+  // Auto-load milestones when sentinel enters viewport
+  useEffect(() => {
+    const sentinel = milestoneSentinelRef.current;
+    if (!sentinel || !milestoneHasMore || milestoneLoadingMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && milestoneHasMore && !milestoneLoadingMore) {
+          loadMoreMilestones();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [milestoneHasMore, milestoneLoadingMore, milestonePage]);
+
   const loadData = async (invalidate = false) => {
     if (!currentBaby) return;
     const cKeyGrowth = `/growth?babyId=${currentBaby.id}`;
-    const cKeyMilestones = `/milestones?babyId=${currentBaby.id}`;
+    const cKeyMilestones = `/milestones?babyId=${currentBaby.id}&page=1&pageSize=${MILESTONE_PAGE_SIZE}`;
 
     if (invalidate) {
       cacheInvalidate(cKeyGrowth);
-      cacheInvalidate(cKeyMilestones);
+      cacheInvalidate(`/milestones`);
     }
 
     type GRes = { success: boolean; data: { items: GrowthItem[] } | GrowthItem[] };
-    type MRes = { success: boolean; data: { items: MilestoneItem[] } | MilestoneItem[] };
+    type MRes = { success: boolean; data: { items: MilestoneItem[]; hasMore?: boolean } | MilestoneItem[] };
     const extractG = (d: GRes['data']) => Array.isArray(d) ? d : d.items;
     const extractM = (d: MRes['data']) => Array.isArray(d) ? d : d.items;
+    const extractMHasMore = (d: MRes['data']) => Array.isArray(d) ? false : !!(d as { hasMore?: boolean }).hasMore;
 
     const cachedGrowth = cacheRead<GRes>(cKeyGrowth);
     const cachedMilestones = cacheRead<MRes>(cKeyMilestones);
     if (cachedGrowth && cachedMilestones) {
       setGrowthRecords(extractG(cachedGrowth.data));
       setMilestones(extractM(cachedMilestones.data));
+      setMilestoneHasMore(extractMHasMore(cachedMilestones.data));
       setLoading(false);
     }
 
@@ -150,8 +176,27 @@ export default function GrowthPage() {
       cacheWrite(cKeyMilestones, milestonesRes);
       setGrowthRecords(extractG(growthRes.data));
       setMilestones(extractM(milestonesRes.data));
+      setMilestoneHasMore(extractMHasMore(milestonesRes.data));
+      setMilestonePage(1);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMoreMilestones = async () => {
+    if (!currentBaby || milestoneLoadingMore) return;
+    const nextPage = milestonePage + 1;
+    setMilestoneLoadingMore(true);
+    try {
+      type MRes = { success: boolean; data: { items: MilestoneItem[]; hasMore?: boolean } | MilestoneItem[] };
+      const res = await api.get<MRes>(`/milestones?babyId=${currentBaby.id}&page=${nextPage}&pageSize=${MILESTONE_PAGE_SIZE}`);
+      const items = Array.isArray(res.data) ? res.data : res.data.items;
+      const more = Array.isArray(res.data) ? false : !!(res.data as { hasMore?: boolean }).hasMore;
+      setMilestones((prev) => [...prev, ...items]);
+      setMilestoneHasMore(more);
+      setMilestonePage(nextPage);
+    } finally {
+      setMilestoneLoadingMore(false);
     }
   };
 
@@ -175,7 +220,7 @@ export default function GrowthPage() {
   const addMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentBaby || mUploading) return;
-    const completed = mPreviews.filter((p) => p.result).map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType }));
+    const completed = mPreviews.filter((p) => p.result).map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType, visibleTo: p.visibleTo?.length ? p.visibleTo : undefined }));
     await api.post('/milestones', {
       babyId: currentBaby.id,
       type: mType,
@@ -201,7 +246,7 @@ export default function GrowthPage() {
   const saveMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMilestone || mUploading) return;
-    const completed = mPreviews.filter((p) => p.result).map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType }));
+    const completed = mPreviews.filter((p) => p.result).map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType, visibleTo: p.visibleTo?.length ? p.visibleTo : undefined }));
     await api.put(`/milestones/${editingMilestone.id}`, {
       type: mType,
       title: mTitle || milestoneLabels[mType],
@@ -531,6 +576,14 @@ export default function GrowthPage() {
                         <button type="button" onClick={() => removeMPreview(idx)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center">
                           <X size={10} className="text-white" />
                         </button>
+                        {p.result && (
+                          <div className="absolute bottom-0.5 left-0.5">
+                            <VisibilityPicker
+                              value={p.visibleTo}
+                              onChange={(vt) => setMPreviews((prev) => prev.map((item, i) => i === idx ? { ...item, visibleTo: vt } : item))}
+                            />
+                          </div>
+                        )}
                       </div>
                     ))}
                     <label className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 transition-colors">
@@ -600,6 +653,19 @@ export default function GrowthPage() {
             ))}
           </div>
         )}
+        {milestoneLoadingMore && (
+          <div className="flex justify-center py-4">
+            <div className="w-5 h-5 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        {milestoneHasMore && !milestoneLoadingMore && (
+          <div ref={milestoneSentinelRef} className="h-4" />
+        )}
+        {!milestoneHasMore && milestones.length > 0 && !milestoneLoadingMore && (
+          <div className="py-4 text-center text-xs text-gray-300 dark:text-gray-600">
+            已加载全部里程碑
+          </div>
+        )}
 
         {/* Edit Milestone Dialog */}
         <Dialog open={!!editingMilestone} onOpenChange={(open) => { if (!open) setEditingMilestone(null); }}>
@@ -647,6 +713,14 @@ export default function GrowthPage() {
                       <button type="button" onClick={() => removeMPreview(idx)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center">
                         <X size={10} className="text-white" />
                       </button>
+                      {p.result && (
+                        <div className="absolute bottom-0.5 left-0.5">
+                          <VisibilityPicker
+                            value={p.visibleTo}
+                            onChange={(vt) => setMPreviews((prev) => prev.map((item, i) => i === idx ? { ...item, visibleTo: vt } : item))}
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                   <label className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 transition-colors">

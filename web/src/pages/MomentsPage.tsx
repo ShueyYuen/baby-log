@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from "../components/ui";
 import { MomentsSkeleton } from "../components/ui/skeleton";
+import { VisibilityPicker } from "../components/ui/visibility-picker";
 import { useAuth } from "../contexts/AuthContext";
 import {
   api,
@@ -59,7 +60,15 @@ function avatarColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-function Avatar({ name, avatar, size = "md" }: { name: string; avatar?: string | null; size?: "sm" | "md" }) {
+function Avatar({
+  name,
+  avatar,
+  size = "md",
+}: {
+  name: string;
+  avatar?: string | null;
+  size?: "sm" | "md";
+}) {
   const cls = size === "sm" ? "w-7 h-7 text-xs" : "w-10 h-10 text-sm";
   if (avatar) {
     return (
@@ -516,6 +525,7 @@ interface MediaPreview {
   type: "image" | "video";
   progress?: number;
   error?: boolean;
+  visibleTo?: string[];
 }
 
 const CONCURRENT_UPLOADS = 5;
@@ -572,9 +582,11 @@ function UploadProgressRing({
 const PreviewItem = React.memo(function PreviewItem({
   preview,
   onRemove,
+  onVisibilityChange,
 }: {
   preview: MediaPreview;
   onRemove: () => void;
+  onVisibilityChange: (vt: string[] | undefined) => void;
 }) {
   const p = preview;
   return (
@@ -605,6 +617,11 @@ const PreviewItem = React.memo(function PreviewItem({
       >
         <X size={12} />
       </button>
+      {p.result && (
+        <div className="absolute bottom-1 left-1">
+          <VisibilityPicker value={p.visibleTo} onChange={onVisibilityChange} />
+        </div>
+      )}
     </div>
   );
 });
@@ -641,6 +658,7 @@ function MomentFormDialog({
               mediaType: item.mediaType,
             },
             type: item.mediaType,
+            visibleTo: item.visibleTo,
           })),
         );
       } else {
@@ -760,6 +778,7 @@ function MomentFormDialog({
         key: p.result!.key,
         rawKey: p.result!.rawKey,
         mediaType: p.result!.mediaType,
+        visibleTo: p.visibleTo?.length ? p.visibleTo : undefined,
       }));
 
     setSaving(true);
@@ -779,12 +798,12 @@ function MomentFormDialog({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
         className={[
-          "bottom-0 left-0 right-0 top-auto translate-x-0 translate-y-0",
+          "w-full max-w-none bottom-0 left-0 right-0 top-auto translate-x-0 translate-y-0",
           "rounded-t-2xl rounded-b-none h-[80svh] pb-0 flex flex-col overflow-hidden",
-          "sm:h-auto sm:max-h-[80svh]",
+          "sm:h-auto sm:max-h-[80svh] sm:w-[calc(100%-2rem)] sm:max-w-lg",
           "sm:left-1/2 sm:top-1/2 sm:bottom-auto",
           "sm:-translate-x-1/2 sm:-translate-y-1/2",
-          "sm:rounded-xl sm:max-w-lg sm:max-h-none",
+          "sm:rounded-xl sm:max-h-none",
         ].join(" ")}
       >
         {/* Fixed header */}
@@ -809,6 +828,13 @@ function MomentFormDialog({
                   key={idx}
                   preview={p}
                   onRemove={() => removePreview(idx)}
+                  onVisibilityChange={(vt) => {
+                    setPreviews((prev) =>
+                      prev.map((item, i) =>
+                        i === idx ? { ...item, visibleTo: vt } : item,
+                      ),
+                    );
+                  }}
                 />
               ))}
               <button
@@ -890,6 +916,8 @@ export default function MomentsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editMoment, setEditMoment] = useState<Moment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -898,7 +926,8 @@ export default function MomentsPage() {
   const PAGE_SIZE = 10;
 
   const fetchMoments = useCallback(async (p: number, replace = false) => {
-    setLoading(true);
+    if (p === 1) setLoading(true);
+    else setLoadingMore(true);
     try {
       const res = await api.moments.list(p, PAGE_SIZE);
       const data = res.data;
@@ -910,6 +939,7 @@ export default function MomentsPage() {
       console.error(e);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 
@@ -917,11 +947,30 @@ export default function MomentsPage() {
     fetchMoments(1, true);
   }, [fetchMoments]);
 
+  // Auto-load more when sentinel enters viewport
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore || loadingMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          fetchMoments(page + 1);
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, page, fetchMoments]);
+
   const handleCreate = async (content: string, mediaItems: MediaItem[]) => {
-    const res = await api.moments.create({
-      content: content || undefined,
-      mediaItems,
-    }, generateIdempotencyKey());
+    const res = await api.moments.create(
+      {
+        content: content || undefined,
+        mediaItems,
+      },
+      generateIdempotencyKey(),
+    );
     setMoments((prev) => [res.data, ...prev]);
     setTotal((t) => t + 1);
   };
@@ -968,7 +1017,11 @@ export default function MomentsPage() {
   };
 
   const handleAddComment = async (momentId: string, content: string) => {
-    const res = await api.moments.addComment(momentId, content, generateIdempotencyKey());
+    const res = await api.moments.addComment(
+      momentId,
+      content,
+      generateIdempotencyKey(),
+    );
     setMoments((prev) =>
       prev.map((m) => {
         if (m.id !== momentId) return m;
@@ -1046,13 +1099,20 @@ export default function MomentsPage() {
           </div>
         )}
 
-        {hasMore && !loading && (
-          <button
-            onClick={() => fetchMoments(page + 1)}
-            className="w-full py-3 text-sm text-primary-500 hover:text-primary-600 font-medium"
-          >
-            加载更多
-          </button>
+        {loadingMore && (
+          <div className="flex justify-center py-4">
+            <div className="w-5 h-5 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+
+        {hasMore && !loadingMore && (
+          <div ref={sentinelRef} className="h-4" />
+        )}
+
+        {!hasMore && moments.length > 0 && !loading && (
+          <div className="py-4 text-center text-xs text-gray-300 dark:text-gray-600">
+            已加载全部朋友圈
+          </div>
         )}
       </div>
 

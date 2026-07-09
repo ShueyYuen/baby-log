@@ -13,7 +13,7 @@ const milestoneCols = `id, babyId, type, title, occurredAt, description, images,
 
 func scanMilestoneRow(row interface {
 	Scan(dest ...interface{}) error
-}) (*milestoneOut, error) {
+}, currentUserID string, isAdmin bool) (*milestoneOut, error) {
 	var m milestoneOut
 	var occurred, created, updated int64
 	var desc, images sql.NullString
@@ -24,7 +24,7 @@ func scanMilestoneRow(row interface {
 	m.CreatedAt = Millis(created)
 	m.UpdatedAt = Millis(updated)
 	m.Description = strPtr(desc)
-	m.Images = recordImagesToDisplay(parseRecordImages(images))
+	m.Images = recordImagesToDisplay(parseRecordImages(images), currentUserID, isAdmin)
 	return &m, nil
 }
 
@@ -70,7 +70,7 @@ func handleListMilestones(w http.ResponseWriter, r *http.Request) {
 
 	list := []milestoneOut{}
 	for rows.Next() {
-		m, err := scanMilestoneRow(rows)
+		m, err := scanMilestoneRow(rows, userID, isAdminCtx(r))
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, "Server error")
 			return
@@ -157,7 +157,7 @@ func handleCreateMilestone(w http.ResponseWriter, r *http.Request) {
 	markUploadedFilesUsed(usedKeys)
 
 	row := db.QueryRow(`SELECT `+milestoneCols+` FROM "Milestone" WHERE id = ?`, id)
-	m, err := scanMilestoneRow(row)
+	m, err := scanMilestoneRow(row, userID, isAdminCtx(r))
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
@@ -275,7 +275,7 @@ func handleUpdateMilestone(w http.ResponseWriter, r *http.Request) {
 	}
 
 	row := db.QueryRow(`SELECT `+milestoneCols+` FROM "Milestone" WHERE id = ?`, id)
-	m, err := scanMilestoneRow(row)
+	m, err := scanMilestoneRow(row, userID, isAdminCtx(r))
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return

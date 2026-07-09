@@ -65,9 +65,10 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 			r.Post("/login", handleLogin)
 			r.Post("/logout", handleLogout)
 			r.Group(func(r chi.Router) {
-				r.Use(authMiddleware)
-				r.Get("/me", handleMe)
-				r.Post("/users", handleCreateUser)
+			r.Use(authMiddleware)
+			r.Get("/me", handleMe)
+			r.Get("/members", handleListMembers)
+			r.Post("/users", handleCreateUser)
 				r.Get("/users", handleListUsers)
 				r.Delete("/users/{id}", handleDeleteUser)
 				r.Put("/users/{id}", handleUpdateUser)
@@ -85,15 +86,15 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 			// 静态文件（上传目录）— 需认证，cookie 自动随 <img> 请求发送
 			r.Handle("/uploads/*", http.StripPrefix(apiPrefix+"/uploads/", http.FileServer(http.Dir(uploadDir))))
 
-			r.Route("/babies", func(r chi.Router) {
-				r.Get("/", handleListBabies)
-				r.Get("/{id}", handleGetBaby)
-				r.Group(func(r chi.Router) {
-					r.Use(requireEditorRole)
-					r.Post("/", handleCreateBaby)
-					r.Put("/{id}", handleUpdateBaby)
-				})
+		r.Route("/babies", func(r chi.Router) {
+			r.Get("/", handleListBabies)
+			r.Get("/{id}", handleGetBaby)
+			r.Put("/{id}", handleUpdateBaby)
+			r.Group(func(r chi.Router) {
+				r.Use(requireEditorRole)
+				r.Post("/", handleCreateBaby)
 			})
+		})
 
 			r.Route("/records", func(r chi.Router) {
 				r.Get("/", handleListRecords)

@@ -423,7 +423,7 @@ func handleTimeline(w http.ResponseWriter, r *http.Request) {
 		rec.CreatedAt = Millis(created)
 		rec.UpdatedAt = Millis(updated)
 		rec.Note = strPtr(note)
-		rec.Images = recordImagesToDisplay(parseRecordImages(images))
+		rec.Images = recordImagesToDisplay(parseRecordImages(images), userID, isAdminCtx(r))
 		rec.User = &memberUser{ID: uID, DisplayName: uName}
 		items = append(items, rec)
 	}

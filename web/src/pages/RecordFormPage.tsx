@@ -21,6 +21,7 @@ import {
   useToast,
 } from "../components/ui";
 import { Skeleton } from "../components/ui/skeleton";
+import { VisibilityPicker } from "../components/ui/visibility-picker";
 import { useAuth } from "../contexts/AuthContext";
 import { useBaby } from "../contexts/BabyContext";
 import {
@@ -39,6 +40,7 @@ interface MediaPreview {
   error?: boolean;
   type: "image" | "video";
   existing?: RecordImage;
+  visibleTo?: string[];
 }
 
 const CONCURRENT_UPLOADS = 5;
@@ -153,6 +155,7 @@ function recordImagesToPreviews(images: RecordImage[]): MediaPreview[] {
     url: img.url,
     type: (img.mediaType === "video" ? "video" : "image") as "image" | "video",
     existing: img,
+    visibleTo: img.visibleTo,
     result: {
       url: img.url,
       key: img.key,
@@ -200,6 +203,7 @@ export default function RecordFormPage() {
       url: img.url,
       type: img.mediaType === "video" ? "video" : "image",
       existing: img,
+      visibleTo: img.visibleTo,
       result: {
         url: img.url,
         key: img.key,
@@ -486,6 +490,7 @@ export default function RecordFormPage() {
           key: p.result!.key,
           rawKey: p.result!.rawKey,
           mediaType: p.result!.mediaType,
+          visibleTo: p.visibleTo?.length ? p.visibleTo : undefined,
         }));
       const payload = {
         babyId: currentBaby.id,
@@ -987,6 +992,20 @@ export default function RecordFormPage() {
                 >
                   <X size={12} className="text-white" />
                 </button>
+                {p.result && (
+                  <div className="absolute bottom-0.5 left-0.5">
+                    <VisibilityPicker
+                      value={p.visibleTo}
+                      onChange={(vt) => {
+                        setPreviews((prev) =>
+                          prev.map((item, i) =>
+                            i === idx ? { ...item, visibleTo: vt } : item
+                          )
+                        );
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             ))}
             <label className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 transition-colors">
