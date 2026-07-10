@@ -1,3 +1,4 @@
+import dayjs from "dayjs";
 import { AlertCircle, ArrowLeft, ImagePlus, Play, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -235,7 +236,11 @@ export default function RecordFormPage() {
   const [diaperType, setDiaperType] = useState<"wet" | "dirty" | "both">(
     _d.type || "wet",
   );
-  const [sleepDuration, setSleepDuration] = useState(_d.durationMinutes ?? 60);
+  const [sleepEndTime, setSleepEndTime] = useState(() => {
+    if (_d.endTime) return dayjs(_d.endTime).format('YYYY-MM-DDTHH:mm');
+    if (_d.startTime && _d.durationMinutes) return dayjs(_d.startTime).add(_d.durationMinutes, 'minute').format('YYYY-MM-DDTHH:mm');
+    return dayjs().format('YYYY-MM-DDTHH:mm');
+  });
   const [supplementName, setSupplementName] = useState(_d.name || "维生素D");
   const [temperature, setTemperature] = useState(_d.value ?? 36.5);
   const [tempLocation, setTempLocation] = useState<
@@ -335,7 +340,11 @@ export default function RecordFormPage() {
         setSupplementName(data.name || "");
         break;
       case "sleep":
-        setSleepDuration(data.durationMinutes || 0);
+        if (data.endTime) {
+          setSleepEndTime(dayjs(data.endTime).format('YYYY-MM-DDTHH:mm'));
+        } else if (data.startTime && data.durationMinutes) {
+          setSleepEndTime(dayjs(data.startTime).add(data.durationMinutes, 'minute').format('YYYY-MM-DDTHH:mm'));
+        }
         break;
       case "temperature":
         setTemperature(data.value || 36.5);
@@ -466,11 +475,19 @@ export default function RecordFormPage() {
         return { name: supplementName };
       case "temperature":
         return { value: temperature, location: tempLocation };
-      case "sleep":
+      case "sleep": {
+        const sStart = new Date(occurredAt);
+        let sEnd = new Date(sleepEndTime);
+        if (sEnd.getTime() <= sStart.getTime()) {
+          sEnd = new Date(sEnd.getTime() + 24 * 60 * 60 * 1000);
+        }
+        const dur = Math.max(1, Math.round((sEnd.getTime() - sStart.getTime()) / 60000));
         return {
-          startTime: new Date(occurredAt).toISOString(),
-          durationMinutes: sleepDuration,
+          startTime: sStart.toISOString(),
+          endTime: sEnd.toISOString(),
+          durationMinutes: dur,
         };
+      }
       case "play":
         return { durationMinutes: playDuration };
       default:
@@ -738,22 +755,84 @@ export default function RecordFormPage() {
             </div>
           </div>
         );
-      case "sleep":
+      case "sleep": {
+        const sleepStart = new Date(occurredAt);
+        let sleepEnd = new Date(sleepEndTime);
+        if (sleepEnd.getTime() <= sleepStart.getTime()) {
+          sleepEnd = new Date(sleepEnd.getTime() + 24 * 60 * 60 * 1000);
+        }
+        const sleepDurMin = Math.max(0, Math.round((sleepEnd.getTime() - sleepStart.getTime()) / 60000));
+        const sleepDurH = Math.floor(sleepDurMin / 60);
+        const sleepDurM = sleepDurMin % 60;
+        const sleepDurLabel = sleepDurH > 0
+          ? `${sleepDurH}小时${sleepDurM > 0 ? `${sleepDurM}分钟` : ''}`
+          : `${sleepDurM}分钟`;
+
+        const applyPreset = (minutes: number) => {
+          const base = dayjs(occurredAt);
+          setSleepEndTime(base.add(minutes, 'minute').format('YYYY-MM-DDTHH:mm'));
+        };
+        const applyNight = () => {
+          const now = dayjs();
+          const bedtime = now.subtract(1, 'day').hour(21).minute(0).second(0);
+          const wakeup = now.hour(6).minute(0).second(0);
+          setOccurredAt(bedtime.format('YYYY-MM-DDTHH:mm'));
+          setSleepEndTime(wakeup.format('YYYY-MM-DDTHH:mm'));
+        };
+
         return (
-          <div>
-            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-              持续时间
-            </label>
-            <Slider
-              value={sleepDuration}
-              onChange={setSleepDuration}
-              min={0}
-              max={240}
-              step={5}
-              unit="分钟"
-            />
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">快捷录入</label>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  { label: '小睡30min', min: 30 },
+                  { label: '小睡1h', min: 60 },
+                  { label: '小睡1.5h', min: 90 },
+                  { label: '小睡2h', min: 120 },
+                ].map(p => (
+                  <button
+                    key={p.min}
+                    type="button"
+                    onClick={() => applyPreset(p.min)}
+                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300 transition-colors"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={applyNight}
+                  className="px-3 py-1.5 text-sm rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-colors"
+                >
+                  夜间睡眠
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">醒来时间</label>
+              <ScrollDateTimePicker
+                value={sleepEndTime}
+                onChange={(v) => setSleepEndTime(v)}
+                className="md:hidden"
+              />
+              <DateTimePicker
+                value={sleepEndTime}
+                onChange={(v) => setSleepEndTime(v)}
+                placeholder="选择醒来时间"
+                className="hidden md:flex"
+              />
+            </div>
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+              <span className="text-sm text-gray-500 dark:text-gray-400">时长：</span>
+              <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{sleepDurLabel}</span>
+              {sleepEnd.getDate() !== sleepStart.getDate() && (
+                <span className="text-xs text-indigo-500 dark:text-indigo-400 ml-1">跨天</span>
+              )}
+            </div>
           </div>
         );
+      }
       case "bath":
         return (
           <div>

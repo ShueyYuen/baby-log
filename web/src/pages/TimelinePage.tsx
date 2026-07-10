@@ -13,7 +13,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
 import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock, Square, Play, Search } from 'lucide-react';
-import { ImageViewer, useToast, type ViewerImage } from '../components/ui';
+import { ImageViewer, useToast, type ViewerImage, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ScrollDateTimePicker, DateTimePicker } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { TimelineSkeleton } from '../components/ui/skeleton';
 import { TwoPhaseTypeButton } from '../components/TwoPhaseTypeButton';
@@ -67,8 +67,22 @@ function formatRecordDetail(record: RecordItem): string {
       return `${data.amountMl}ml`;
     case 'diaper':
       return data.type === 'wet' ? '尿' : data.type === 'dirty' ? '便' : '尿+便';
-    case 'sleep':
-      return data.ongoing ? '进行中' : data.durationMinutes ? `${data.durationMinutes}分钟` : '进行中';
+    case 'sleep': {
+      if (data.ongoing) return '进行中';
+      const sStart = data.startTime || record.occurredAt;
+      const sEnd = data.endTime;
+      if (sStart && sEnd) {
+        const s = dayjs(sStart);
+        const e = dayjs(sEnd);
+        const durMin = data.durationMinutes || Math.round(e.diff(s, 'minute'));
+        const durH = Math.floor(durMin / 60);
+        const durM = durMin % 60;
+        const durStr = durH > 0 ? `${durH}h${durM > 0 ? `${durM}m` : ''}` : `${durM}m`;
+        const crossDay = !s.isSame(e, 'day');
+        return `${s.format('HH:mm')}-${crossDay ? e.format('次日HH:mm') : e.format('HH:mm')} (${durStr})`;
+      }
+      return data.durationMinutes ? `${data.durationMinutes}分钟` : '';
+    }
     case 'supplement':
       return data.name || '';
     case 'temperature': {
@@ -211,6 +225,8 @@ export default function TimelinePage() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(isSubscribed());
   const [now, setNow] = useState(() => Date.now());
+  const [endingRecord, setEndingRecord] = useState<RecordItem | null>(null);
+  const [endWakeTime, setEndWakeTime] = useState('');
 
   useEffect(() => {
     setPushEnabled(isSubscribed());
@@ -263,19 +279,54 @@ export default function TimelinePage() {
     }
   };
 
-  // 结束一个进行中的活动：补充结束时间与时长并完成记录。
-  const handleEndOngoing = async (record: RecordItem) => {
+  const promptEndOngoing = (record: RecordItem) => {
+    setEndingRecord(record);
+    setEndWakeTime(dayjs().format('YYYY-MM-DDTHH:mm'));
+  };
+
+  const confirmEndOngoing = async () => {
+    if (!endingRecord) return;
+    const record = endingRecord;
     const startTime = record.data?.startTime || record.occurredAt;
-    const endIso = new Date().toISOString();
-    const durationMinutes = Math.max(1, Math.round((Date.now() - new Date(startTime).getTime()) / 60000));
+    let endMs = new Date(endWakeTime).getTime();
+    const startMs = new Date(startTime).getTime();
+    if (endMs <= startMs) endMs += 24 * 60 * 60 * 1000;
+    const endIso = new Date(endMs).toISOString();
+    const durationMinutes = Math.max(1, Math.round((endMs - startMs) / 60000));
     try {
       await api.put(`/records/${record.id}`, {
         data: { ...record.data, ongoing: undefined, startTime, endTime: endIso, durationMinutes },
       });
-      toast(`${typeConfig[record.type]?.label || '活动'}已结束（${durationMinutes}分钟）`, 'success');
+      const durH = Math.floor(durationMinutes / 60);
+      const durM = durationMinutes % 60;
+      const durStr = durH > 0 ? `${durH}小时${durM > 0 ? `${durM}分钟` : ''}` : `${durationMinutes}分钟`;
+      toast(`${typeConfig[record.type]?.label || '活动'}已结束（${durStr}）`, 'success');
       loadData(true);
     } catch {
       toast('结束失败', 'error');
+    }
+    setEndingRecord(null);
+  };
+
+  // 非睡眠类 ongoing 直接结束（洗澡/玩耍不需要修改时间）
+  const handleEndOngoing = (record: RecordItem) => {
+    if (record.type === 'sleep') {
+      promptEndOngoing(record);
+    } else {
+      (async () => {
+        const startTime = record.data?.startTime || record.occurredAt;
+        const endIso = new Date().toISOString();
+        const durationMinutes = Math.max(1, Math.round((Date.now() - new Date(startTime).getTime()) / 60000));
+        try {
+          await api.put(`/records/${record.id}`, {
+            data: { ...record.data, ongoing: undefined, startTime, endTime: endIso, durationMinutes },
+          });
+          toast(`${typeConfig[record.type]?.label || '活动'}已结束（${durationMinutes}分钟）`, 'success');
+          loadData(true);
+        } catch {
+          toast('结束失败', 'error');
+        }
+      })();
     }
   };
 
@@ -751,6 +802,62 @@ export default function TimelinePage() {
         open={viewerOpen}
         onOpenChange={setViewerOpen}
       />
+
+      <Dialog open={!!endingRecord} onOpenChange={(v) => { if (!v) setEndingRecord(null); }}>
+        <DialogContent className="max-w-sm mx-auto">
+          <DialogHeader>
+            <DialogTitle>结束睡眠</DialogTitle>
+            <DialogDescription>
+              {endingRecord && `${dayjs(endingRecord.data?.startTime || endingRecord.occurredAt).format('HH:mm')} 入睡，请确认醒来时间`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <ScrollDateTimePicker
+              value={endWakeTime}
+              onChange={setEndWakeTime}
+              className="md:hidden"
+            />
+            <DateTimePicker
+              value={endWakeTime}
+              onChange={setEndWakeTime}
+              placeholder="选择醒来时间"
+              className="hidden md:flex"
+            />
+            {endingRecord && (() => {
+              const st = new Date(endingRecord.data?.startTime || endingRecord.occurredAt).getTime();
+              let et = new Date(endWakeTime).getTime();
+              if (et <= st) et += 24 * 60 * 60 * 1000;
+              const mins = Math.max(0, Math.round((et - st) / 60000));
+              const h = Math.floor(mins / 60);
+              const m = mins % 60;
+              return (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">时长：</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    {h > 0 ? `${h}小时${m > 0 ? `${m}分钟` : ''}` : `${m}分钟`}
+                  </span>
+                </div>
+              );
+            })()}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setEndingRecord(null)}
+                className="flex-1 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={confirmEndOngoing}
+                className="flex-1 py-2 rounded-lg bg-indigo-500 text-white text-sm font-medium hover:bg-indigo-600 active:bg-indigo-700 transition-colors"
+              >
+                确认结束
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
