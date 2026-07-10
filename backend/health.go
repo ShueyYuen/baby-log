@@ -285,7 +285,7 @@ func handleListHealthEntries(w http.ResponseWriter, r *http.Request) {
 	var total int
 	db.QueryRow(`SELECT COUNT(*) FROM "HealthEntry" WHERE conditionId = ?`, conditionID).Scan(&total)
 
-	rows, err := db.Query(`SELECT id, conditionId, date, note, images, createdBy, createdAt, updatedAt
+	rows, err := db.Query(`SELECT id, conditionId, date, note, images, annotations, createdBy, createdAt, updatedAt
 		FROM "HealthEntry" WHERE conditionId = ? ORDER BY date DESC LIMIT ? OFFSET ?`,
 		conditionID, pageSize, (page-1)*pageSize)
 	if err != nil {
@@ -299,14 +299,17 @@ func handleListHealthEntries(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var e healthEntryOut
 		var dateMs, created, updated int64
-		var note, images sql.NullString
-		if err := rows.Scan(&e.ID, &e.ConditionID, &dateMs, &note, &images, &e.CreatedBy, &created, &updated); err != nil {
+		var note, images, annotations sql.NullString
+		if err := rows.Scan(&e.ID, &e.ConditionID, &dateMs, &note, &images, &annotations, &e.CreatedBy, &created, &updated); err != nil {
 			writeErr(w, http.StatusInternalServerError, "Server error")
 			return
 		}
 		e.Date = Millis(dateMs)
 		e.Note = strPtr(note)
 		e.Images = recordImagesToDisplay(parseRecordImages(images), userID, isAdmin, e.CreatedBy)
+		if annotations.Valid && annotations.String != "" {
+			e.Annotations = json.RawMessage(annotations.String)
+		}
 		e.CreatedAt = Millis(created)
 		e.UpdatedAt = Millis(updated)
 		list = append(list, e)
@@ -347,9 +350,10 @@ func handleCreateHealthEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Date   string            `json:"date"`
-		Note   *string           `json:"note"`
-		Images []RecordImageStore `json:"images"`
+		Date        string             `json:"date"`
+		Note        *string            `json:"note"`
+		Images      []RecordImageStore `json:"images"`
+		Annotations json.RawMessage    `json:"annotations"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, http.StatusBadRequest, "Invalid input")
@@ -383,11 +387,16 @@ func handleCreateHealthEntry(w http.ResponseWriter, r *http.Request) {
 		imagesStore = sql.NullString{String: string(b), Valid: true}
 	}
 
+	var annotationsStore sql.NullString
+	if len(body.Annotations) > 0 && string(body.Annotations) != "null" {
+		annotationsStore = sql.NullString{String: string(body.Annotations), Valid: true}
+	}
+
 	id := uuid.NewString()
 	now := nowMillis()
-	if _, err := db.Exec(`INSERT INTO "HealthEntry" (id, conditionId, date, note, images, createdBy, createdAt, updatedAt)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, conditionID, int64(dateMs), nullStringFromPtr(body.Note), imagesStore, userID, int64(now), int64(now)); err != nil {
+	if _, err := db.Exec(`INSERT INTO "HealthEntry" (id, conditionId, date, note, images, annotations, createdBy, createdAt, updatedAt)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, conditionID, int64(dateMs), nullStringFromPtr(body.Note), imagesStore, annotationsStore, userID, int64(now), int64(now)); err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
 	}
@@ -402,7 +411,7 @@ func handleCreateHealthEntry(w http.ResponseWriter, r *http.Request) {
 	markUploadedFilesUsed(usedKeys)
 
 	isAdmin := isAdminCtx(r)
-	writeOK(w, healthEntryOut{
+	out := healthEntryOut{
 		ID:          id,
 		ConditionID: conditionID,
 		Date:        dateMs,
@@ -411,7 +420,11 @@ func handleCreateHealthEntry(w http.ResponseWriter, r *http.Request) {
 		CreatedBy:   userID,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-	})
+	}
+	if len(body.Annotations) > 0 && string(body.Annotations) != "null" {
+		out.Annotations = body.Annotations
+	}
+	writeOK(w, out)
 }
 
 // PUT /health-conditions/{id}/entries/{entryId}
@@ -474,6 +487,15 @@ func handleUpdateHealthEntry(w http.ResponseWriter, r *http.Request) {
 		} else {
 			sets = append(sets, "note = ?")
 			args = append(args, jsonString(raw))
+		}
+	}
+	if raw, ok := body["annotations"]; ok {
+		if string(raw) == "null" {
+			sets = append(sets, "annotations = ?")
+			args = append(args, nil)
+		} else {
+			sets = append(sets, "annotations = ?")
+			args = append(args, string(raw))
 		}
 	}
 
@@ -544,16 +566,19 @@ func handleUpdateHealthEntry(w http.ResponseWriter, r *http.Request) {
 	isAdmin := isAdminCtx(r)
 	var e healthEntryOut
 	var dateMs, created, updated int64
-	var note, images sql.NullString
-	if err := db.QueryRow(`SELECT id, conditionId, date, note, images, createdBy, createdAt, updatedAt
+	var note, images, annotations sql.NullString
+	if err := db.QueryRow(`SELECT id, conditionId, date, note, images, annotations, createdBy, createdAt, updatedAt
 		FROM "HealthEntry" WHERE id = ?`, entryID).Scan(
-		&e.ID, &e.ConditionID, &dateMs, &note, &images, &e.CreatedBy, &created, &updated); err != nil {
+		&e.ID, &e.ConditionID, &dateMs, &note, &images, &annotations, &e.CreatedBy, &created, &updated); err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
 	}
 	e.Date = Millis(dateMs)
 	e.Note = strPtr(note)
 	e.Images = recordImagesToDisplay(parseRecordImages(images), userID, isAdmin, e.CreatedBy)
+	if annotations.Valid && annotations.String != "" {
+		e.Annotations = json.RawMessage(annotations.String)
+	}
 	e.CreatedAt = Millis(created)
 	e.UpdatedAt = Millis(updated)
 	writeOK(w, e)

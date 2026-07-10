@@ -263,6 +263,7 @@ CREATE TABLE IF NOT EXISTS "HealthEntry" (
     "date" INTEGER NOT NULL,
     "note" TEXT,
     "images" TEXT,
+    "annotations" TEXT,
     "createdBy" TEXT NOT NULL,
     "createdAt" INTEGER NOT NULL,
     "updatedAt" INTEGER NOT NULL,

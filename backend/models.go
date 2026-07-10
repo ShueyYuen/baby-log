@@ -136,6 +136,7 @@ type healthEntryOut struct {
 	Date        Millis              `json:"date"`
 	Note        *string             `json:"note"`
 	Images      []RecordImageDisplay `json:"images"`
+	Annotations json.RawMessage     `json:"annotations,omitempty"`
 	CreatedBy   string              `json:"createdBy"`
 	CreatedAt   Millis              `json:"createdAt"`
 	UpdatedAt   Millis              `json:"updatedAt"`

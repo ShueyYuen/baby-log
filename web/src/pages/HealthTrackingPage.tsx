@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { api, generateIdempotencyKey, type HealthCondition, type HealthEntry, type RecordImage, type UploadMomentResult } from '../lib/api';
+import { api, generateIdempotencyKey, type HealthCondition, type HealthEntry, type HealthAnnotationsMap, type RecordImage, type UploadMomentResult } from '../lib/api';
 import dayjs from 'dayjs';
-import { ArrowLeft, Plus, Pencil, Trash2, ImagePlus, Play, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, ImagePlus, Play, X, AlertCircle, CheckCircle2, Ruler } from 'lucide-react';
 import { Button, Input, Card, CardContent, Dialog, DialogContent, DialogHeader, DialogTitle, Badge, DatePicker, ConfirmDialog, useToast } from '../components/ui';
 import { Textarea } from '../components/ui';
 import { VisibilityPicker } from '../components/ui/visibility-picker';
+import { ImageAnnotator, type Annotation } from '../components/ImageAnnotator';
 
 interface EntryPreview {
   file?: File;
@@ -54,6 +55,51 @@ function recordImageToPreview(img: RecordImage): EntryPreview {
   };
 }
 
+function ViewAnnotationPanel({ entry, imageIdx, onImageIdxChange, isViewer, onSave, onClose }: {
+  entry: HealthEntry;
+  imageIdx: number;
+  onImageIdxChange: (idx: number) => void;
+  isViewer: boolean;
+  onSave: (annotations: HealthAnnotationsMap) => void;
+  onClose: () => void;
+}) {
+  const [localAnnotations, setLocalAnnotations] = useState<HealthAnnotationsMap>(entry.annotations || {});
+  const currentImg = entry.images[imageIdx];
+  const imgKey = currentImg?.key || '';
+
+  return (
+    <div className="space-y-3">
+      {entry.images.length > 1 && (
+        <div className="flex gap-1 overflow-x-auto pb-2">
+          {entry.images.map((img, i) => (
+            img.mediaType !== 'video' && (
+              <img
+                key={i}
+                src={img.url}
+                alt=""
+                className={`w-10 h-10 rounded object-cover cursor-pointer border-2 ${i === imageIdx ? 'border-primary-500' : 'border-transparent'}`}
+                onClick={() => onImageIdxChange(i)}
+              />
+            )
+          ))}
+        </div>
+      )}
+      <ImageAnnotator
+        imageUrl={currentImg.url}
+        annotations={(localAnnotations[imgKey] || []) as Annotation[]}
+        onChange={(annos) => setLocalAnnotations((prev) => ({ ...prev, [imgKey]: annos }))}
+        readonly={isViewer}
+      />
+      {!isViewer && (
+        <div className="flex gap-3">
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>取消</Button>
+          <Button type="button" className="flex-1" onClick={() => onSave(localAnnotations)}>保存标注</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function HealthTrackingPage() {
   const { id: conditionId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -77,6 +123,14 @@ export default function HealthTrackingPage() {
   const [entryUploading, setEntryUploading] = useState(false);
   const [editingEntry, setEditingEntry] = useState<HealthEntry | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
+  const [formAnnotations, setFormAnnotations] = useState<HealthAnnotationsMap>({});
+
+  // Annotation dialog within form
+  const [annotatingIdx, setAnnotatingIdx] = useState<number | null>(null);
+
+  // Annotation dialog for viewing existing entries
+  const [viewAnnotationEntry, setViewAnnotationEntry] = useState<HealthEntry | null>(null);
+  const [viewAnnotationImgIdx, setViewAnnotationImgIdx] = useState(0);
 
   // Edit condition state
   const [showEditCondition, setShowEditCondition] = useState(false);
@@ -244,6 +298,7 @@ export default function HealthTrackingPage() {
     setEntryDate(dayjs().format('YYYY-MM-DD'));
     setEntryNote('');
     setEntryPreviews([]);
+    setFormAnnotations({});
     setShowEntryForm(true);
   };
 
@@ -252,6 +307,7 @@ export default function HealthTrackingPage() {
     setEntryDate(dayjs(entry.date).format('YYYY-MM-DD'));
     setEntryNote(entry.note || '');
     setEntryPreviews((entry.images || []).map(recordImageToPreview));
+    setFormAnnotations(entry.annotations || {});
     setShowEntryForm(true);
   };
 
@@ -265,22 +321,31 @@ export default function HealthTrackingPage() {
       visibleTo: p.visibleTo?.length ? p.visibleTo : undefined,
     }));
 
+    const hasAnnotations = Object.keys(formAnnotations).some((k) => formAnnotations[k].length > 0);
+
     try {
       if (editingEntry) {
         await api.healthConditions.updateEntry(conditionId, editingEntry.id, {
           date: new Date(entryDate).toISOString(),
           note: entryNote.trim() || null,
           images: completed,
-        });
+          annotations: hasAnnotations ? formAnnotations : null,
+        } as any);
       } else {
         await api.healthConditions.createEntry(
           conditionId,
-          { date: new Date(entryDate).toISOString(), note: entryNote.trim() || undefined, images: completed.length > 0 ? completed : undefined },
+          {
+            date: new Date(entryDate).toISOString(),
+            note: entryNote.trim() || undefined,
+            images: completed.length > 0 ? completed : undefined,
+            annotations: hasAnnotations ? formAnnotations : undefined,
+          } as any,
           generateIdempotencyKey()
         );
       }
       setShowEntryForm(false);
       setEntryPreviews([]);
+      setFormAnnotations({});
       loadEntries(1, true);
       toast(editingEntry ? '记录已更新' : '记录已添加', 'success');
     } catch {
@@ -298,6 +363,26 @@ export default function HealthTrackingPage() {
       toast('删除失败', 'error');
     }
     setDeletingEntryId(null);
+  };
+
+  const openAnnotator = (entry: HealthEntry, imageIdx: number) => {
+    setViewAnnotationEntry(entry);
+    setViewAnnotationImgIdx(imageIdx);
+  };
+
+  const saveViewAnnotations = async (annotations: HealthAnnotationsMap) => {
+    if (!viewAnnotationEntry || !conditionId) return;
+    try {
+      const hasAnnotations = Object.keys(annotations).some((k) => annotations[k].length > 0);
+      await api.healthConditions.updateEntry(conditionId, viewAnnotationEntry.id, {
+        annotations: hasAnnotations ? annotations : null,
+      } as any);
+      setViewAnnotationEntry(null);
+      loadEntries(1, true);
+      toast('标注已保存', 'success');
+    } catch {
+      toast('保存失败', 'error');
+    }
   };
 
   if (loading) {
@@ -409,7 +494,14 @@ export default function HealthTrackingPage() {
                           <Play size={16} className="text-gray-500" />
                         </div>
                       ) : (
-                        <img key={i} src={img.url} alt="" className="w-16 h-16 rounded-lg object-cover" />
+                        <div key={i} className="relative group">
+                          <img src={img.url} alt="" className="w-16 h-16 rounded-lg object-cover cursor-pointer" onClick={() => openAnnotator(entry, i)} />
+                          {entry.annotations && entry.annotations[img.key]?.length > 0 && (
+                            <div className="absolute bottom-0.5 right-0.5 flex items-center rounded-md px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                              <Ruler size={12} />
+                            </div>
+                          )}
+                        </div>
                       )
                     ))}
                   </div>
@@ -463,6 +555,16 @@ export default function HealthTrackingPage() {
                     <button type="button" onClick={() => removeEntryPreview(idx)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center">
                       <X size={10} className="text-white" />
                     </button>
+                    {p.result && p.type === 'image' && (
+                      <button
+                        type="button"
+                        onClick={() => setAnnotatingIdx(idx)}
+                        className={`absolute bottom-0.5 right-0.5 flex items-center gap-0.5 rounded-md px-1.5 py-1 text-xs transition-colors ${formAnnotations[p.result.key]?.length ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
+                        title="标注测量"
+                      >
+                        <Ruler size={12} />
+                      </button>
+                    )}
                     {p.result && (
                       <div className="absolute bottom-0.5 left-0.5">
                         <VisibilityPicker
@@ -479,8 +581,29 @@ export default function HealthTrackingPage() {
                 </label>
               </div>
             </div>
+
+            {/* Inline annotation panel */}
+            {annotatingIdx !== null && entryPreviews[annotatingIdx]?.result && entryPreviews[annotatingIdx]?.type === 'image' && (
+              <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">标注测量</span>
+                  <button type="button" onClick={() => setAnnotatingIdx(null)} className="text-gray-400 hover:text-gray-600">
+                    <X size={16} />
+                  </button>
+                </div>
+                <ImageAnnotator
+                  imageUrl={entryPreviews[annotatingIdx].url}
+                  annotations={(formAnnotations[entryPreviews[annotatingIdx].result!.key] || []) as Annotation[]}
+                  onChange={(annos) => {
+                    const key = entryPreviews[annotatingIdx!].result!.key;
+                    setFormAnnotations((prev) => ({ ...prev, [key]: annos }));
+                  }}
+                />
+              </div>
+            )}
+
             <div className="flex gap-3">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowEntryForm(false); setEntryPreviews([]); }}>取消</Button>
+              <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowEntryForm(false); setEntryPreviews([]); setFormAnnotations({}); }}>取消</Button>
               <Button type="submit" className="flex-1" disabled={entryUploading}>保存</Button>
             </div>
           </form>
@@ -529,6 +652,25 @@ export default function HealthTrackingPage() {
         variant="danger"
         onConfirm={deleteCondition}
       />
+
+      {/* Annotation Dialog (viewing existing entries) */}
+      <Dialog open={!!viewAnnotationEntry} onOpenChange={(open) => { if (!open) setViewAnnotationEntry(null); }}>
+        <DialogContent className="max-w-lg sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>照片标注</DialogTitle>
+          </DialogHeader>
+          {viewAnnotationEntry && viewAnnotationEntry.images[viewAnnotationImgIdx] && (
+            <ViewAnnotationPanel
+              entry={viewAnnotationEntry}
+              imageIdx={viewAnnotationImgIdx}
+              onImageIdxChange={setViewAnnotationImgIdx}
+              isViewer={isViewer}
+              onSave={saveViewAnnotations}
+              onClose={() => setViewAnnotationEntry(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -169,10 +169,22 @@ export interface HealthEntry {
   date: string;
   note?: string | null;
   images: RecordImage[];
+  annotations?: HealthAnnotationsMap;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export interface HealthAnnotation {
+  id: string;
+  type: 'angle' | 'line';
+  points: { x: number; y: number }[];
+  value?: number;
+  label?: string;
+  color?: string;
+}
+
+export type HealthAnnotationsMap = Record<string, HealthAnnotation[]>;
 
 export interface HealthEntriesResponse {
   items: HealthEntry[];
