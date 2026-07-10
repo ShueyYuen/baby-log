@@ -331,7 +331,7 @@ export default function GrowthPage() {
       if (myIdx >= allowed.length) return;
       const fileIdx = startIdx + myIdx;
       try {
-        const result = await api.moments.uploadMediaSingle(allowed[myIdx], (pct) => {
+        const result = await api.milestones.uploadMedia(allowed[myIdx], (pct) => {
           const stepped = Math.floor(pct / M_STEP) * M_STEP;
           if (stepped <= lastR[myIdx]) return;
           lastR[myIdx] = stepped;

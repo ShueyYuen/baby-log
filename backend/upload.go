@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -94,61 +95,16 @@ func handleUploadSingle(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, result)
 }
 
-// POST /upload/multiple
-func handleUploadMultiple(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(maxUploadSize * 10); err != nil {
-		writeErr(w, http.StatusBadRequest, "No files uploaded")
-		return
-	}
-
-	if r.MultipartForm == nil || len(r.MultipartForm.File["files"]) == 0 {
-		writeErr(w, http.StatusBadRequest, "No files uploaded")
-		return
-	}
-
-	headers := r.MultipartForm.File["files"]
-
-	log.Printf("[Upload] Received multiple files: count=%d storage=%s", len(headers), getStorageType())
-
-	results := make([]*uploadResult, 0, len(headers))
-	for _, header := range headers {
-		f, err := header.Open()
-		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "Upload failed")
-			return
-		}
-		contentType := header.Header.Get("Content-Type")
-		if !allowedMimeTypes[contentType] {
-			f.Close()
-			writeErr(w, http.StatusBadRequest, "不支持的文件类型，仅允许 JPG/PNG/GIF/WebP")
-			return
-		}
-		data, err := io.ReadAll(io.LimitReader(f, maxUploadSize+1))
-		f.Close()
-		if err != nil || len(data) > maxUploadSize {
-			writeErr(w, http.StatusInternalServerError, "Upload failed")
-			return
-		}
-		if !validateMediaType(data) {
-			writeErr(w, http.StatusBadRequest, "文件内容与声明的类型不匹配")
-			return
-		}
-		result, err := uploadFile(header.Filename, contentType, data)
-		if err != nil {
-			log.Printf("[Upload] Multiple failed: %v", err)
-			writeErr(w, http.StatusInternalServerError, "Upload failed")
-			return
-		}
-		results = append(results, result)
-	}
-
-	writeOK(w, results)
-}
-
-// POST /moments/upload — upload media files for moments (images + videos).
+// POST /upload/{prefix} — unified media upload handler.
+// {prefix} determines the storage folder (moments, health, milestones, etc.).
 // Returns an array of uploadResult objects with mediaType field set.
-// If S3 storage is used, the actual upload happens asynchronously for faster response.
-func handleUploadMomentMedia(w http.ResponseWriter, r *http.Request) {
+func handleUploadMedia(w http.ResponseWriter, r *http.Request) {
+	prefix := chi.URLParam(r, "prefix")
+	if prefix == "" {
+		writeErr(w, http.StatusBadRequest, "missing upload prefix")
+		return
+	}
+
 	if err := r.ParseMultipartForm(32 * 1024 * 1024); err != nil {
 		writeErr(w, http.StatusBadRequest, "No files uploaded")
 		return
@@ -163,7 +119,7 @@ func handleUploadMomentMedia(w http.ResponseWriter, r *http.Request) {
 	cfg := getStorageConfig()
 	useAsync := cfg.typ == storageS3 && cfg.s3 != nil
 
-	log.Printf("[Upload] Moment media: count=%d storage=%s async=%v", len(headers), cfg.typ, useAsync)
+	log.Printf("[Upload] %s media: count=%d storage=%s async=%v", prefix, len(headers), cfg.typ, useAsync)
 
 	results := make([]*uploadResult, 0, len(headers))
 	for _, header := range headers {
@@ -200,10 +156,10 @@ func handleUploadMomentMedia(w http.ResponseWriter, r *http.Request) {
 				compExt = ".jpg"
 			}
 
-			compKey := "moments/" + uid + compExt
+			compKey := prefix + "/" + uid + compExt
 			var rawKey string
 			if isImageMIME(contentType) {
-				rawKey = "moments/raw/" + uid + origExt
+				rawKey = prefix + "/raw/" + uid + origExt
 			}
 
 			result := &uploadResult{
@@ -232,113 +188,9 @@ func handleUploadMomentMedia(w http.ResponseWriter, r *http.Request) {
 
 			results = append(results, result)
 		} else {
-			result, err := uploadMomentFile(header.Filename, contentType, data)
+			result, err := uploadPrefixedFile(prefix, header.Filename, contentType, data)
 			if err != nil {
-				log.Printf("[Upload] Moment failed: %v", err)
-				writeErr(w, http.StatusInternalServerError, "Upload failed")
-				return
-			}
-			if isImageMIME(contentType) {
-				result.MediaType = "image"
-			} else {
-				result.MediaType = "video"
-			}
-			trackUploadedFile(result.Key, result.RawKey)
-			results = append(results, result)
-		}
-	}
-
-	writeOK(w, results)
-}
-
-// POST /health/upload — upload media files for health tracking.
-func handleUploadHealthMedia(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(32 * 1024 * 1024); err != nil {
-		writeErr(w, http.StatusBadRequest, "No files uploaded")
-		return
-	}
-
-	if r.MultipartForm == nil || len(r.MultipartForm.File["files"]) == 0 {
-		writeErr(w, http.StatusBadRequest, "No files uploaded")
-		return
-	}
-
-	headers := r.MultipartForm.File["files"]
-	cfg := getStorageConfig()
-	useAsync := cfg.typ == storageS3 && cfg.s3 != nil
-
-	log.Printf("[Upload] Health media: count=%d storage=%s async=%v", len(headers), cfg.typ, useAsync)
-
-	results := make([]*uploadResult, 0, len(headers))
-	for _, header := range headers {
-		f, err := header.Open()
-		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "Upload failed")
-			return
-		}
-		contentType := header.Header.Get("Content-Type")
-		if !momentAllowedMimeTypes[contentType] {
-			f.Close()
-			writeErr(w, http.StatusBadRequest, "不支持的文件类型")
-			return
-		}
-		data, err := io.ReadAll(io.LimitReader(f, maxMomentUploadSize+1))
-		f.Close()
-		if err != nil || len(data) > maxMomentUploadSize {
-			writeErr(w, http.StatusBadRequest, "文件过大")
-			return
-		}
-		if !validateMediaType(data) {
-			writeErr(w, http.StatusBadRequest, "文件内容与声明的类型不匹配")
-			return
-		}
-
-		if useAsync {
-			uid := uuid.NewString()
-			origExt := strings.ToLower(filepath.Ext(header.Filename))
-			if origExt == "" {
-				origExt = mimeToExt(contentType)
-			}
-			compExt := origExt
-			if isImageMIME(contentType) {
-				compExt = ".jpg"
-			}
-
-			compKey := "health/" + uid + compExt
-			var rawKey string
-			if isImageMIME(contentType) {
-				rawKey = "health/raw/" + uid + origExt
-			}
-
-			result := &uploadResult{
-				Key:    compKey,
-				RawKey: rawKey,
-			}
-			if cfg.s3.publicURL != "" {
-				result.URL = buildPublicURL(cfg.s3, compKey)
-				if rawKey != "" {
-					result.RawURL = buildPublicURL(cfg.s3, rawKey)
-				}
-			}
-			if isImageMIME(contentType) {
-				result.MediaType = "image"
-			} else {
-				result.MediaType = "video"
-			}
-
-			trackUploadedFile(compKey, rawKey)
-
-			dataCopy := data
-			ct := contentType
-			startAsyncUpload(compKey, func() error {
-				return uploadToS3Async(cfg.s3, compKey, rawKey, ct, dataCopy)
-			})
-
-			results = append(results, result)
-		} else {
-			result, err := uploadHealthFile(header.Filename, contentType, data)
-			if err != nil {
-				log.Printf("[Upload] Health failed: %v", err)
+				log.Printf("[Upload] %s failed: %v", prefix, err)
 				writeErr(w, http.StatusInternalServerError, "Upload failed")
 				return
 			}

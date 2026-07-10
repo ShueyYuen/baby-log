@@ -42,13 +42,6 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 
 // ─── Shared upload types ──────────────────────────────────────────────────────
 
-export interface UploadResult {
-  url: string;
-  key: string;
-  rawUrl?: string;
-  rawKey?: string;
-}
-
 export interface RecordImage {
   key: string;
   rawKey?: string;
@@ -194,6 +187,45 @@ export interface HealthEntriesResponse {
   hasMore: boolean;
 }
 
+// ─── Upload helper ────────────────────────────────────────────────────────────
+
+function createUploader(endpoint: string) {
+  return (file: File, onProgress?: (percent: number) => void): Promise<UploadMomentResult> =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append('files', file);
+
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+        });
+      }
+
+      xhr.addEventListener('load', () => {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300 && data.data?.length) {
+            resolve(data.data[0]);
+          } else {
+            reject(new Error(data.error || 'Upload failed'));
+          }
+        } catch {
+          reject(new Error('Upload failed'));
+        }
+      });
+
+      xhr.addEventListener('error', () => reject(new Error('Network error')));
+      xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
+
+      xhr.open('POST', `${API_BASE}${endpoint}`);
+      xhr.withCredentials = true;
+      const token = getToken();
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.send(formData);
+    });
+}
+
 // ─── API client ───────────────────────────────────────────────────────────────
 
 export const api = {
@@ -210,12 +242,6 @@ export const api = {
       body: body instanceof FormData ? body : JSON.stringify(body),
     }),
   delete: <T>(url: string) => request<T>(url, { method: 'DELETE' }),
-
-  upload: async (file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    return api.post<{ success: boolean; data: UploadResult }>('/upload', formData);
-  },
 
   moments: {
     list: (page = 1, pageSize = 10) =>
@@ -244,58 +270,7 @@ export const api = {
         `/moments/${momentId}/comments/${commentId}`
       ),
 
-    uploadMedia: async (files: File[]): Promise<UploadMomentResult[]> => {
-      const formData = new FormData();
-      for (const file of files) {
-        formData.append('files', file);
-      }
-      const res = await api.post<{ success: boolean; data: UploadMomentResult[] }>(
-        '/moments/upload',
-        formData
-      );
-      return res.data;
-    },
-
-    uploadMediaSingle: (
-      file: File,
-      onProgress?: (percent: number) => void,
-    ): Promise<UploadMomentResult> => {
-      return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        const formData = new FormData();
-        formData.append('files', file);
-
-        if (onProgress) {
-          xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) {
-              onProgress(Math.round((e.loaded / e.total) * 100));
-            }
-          });
-        }
-
-        xhr.addEventListener('load', () => {
-          try {
-            const data = JSON.parse(xhr.responseText);
-            if (xhr.status >= 200 && xhr.status < 300 && data.data?.length) {
-              resolve(data.data[0]);
-            } else {
-              reject(new Error(data.error || 'Upload failed'));
-            }
-          } catch {
-            reject(new Error('Upload failed'));
-          }
-        });
-
-        xhr.addEventListener('error', () => reject(new Error('Network error')));
-        xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
-
-        xhr.open('POST', `${API_BASE}/moments/upload`);
-        xhr.withCredentials = true;
-        const token = getToken();
-        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.send(formData);
-      });
-    },
+    uploadMediaSingle: createUploader('/upload/moments'),
   },
 
   members: {
@@ -329,45 +304,14 @@ export const api = {
     deleteEntry: (conditionId: string, entryId: string) =>
       api.delete<{ success: boolean }>(`/health-conditions/${conditionId}/entries/${entryId}`),
 
-    uploadMedia: (
-      file: File,
-      onProgress?: (percent: number) => void,
-    ): Promise<UploadMomentResult> => {
-      return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        const formData = new FormData();
-        formData.append('files', file);
+    uploadMedia: createUploader('/upload/health'),
+  },
 
-        if (onProgress) {
-          xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) {
-              onProgress(Math.round((e.loaded / e.total) * 100));
-            }
-          });
-        }
+  milestones: {
+    uploadMedia: createUploader('/upload/milestones'),
+  },
 
-        xhr.addEventListener('load', () => {
-          try {
-            const data = JSON.parse(xhr.responseText);
-            if (xhr.status >= 200 && xhr.status < 300 && data.data?.length) {
-              resolve(data.data[0]);
-            } else {
-              reject(new Error(data.error || 'Upload failed'));
-            }
-          } catch {
-            reject(new Error('Upload failed'));
-          }
-        });
-
-        xhr.addEventListener('error', () => reject(new Error('Network error')));
-        xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
-
-        xhr.open('POST', `${API_BASE}/health/upload`);
-        xhr.withCredentials = true;
-        const token = getToken();
-        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.send(formData);
-      });
-    },
+  records: {
+    uploadMedia: createUploader('/upload/records'),
   },
 };

@@ -126,15 +126,15 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				})
 			})
 
-			r.Route("/milestones", func(r chi.Router) {
-				r.Get("/", handleListMilestones)
-				r.Group(func(r chi.Router) {
-					r.Use(requireEditorRole)
-					r.Post("/", handleCreateMilestone)
-					r.Put("/{id}", handleUpdateMilestone)
-					r.Delete("/{id}", handleDeleteMilestone)
-				})
+		r.Route("/milestones", func(r chi.Router) {
+			r.Get("/", handleListMilestones)
+			r.Group(func(r chi.Router) {
+				r.Use(requireEditorRole)
+				r.Post("/", handleCreateMilestone)
+				r.Put("/{id}", handleUpdateMilestone)
+				r.Delete("/{id}", handleDeleteMilestone)
 			})
+		})
 
 			r.Route("/health-conditions", func(r chi.Router) {
 				r.Get("/", handleListHealthConditions)
@@ -150,10 +150,6 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				r.Get("/{id}/entries", handleListHealthEntries)
 			})
 
-			r.Route("/health", func(r chi.Router) {
-				r.Use(requireEditorRole)
-				r.Post("/upload", handleUploadHealthMedia)
-			})
 
 		r.Route("/stats", func(r chi.Router) {
 			r.Get("/summary", handleStatsSummary)
@@ -164,14 +160,13 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 
 		r.Get("/timeline", handleTimeline)
 
-			r.Route("/upload", func(r chi.Router) {
-				r.Post("/", handleUploadSingle)
-				r.Post("/multiple", handleUploadMultiple)
-			})
+		r.Route("/upload", func(r chi.Router) {
+			r.Post("/", handleUploadSingle)
+			r.Post("/{prefix}", handleUploadMedia)
+		})
 
-			r.Route("/moments", func(r chi.Router) {
-				r.Post("/upload", handleUploadMomentMedia)
-				r.Get("/", handleListMoments)
+		r.Route("/moments", func(r chi.Router) {
+			r.Get("/", handleListMoments)
 				r.Post("/", handleCreateMoment)
 				r.Put("/{id}", handleUpdateMoment)
 				r.Delete("/{id}", handleDeleteMoment)

@@ -396,7 +396,7 @@ export default function RecordFormPage() {
         if (myIdx >= allowed.length) return;
         const fileIdx = startIdx + myIdx;
         try {
-          const result = await api.moments.uploadMediaSingle(
+          const result = await api.records.uploadMedia(
             allowed[myIdx],
             (percent) => {
               const stepped =

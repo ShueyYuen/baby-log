@@ -425,13 +425,6 @@ func uploadPrefixedFile(prefix, filename, contentType string, data []byte) (*upl
 	return result, nil
 }
 
-func uploadMomentFile(filename, contentType string, data []byte) (*uploadResult, error) {
-	return uploadPrefixedFile("moments", filename, contentType, data)
-}
-
-func uploadHealthFile(filename, contentType string, data []byte) (*uploadResult, error) {
-	return uploadPrefixedFile("health", filename, contentType, data)
-}
 
 func deleteFile(key string) error {
 	cfg := getStorageConfig()
