@@ -320,7 +320,7 @@ export function ImageAnnotator({ imageUrl, annotations, onChange, readonly = fal
     <div className="space-y-3">
       {/* Toolbar */}
       {!readonly && (
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1 sm:gap-2">
           {([
             { key: 'point' as const, icon: MapPin, label: '点' },
             { key: 'line' as const, icon: Ruler, label: '线段' },
@@ -332,20 +332,21 @@ export function ImageAnnotator({ imageUrl, annotations, onChange, readonly = fal
               type="button"
               size="sm"
               variant={tool === key ? 'default' : 'outline'}
+              className="px-2 sm:px-3 h-7 sm:h-8"
               onClick={() => { setTool(tool === key ? null : key); setPendingPoints([]); }}
             >
-              <Icon size={14} /> {label}
+              <Icon size={14} /> <span className="hidden sm:inline">{label}</span>
             </Button>
           ))}
-          <div className="flex-1" />
-          <Button type="button" size="sm" variant="ghost" onClick={undoLast} disabled={!canUndo}>
+          <div className="flex-1 min-w-0" />
+          <Button type="button" size="sm" variant="ghost" className="px-1.5 sm:px-2 h-7 sm:h-8" onClick={undoLast} disabled={!canUndo}>
             <Undo2 size={14} />
           </Button>
-          <Button type="button" size="sm" variant="ghost" onClick={redoLast} disabled={!canRedo}>
+          <Button type="button" size="sm" variant="ghost" className="px-1.5 sm:px-2 h-7 sm:h-8" onClick={redoLast} disabled={!canRedo}>
             <Redo2 size={14} />
           </Button>
-          <Button type="button" size="sm" variant="ghost" onClick={clearAll} disabled={annotations.length === 0 && pendingPoints.length === 0}>
-            <X size={14} /> 清除
+          <Button type="button" size="sm" variant="ghost" className="px-1.5 sm:px-3 h-7 sm:h-8" onClick={clearAll} disabled={annotations.length === 0 && pendingPoints.length === 0}>
+            <X size={14} /> <span className="hidden sm:inline">清除</span>
           </Button>
         </div>
       )}

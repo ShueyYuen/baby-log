@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { api, generateIdempotencyKey, type HealthCondition, type HealthEntry, type HealthAnnotationsMap, type RecordImage, type UploadMomentResult } from '../lib/api';
+import { useServerEvent } from '../hooks/useServerEvents';
 import dayjs from 'dayjs';
 import { ArrowLeft, Plus, Pencil, Trash2, ImagePlus, Play, X, AlertCircle, CheckCircle2, Ruler } from 'lucide-react';
 import { Button, Input, Card, CardContent, Dialog, DialogContent, DialogHeader, DialogTitle, Badge, DatePicker, ConfirmDialog, useToast } from '../components/ui';
@@ -191,6 +192,10 @@ export default function HealthTrackingPage() {
       setLoading(false);
     }
   };
+
+  useServerEvent('health.change', useCallback(() => {
+    if (conditionId) loadEntries(1, true);
+  }, [conditionId]));
 
   const loadEntries = async (p: number, replace: boolean) => {
     if (!conditionId) return;

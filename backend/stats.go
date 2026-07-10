@@ -469,32 +469,60 @@ func handleTimeline(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, result)
 }
 
+const minFeedingIntervalMin = 30.0
+
 // buildPrediction extracts the prediction logic so it can be reused.
+// It prioritises the previous calendar day's feeding intervals (a full day
+// gives a representative pattern) and falls back to recent records when
+// insufficient data is available.
 func buildPrediction(babyID string) map[string]interface{} {
-	parsed, err := loadRecentFeedings(babyID, 30)
+	nilResult := map[string]interface{}{"minutesUntilNext": nil, "avgIntervalMinutes": nil, "method": nil}
+
+	parsed, err := loadRecentFeedings(babyID, 60)
 	if err != nil || len(parsed) < 2 {
-		return map[string]interface{}{"minutesUntilNext": nil, "avgIntervalMinutes": nil, "method": nil}
+		return nilResult
 	}
 
-	var bottleRates, breastRates []float64
-	for i := 0; i < len(parsed)-1; i++ {
-		current := parsed[i+1]
-		next := parsed[i]
-		intervalMin := float64(next.occurredAt-current.occurredAt) / 60000.0
-		if intervalMin <= 0 || intervalMin > 480 {
-			continue
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).UnixMilli()
+	yesterdayStart := todayStart - 24*60*60*1000
+
+	var yesterdayFeedings, allFeedings []feedingRec
+	for _, f := range parsed {
+		if f.occurredAt >= yesterdayStart && f.occurredAt < todayStart {
+			yesterdayFeedings = append(yesterdayFeedings, f)
 		}
-		if current.typ == "bottle" {
-			ml := numField(current.data, "amountMl")
-			if ml > 0 {
-				bottleRates = append(bottleRates, intervalMin/ml)
+		allFeedings = append(allFeedings, f)
+	}
+
+	computeRates := func(feedings []feedingRec) (bottleRates, breastRates, plainIntervals []float64) {
+		for i := 0; i < len(feedings)-1; i++ {
+			current := feedings[i+1]
+			next := feedings[i]
+			intervalMin := float64(next.occurredAt-current.occurredAt) / 60000.0
+			if intervalMin < minFeedingIntervalMin || intervalMin > 480 {
+				continue
 			}
-		} else if current.typ == "breastfeed" {
-			totalMin := numField(current.data, "leftMinutes") + numField(current.data, "rightMinutes")
-			if totalMin > 0 {
-				breastRates = append(breastRates, intervalMin/totalMin)
+			plainIntervals = append(plainIntervals, intervalMin)
+			if current.typ == "bottle" {
+				ml := numField(current.data, "amountMl")
+				if ml > 0 {
+					bottleRates = append(bottleRates, intervalMin/ml)
+				}
+			} else if current.typ == "breastfeed" {
+				totalMin := numField(current.data, "leftMinutes") + numField(current.data, "rightMinutes")
+				if totalMin > 0 {
+					breastRates = append(breastRates, intervalMin/totalMin)
+				}
 			}
 		}
+		return
+	}
+
+	// Try yesterday's data first; fall back to all recent data.
+	bottleRates, breastRates, plainIntervals := computeRates(yesterdayFeedings)
+	if len(plainIntervals) < 2 {
+		bottleRates, breastRates, plainIntervals = computeRates(allFeedings)
 	}
 
 	lastFeeding := parsed[0]
@@ -518,27 +546,18 @@ func buildPrediction(babyID string) map[string]interface{} {
 		method = &m
 	}
 
-	if predictedInterval == nil {
-		var intervals []float64
-		for i := 0; i < len(parsed)-1; i++ {
-			diff := float64(parsed[i].occurredAt-parsed[i+1].occurredAt) / 60000.0
-			if diff > 0 && diff <= 480 {
-				intervals = append(intervals, diff)
-			}
-		}
-		if len(intervals) >= 2 {
-			v := int(math.Round(avg(intervals)))
-			predictedInterval = &v
-			m := "average"
-			method = &m
-		}
+	if predictedInterval == nil && len(plainIntervals) >= 2 {
+		v := int(math.Round(avg(plainIntervals)))
+		predictedInterval = &v
+		m := "average"
+		method = &m
 	}
 
 	if predictedInterval == nil {
-		return map[string]interface{}{"minutesUntilNext": nil, "avgIntervalMinutes": nil, "method": nil}
+		return nilResult
 	}
 
-	nowMs := time.Now().UnixMilli()
+	nowMs := now.UnixMilli()
 	nextFeedingTime := lastFeedingTime + int64(*predictedInterval)*60000
 	minutesUntilNext := int(math.Round(float64(nextFeedingTime-nowMs) / 60000.0))
 
