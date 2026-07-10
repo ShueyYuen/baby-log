@@ -171,18 +171,8 @@ export default function Layout({ children }: LayoutProps) {
       </header>
 
       {/* Main Content */}
-      <main className={`h-full md:pt-6 md:pb-6 px-4 md:px-8 overflow-y-auto custom-scrollbar ${isSecondaryPage ? 'pt-0 pb-0' : 'pt-[72px] pb-[72px]'}`}>
-        <div className="max-w-4xl mx-auto">
-          {!babyLoading && !currentBaby && (
-            <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/30">
-              <p className="text-sm text-amber-800 dark:text-amber-200">还没有宝宝信息，添加后即可开始记录</p>
-              <Link to="/baby/setup" className="shrink-0 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400">
-                去添加
-              </Link>
-            </div>
-          )}
-          {children}
-        </div>
+      <main className="h-full overflow-hidden">
+        {children}
       </main>
 
       {/* Mobile Bottom Nav */}

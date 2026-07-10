@@ -406,8 +406,8 @@ export default function TimelinePage() {
   const listRef = useRef<HTMLDivElement>(null);
   const scrollElRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    const main = document.querySelector('main');
-    if (main) scrollElRef.current = main;
+    const el = listRef.current?.closest('.keepalive-page') as HTMLElement | null;
+    if (el) scrollElRef.current = el;
   }, []);
 
   const virtualizer = useVirtualizer({
