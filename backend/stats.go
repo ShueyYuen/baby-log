@@ -57,6 +57,58 @@ type feedingRec struct {
 	data       map[string]interface{}
 }
 
+// feedingEndMs estimates when the feeding session ended.
+func feedingEndMs(f feedingRec) int64 {
+	switch f.typ {
+	case "breastfeed":
+		dur := numField(f.data, "leftMinutes") + numField(f.data, "rightMinutes")
+		if dur > 0 {
+			return f.occurredAt + int64(dur*60000)
+		}
+	case "bottle":
+		ml := numField(f.data, "amountMl")
+		if ml > 0 {
+			est := math.Max(5, math.Min(ml/4, 30))
+			return f.occurredAt + int64(est*60000)
+		}
+	}
+	return f.occurredAt + 15*60000
+}
+
+// feedingSession groups consecutive feedings that are close together.
+type feedingSession struct {
+	startMs int64
+	endMs   int64
+}
+
+// clusterFeedings merges consecutive feeding records (already sorted DESC)
+// into sessions. Two feedings belong to the same session if the gap between
+// the estimated end of one and the start of the next is < threshold.
+func clusterFeedings(recs []feedingRec, thresholdMs int64) []feedingSession {
+	if len(recs) == 0 {
+		return nil
+	}
+	// recs are DESC; iterate in chronological order (oldest first)
+	var sessions []feedingSession
+	i := len(recs) - 1
+	cur := feedingSession{startMs: recs[i].occurredAt, endMs: feedingEndMs(recs[i])}
+	i--
+	for ; i >= 0; i-- {
+		r := recs[i]
+		end := feedingEndMs(r)
+		if r.occurredAt-cur.endMs < thresholdMs {
+			if end > cur.endMs {
+				cur.endMs = end
+			}
+		} else {
+			sessions = append(sessions, cur)
+			cur = feedingSession{startMs: r.occurredAt, endMs: end}
+		}
+	}
+	sessions = append(sessions, cur)
+	return sessions
+}
+
 func loadRecentFeedings(babyID string, limit int) ([]feedingRec, error) {
 	rows, err := db.Query(`SELECT type, data, occurredAt FROM "Record" WHERE babyId = ? AND category = 'feeding' ORDER BY occurredAt DESC LIMIT ?`, babyID, limit)
 	if err != nil {
@@ -469,12 +521,20 @@ func handleTimeline(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, result)
 }
 
-const minFeedingIntervalMin = 30.0
+const clusterGapMs = 30 * 60 * 1000 // feedings within 30 min are one session
 
 // buildPrediction extracts the prediction logic so it can be reused.
-// It prioritises the previous calendar day's feeding intervals (a full day
-// gives a representative pattern) and falls back to recent records when
-// insufficient data is available.
+//
+// It clusters consecutive feedings that are ≤30 min apart into "sessions"
+// and computes intervals between session-end → session-start. This avoids
+// treating split/top-up feedings as separate cycles and gives more realistic
+// inter-session intervals.
+//
+// When the last feeding was bottle or breastfeed, a per-unit rate (min/ml or
+// min/feedingMin) is used for more accurate prediction. Otherwise, the plain
+// average session-to-session interval is used.
+//
+// Yesterday's data is preferred as it represents a full day's pattern.
 func buildPrediction(babyID string) map[string]interface{} {
 	nilResult := map[string]interface{}{"minutesUntilNext": nil, "avgIntervalMinutes": nil, "method": nil}
 
@@ -487,46 +547,62 @@ func buildPrediction(babyID string) map[string]interface{} {
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).UnixMilli()
 	yesterdayStart := todayStart - 24*60*60*1000
 
-	var yesterdayFeedings, allFeedings []feedingRec
+	var yesterdayFeedings []feedingRec
 	for _, f := range parsed {
 		if f.occurredAt >= yesterdayStart && f.occurredAt < todayStart {
 			yesterdayFeedings = append(yesterdayFeedings, f)
 		}
-		allFeedings = append(allFeedings, f)
 	}
 
-	computeRates := func(feedings []feedingRec) (bottleRates, breastRates, plainIntervals []float64) {
-		for i := 0; i < len(feedings)-1; i++ {
-			current := feedings[i+1]
-			next := feedings[i]
-			intervalMin := float64(next.occurredAt-current.occurredAt) / 60000.0
-			if intervalMin < minFeedingIntervalMin || intervalMin > 480 {
-				continue
-			}
-			plainIntervals = append(plainIntervals, intervalMin)
-			if current.typ == "bottle" {
-				ml := numField(current.data, "amountMl")
-				if ml > 0 {
-					bottleRates = append(bottleRates, intervalMin/ml)
-				}
-			} else if current.typ == "breastfeed" {
-				totalMin := numField(current.data, "leftMinutes") + numField(current.data, "rightMinutes")
-				if totalMin > 0 {
-					breastRates = append(breastRates, intervalMin/totalMin)
-				}
+	sessions := clusterFeedings(parsed, clusterGapMs)
+
+	computeIntervals := func(sess []feedingSession) []float64 {
+		var out []float64
+		for i := 0; i < len(sess)-1; i++ {
+			gap := float64(sess[i+1].startMs-sess[i].endMs) / 60000.0
+			if gap > 0 && gap <= 480 {
+				out = append(out, gap)
 			}
 		}
-		return
+		return out
 	}
 
-	// Try yesterday's data first; fall back to all recent data.
-	bottleRates, breastRates, plainIntervals := computeRates(yesterdayFeedings)
-	if len(plainIntervals) < 2 {
-		bottleRates, breastRates, plainIntervals = computeRates(allFeedings)
+	// Prefer yesterday's sessions; fall back to all.
+	ySessions := clusterFeedings(yesterdayFeedings, clusterGapMs)
+	sessionIntervals := computeIntervals(ySessions)
+	if len(sessionIntervals) < 2 {
+		sessionIntervals = computeIntervals(sessions)
+	}
+
+	// Per-unit rates still use raw records (not sessions) but only
+	// look at pairs that are in different sessions (gap ≥ clusterGap).
+	var bottleRates, breastRates []float64
+	for i := 0; i < len(parsed)-1; i++ {
+		current := parsed[i+1]
+		next := parsed[i]
+		gap := float64(next.occurredAt-feedingEndMs(current)) / 60000.0
+		if gap < 0 || gap > 480 {
+			continue
+		}
+		startToStart := float64(next.occurredAt-current.occurredAt) / 60000.0
+		if startToStart < 30 {
+			continue
+		}
+		if current.typ == "bottle" {
+			ml := numField(current.data, "amountMl")
+			if ml > 0 {
+				bottleRates = append(bottleRates, startToStart/ml)
+			}
+		} else if current.typ == "breastfeed" {
+			totalMin := numField(current.data, "leftMinutes") + numField(current.data, "rightMinutes")
+			if totalMin > 0 {
+				breastRates = append(breastRates, startToStart/totalMin)
+			}
+		}
 	}
 
 	lastFeeding := parsed[0]
-	lastFeedingTime := lastFeeding.occurredAt
+	lastSession := sessions[len(sessions)-1]
 	var predictedInterval *int
 	var method *string
 
@@ -546,8 +622,10 @@ func buildPrediction(babyID string) map[string]interface{} {
 		method = &m
 	}
 
-	if predictedInterval == nil && len(plainIntervals) >= 2 {
-		v := int(math.Round(avg(plainIntervals)))
+	if predictedInterval == nil && len(sessionIntervals) >= 2 {
+		dur := avg(sessionIntervals)
+		feedDur := float64(lastSession.endMs-lastSession.startMs) / 60000.0
+		v := int(math.Round(dur + feedDur))
 		predictedInterval = &v
 		m := "average"
 		method = &m
@@ -557,8 +635,10 @@ func buildPrediction(babyID string) map[string]interface{} {
 		return nilResult
 	}
 
+	// Predict from last session start, not last session end, because
+	// predictedInterval already accounts for feeding duration.
 	nowMs := now.UnixMilli()
-	nextFeedingTime := lastFeedingTime + int64(*predictedInterval)*60000
+	nextFeedingTime := lastSession.startMs + int64(*predictedInterval)*60000
 	minutesUntilNext := int(math.Round(float64(nextFeedingTime-nowMs) / 60000.0))
 
 	return map[string]interface{}{
