@@ -68,18 +68,19 @@ type recordOut struct {
 }
 
 type planOut struct {
-	ID          string  `json:"id"`
-	BabyID      string  `json:"babyId"`
-	Title       string  `json:"title"`
-	Type        string  `json:"type"`
-	ScheduledAt Millis  `json:"scheduledAt"`
-	Description *string `json:"description"`
-	Reminder    *string `json:"reminder"`
-	Repeat      string  `json:"repeat"`
-	Status      string  `json:"status"`
-	CreatedBy   string  `json:"createdBy"`
-	CreatedAt   Millis  `json:"createdAt"`
-	UpdatedAt   Millis  `json:"updatedAt"`
+	ID          string        `json:"id"`
+	BabyID      string        `json:"babyId"`
+	Title       string        `json:"title"`
+	Type        string        `json:"type"`
+	ScheduledAt Millis        `json:"scheduledAt"`
+	Description *string       `json:"description"`
+	Reminder    *string       `json:"reminder"`
+	Repeat      string        `json:"repeat"`
+	Status      string        `json:"status"`
+	CreatedBy   string        `json:"createdBy"`
+	CreatedAt   Millis        `json:"createdAt"`
+	UpdatedAt   Millis        `json:"updatedAt"`
+	Images      []RecordImageDisplay `json:"images"`
 }
 
 type growthOut struct {

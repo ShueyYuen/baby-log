@@ -162,7 +162,10 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 
 		r.Route("/upload", func(r chi.Router) {
 			r.Post("/", handleUploadSingle)
-			r.Post("/{prefix}", handleUploadMedia)
+			r.Group(func(r chi.Router) {
+				r.Use(requireEditorRole)
+				r.Post("/{prefix}", handleUploadMedia)
+			})
 		})
 
 		r.Route("/moments", func(r chi.Router) {

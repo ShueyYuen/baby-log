@@ -1,13 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { api, generateIdempotencyKey } from '../lib/api';
+import { api, generateIdempotencyKey, type UploadMomentResult, type RecordImage } from '../lib/api';
 import { cacheRead } from '../lib/queryCache';
-import { ArrowLeft, Bell } from 'lucide-react';
+import { ArrowLeft, Bell, ImagePlus, X, AlertCircle } from 'lucide-react';
 import { Button, Input, Textarea, DateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import dayjs from 'dayjs';
+
+interface ImagePreview {
+  file?: File;
+  url: string;
+  result?: UploadMomentResult;
+  progress?: number;
+  error?: boolean;
+  existing?: RecordImage;
+}
+
+const CONCURRENT = 3;
+const STEP = 5;
 
 const planTypes = [
   { value: 'vaccine', label: '疫苗接种' },
@@ -56,6 +68,8 @@ export default function PlanFormPage() {
   const [reminder, setReminder] = useState('30');
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [imagePreviews, setImagePreviews] = useState<ImagePreview[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (!isEditing || !currentBaby) return;
@@ -67,6 +81,13 @@ export default function PlanFormPage() {
       setDescription(plan.description || '');
       setRepeat(plan.repeat || 'none');
       setReminder(plan.reminder || '30');
+      if (plan.images?.length) {
+        setImagePreviews(plan.images.map((img: RecordImage) => ({
+          url: img.url,
+          existing: img,
+          result: { url: img.url, key: img.key, rawUrl: img.rawUrl || '', rawKey: img.rawKey || '', mediaType: img.mediaType || 'image' },
+        })));
+      }
     };
 
     // Try location state first (instant)
@@ -94,10 +115,65 @@ export default function PlanFormPage() {
     });
   }, [id, currentBaby]);
 
+  const handleImageUpload = useCallback(async (files: FileList | File[]) => {
+    const allowed = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (!allowed.length) return;
+    const startIdx = imagePreviews.length;
+
+    const placeholders: ImagePreview[] = allowed.map((f) => ({
+      file: f, url: '', progress: 0,
+    }));
+    setImagePreviews((prev) => [...prev, ...placeholders]);
+    setUploading(true);
+
+    for (let i = 0; i < allowed.length; i++) {
+      const blobUrl = URL.createObjectURL(allowed[i]);
+      setImagePreviews((prev) => {
+        const next = [...prev]; const idx = startIdx + i;
+        if (next[idx]) next[idx] = { ...next[idx], url: blobUrl };
+        return next;
+      });
+    }
+
+    let queueIdx = 0;
+    const lastR: number[] = new Array(allowed.length).fill(-1);
+    const uploadNext = async (): Promise<void> => {
+      const myIdx = queueIdx++;
+      if (myIdx >= allowed.length) return;
+      const fileIdx = startIdx + myIdx;
+      try {
+        const result = await api.plans.uploadMedia(allowed[myIdx], (pct) => {
+          const stepped = Math.floor(pct / STEP) * STEP;
+          if (stepped <= lastR[myIdx]) return;
+          lastR[myIdx] = stepped;
+          setImagePreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], progress: stepped }; return n; });
+        });
+        setImagePreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], result, progress: undefined }; return n; });
+      } catch {
+        setImagePreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], error: true, progress: undefined }; return n; });
+      }
+      await uploadNext();
+    };
+    await Promise.all(Array.from({ length: Math.min(CONCURRENT, allowed.length) }, () => uploadNext()));
+    setUploading(false);
+  }, [imagePreviews.length]);
+
+  const removeImage = useCallback((idx: number) => {
+    setImagePreviews((prev) => {
+      const next = [...prev]; const removed = next.splice(idx, 1)[0];
+      if (removed.url && removed.file) URL.revokeObjectURL(removed.url);
+      return next;
+    });
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentBaby) return;
     setLoading(true);
+
+    const images = imagePreviews
+      .filter((p) => p.result && !p.error)
+      .map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType || 'image' }));
 
     try {
       if (isEditing) {
@@ -108,6 +184,7 @@ export default function PlanFormPage() {
           description: description || undefined,
           reminder,
           repeat,
+          images,
         });
       } else {
         await api.post('/plans', {
@@ -118,6 +195,7 @@ export default function PlanFormPage() {
           description: description || undefined,
           reminder,
           repeat,
+          images,
         }, generateIdempotencyKey());
       }
       navigate('/plans', { replace: true });
@@ -193,6 +271,48 @@ export default function PlanFormPage() {
         </div>
 
         <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">图片</label>
+          <div className="flex flex-wrap gap-2">
+            {imagePreviews.map((p, i) => (
+              <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 flex-shrink-0">
+                {p.url ? (
+                  <img src={p.url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gray-100 dark:bg-gray-800 animate-pulse" />
+                )}
+                {p.progress != null && !p.error && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                    <span className="text-white text-xs font-semibold">{p.progress}%</span>
+                  </div>
+                )}
+                {p.error && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                    <AlertCircle size={14} className="text-red-400" />
+                  </div>
+                )}
+                <button type="button" onClick={() => removeImage(i)} className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80">
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+            <label className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 transition-colors">
+              <ImagePlus size={20} className="text-gray-400" />
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => {
+                  if (e.target.files?.length) handleImageUpload(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+          </div>
+        </div>
+
+        <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">重复</label>
           <Select value={repeat} onValueChange={setRepeat}>
             <SelectTrigger>
@@ -227,8 +347,8 @@ export default function PlanFormPage() {
         </div>
 
         {!isEditing && (
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading ? '创建中...' : '创建计划'}
+          <Button type="submit" disabled={loading || uploading} className="w-full">
+            {loading ? '创建中...' : uploading ? '上传中...' : '创建计划'}
           </Button>
         )}
         {isEditing && (

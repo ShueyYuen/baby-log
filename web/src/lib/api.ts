@@ -314,4 +314,8 @@ export const api = {
   records: {
     uploadMedia: createUploader('/upload/records'),
   },
+
+  plans: {
+    uploadMedia: createUploader('/upload/plans'),
+  },
 };

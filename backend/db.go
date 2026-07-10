@@ -68,6 +68,7 @@ func runMigrations() {
 		`ALTER TABLE "User" ADD COLUMN "tokenVersion" INTEGER NOT NULL DEFAULT 1`,
 		`ALTER TABLE "User" ADD COLUMN "avatar" TEXT`,
 		`ALTER TABLE "HealthEntry" ADD COLUMN "annotations" TEXT`,
+		`ALTER TABLE "Plan" ADD COLUMN "images" TEXT`,
 	}
 	for _, m := range migrations {
 		if _, err := db.Exec(m); err != nil {

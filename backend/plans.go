@@ -12,11 +12,12 @@ import (
 
 func scanPlanRow(row interface {
 	Scan(dest ...interface{}) error
-}) (*planOut, error) {
+}, userID string, isAdmin bool,
+) (*planOut, error) {
 	var p planOut
 	var scheduled, created, updated int64
-	var desc, reminder sql.NullString
-	if err := row.Scan(&p.ID, &p.BabyID, &p.Title, &p.Type, &scheduled, &desc, &reminder, &p.Repeat, &p.Status, &p.CreatedBy, &created, &updated); err != nil {
+	var desc, reminder, imagesJSON sql.NullString
+	if err := row.Scan(&p.ID, &p.BabyID, &p.Title, &p.Type, &scheduled, &desc, &reminder, &p.Repeat, &p.Status, &p.CreatedBy, &created, &updated, &imagesJSON); err != nil {
 		return nil, err
 	}
 	p.ScheduledAt = Millis(scheduled)
@@ -24,14 +25,17 @@ func scanPlanRow(row interface {
 	p.UpdatedAt = Millis(updated)
 	p.Description = strPtr(desc)
 	p.Reminder = strPtr(reminder)
+	stored := parseRecordImages(imagesJSON)
+	p.Images = recordImagesToDisplay(stored, userID, isAdmin, p.CreatedBy)
 	return &p, nil
 }
 
-const planCols = `id, babyId, title, type, scheduledAt, description, reminder, repeat, status, createdBy, createdAt, updatedAt`
+const planCols = `id, babyId, title, type, scheduledAt, description, reminder, repeat, status, createdBy, createdAt, updatedAt, images`
 
 // GET /plans
 func handleListPlans(w http.ResponseWriter, r *http.Request) {
 	userID := getUserID(r)
+	isAdmin := isAdminCtx(r)
 	babyID := r.URL.Query().Get("babyId")
 	status := r.URL.Query().Get("status")
 
@@ -82,7 +86,7 @@ func handleListPlans(w http.ResponseWriter, r *http.Request) {
 
 	plans := []planOut{}
 	for rows.Next() {
-		p, err := scanPlanRow(rows)
+		p, err := scanPlanRow(rows, userID, isAdmin)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, "Server error")
 			return
@@ -104,13 +108,14 @@ func handleCreatePlan(w http.ResponseWriter, r *http.Request) {
 	userID := getUserID(r)
 
 	var body struct {
-		BabyID      string  `json:"babyId"`
-		Title       string  `json:"title"`
-		Type        string  `json:"type"`
-		ScheduledAt string  `json:"scheduledAt"`
-		Description *string `json:"description"`
-		Reminder    *string `json:"reminder"`
-		Repeat      *string `json:"repeat"`
+		BabyID      string             `json:"babyId"`
+		Title       string             `json:"title"`
+		Type        string             `json:"type"`
+		ScheduledAt string             `json:"scheduledAt"`
+		Description *string            `json:"description"`
+		Reminder    *string            `json:"reminder"`
+		Repeat      *string            `json:"repeat"`
+		Images      []RecordImageStore `json:"images"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, http.StatusBadRequest, "Invalid input")
@@ -147,10 +152,25 @@ func handleCreatePlan(w http.ResponseWriter, r *http.Request) {
 
 	id := uuid.NewString()
 	now := nowMillis()
-	if _, err := db.Exec(`INSERT INTO "Plan" (id, babyId, title, type, scheduledAt, description, reminder, repeat, status, createdBy, createdAt, updatedAt)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+
+	var imagesJSON sql.NullString
+	if len(body.Images) > 0 {
+		b, _ := json.Marshal(body.Images)
+		imagesJSON = sql.NullString{String: string(b), Valid: true}
+		keys := make([]string, 0, len(body.Images)*2)
+		for _, img := range body.Images {
+			keys = append(keys, img.Key)
+			if img.RawKey != "" {
+				keys = append(keys, img.RawKey)
+			}
+		}
+		markUploadedFilesUsed(keys)
+	}
+
+	if _, err := db.Exec(`INSERT INTO "Plan" (id, babyId, title, type, scheduledAt, description, reminder, repeat, status, createdBy, createdAt, updatedAt, images)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
 		id, body.BabyID, body.Title, body.Type, int64(scheduled),
-		nullStringFromPtr(body.Description), nullStringFromPtr(body.Reminder), repeat, userID, int64(now), int64(now)); err != nil {
+		nullStringFromPtr(body.Description), nullStringFromPtr(body.Reminder), repeat, userID, int64(now), int64(now), imagesJSON); err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
 	}
@@ -174,7 +194,7 @@ func handleCreatePlan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	row := db.QueryRow(`SELECT `+planCols+` FROM "Plan" WHERE id = ?`, id)
-	p, err := scanPlanRow(row)
+	p, err := scanPlanRow(row, userID, isAdminCtx(r))
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
@@ -265,6 +285,22 @@ func handleUpdatePlan(w http.ResponseWriter, r *http.Request) {
 			args = append(args, s)
 		}
 	}
+	if raw, ok := body["images"]; ok {
+		var newImages []RecordImageStore
+		if err := json.Unmarshal(raw, &newImages); err == nil {
+			b, _ := json.Marshal(newImages)
+			sets = append(sets, "images = ?")
+			args = append(args, string(b))
+			keys := make([]string, 0, len(newImages)*2)
+			for _, img := range newImages {
+				keys = append(keys, img.Key)
+				if img.RawKey != "" {
+					keys = append(keys, img.RawKey)
+				}
+			}
+			markUploadedFilesUsed(keys)
+		}
+	}
 
 	sets = append(sets, "updatedAt = ?")
 	args = append(args, int64(nowMillis()))
@@ -276,7 +312,7 @@ func handleUpdatePlan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	row := db.QueryRow(`SELECT `+planCols+` FROM "Plan" WHERE id = ?`, id)
-	p, err := scanPlanRow(row)
+	p, err := scanPlanRow(row, userID, isAdminCtx(r))
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return

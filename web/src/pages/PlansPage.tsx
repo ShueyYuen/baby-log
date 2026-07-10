@@ -16,6 +16,13 @@ import { PlansSkeleton } from '../components/ui/skeleton';
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
 
+interface PlanImage {
+  url: string;
+  key: string;
+  rawUrl?: string;
+  mediaType?: string;
+}
+
 interface PlanItem {
   id: string;
   title: string;
@@ -25,6 +32,7 @@ interface PlanItem {
   reminder?: string;
   status: string;
   repeat: string;
+  images?: PlanImage[];
 }
 
 const typeLabels: Record<string, string> = {
@@ -83,6 +91,13 @@ function PlanCardItem({ plan, isViewer, onComplete, onCalendar }: PlanCardItemPr
             <h3 className="font-medium text-base dark:text-gray-100">{plan.title}</h3>
             {plan.description && (
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{plan.description}</p>
+            )}
+            {plan.images && plan.images.length > 0 && (
+              <div className="flex gap-1.5 mt-2 overflow-x-auto">
+                {plan.images.map((img, i) => (
+                  <img key={i} src={img.url} alt="" className="w-14 h-14 rounded-md object-cover flex-shrink-0" />
+                ))}
+              </div>
             )}
             <div className="flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 mt-2">
               <Calendar size={14} />
