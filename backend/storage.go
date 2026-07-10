@@ -296,10 +296,10 @@ func uploadFile(filename string, contentType string, data []byte) (*uploadResult
 	return result, nil
 }
 
-// uploadMomentFile stores a moment media file with compression (images).
-// S3: compressed → moments/{uid}.jpg, raw → moments/raw/{uid}{origExt}
-// Local: compressed → {uploadDir}/moments/{uid}.jpg, raw → {uploadDir}/moments/raw/{uid}{origExt}
-func uploadMomentFile(filename, contentType string, data []byte) (*uploadResult, error) {
+// uploadPrefixedFile stores a media file under the given prefix with compression (images).
+// S3: compressed → {prefix}/{uid}.jpg, raw → {prefix}/raw/{uid}{origExt}
+// Local: compressed → {uploadDir}/{prefix}/{uid}.jpg, raw → {uploadDir}/{prefix}/raw/{uid}{origExt}
+func uploadPrefixedFile(prefix, filename, contentType string, data []byte) (*uploadResult, error) {
 	cfg := getStorageConfig()
 	uid := uuid.NewString()
 	origExt := strings.ToLower(filepath.Ext(filename))
@@ -322,7 +322,7 @@ func uploadMomentFile(filename, contentType string, data []byte) (*uploadResult,
 
 	if cfg.typ == storageS3 && cfg.s3 != nil {
 		client := getS3Client()
-		compKey := "moments/" + uid + compressedExt
+		compKey := prefix + "/" + uid + compressedExt
 
 		type s3Result struct {
 			url string
@@ -355,7 +355,7 @@ func uploadMomentFile(filename, contentType string, data []byte) (*uploadResult,
 
 		if isImageMIME(contentType) {
 			go func() {
-				rawKey := "moments/raw/" + uid + origExt
+				rawKey := prefix + "/raw/" + uid + origExt
 				if _, err := client.PutObject(context.Background(), &s3.PutObjectInput{
 					Bucket:       aws.String(cfg.s3.bucket),
 					Key:          aws.String(rawKey),
@@ -363,7 +363,7 @@ func uploadMomentFile(filename, contentType string, data []byte) (*uploadResult,
 					ContentType:  aws.String(contentType),
 					CacheControl: aws.String(s3CacheControl),
 				}); err != nil {
-					log.Printf("[Storage] S3 moment raw upload failed (non-fatal): %v", err)
+					log.Printf("[Storage] S3 %s raw upload failed (non-fatal): %v", prefix, err)
 					rawCh <- s3Result{}
 					return
 				}
@@ -394,8 +394,8 @@ func uploadMomentFile(filename, contentType string, data []byte) (*uploadResult,
 		return result, nil
 	}
 
-	// Local storage — moments subfolder
-	compKey := "moments/" + uid + compressedExt
+	// Local storage — prefixed subfolder
+	compKey := prefix + "/" + uid + compressedExt
 	compPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(compKey))
 	if err := os.MkdirAll(filepath.Dir(compPath), 0o755); err != nil {
 		return nil, err
@@ -411,18 +411,26 @@ func uploadMomentFile(filename, contentType string, data []byte) (*uploadResult,
 
 	// Store raw copy for images
 	if isImageMIME(contentType) {
-		rawKey := "moments/raw/" + uid + origExt
+		rawKey := prefix + "/raw/" + uid + origExt
 		rawPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(rawKey))
 		if err := os.MkdirAll(filepath.Dir(rawPath), 0o755); err == nil {
 			if err := os.WriteFile(rawPath, data, 0o644); err == nil {
 				result.RawURL = cfg.publicPath + "/" + rawKey
 				result.RawKey = rawKey
 			} else {
-				log.Printf("[Storage] Local moment raw write failed (non-fatal): %v", err)
+				log.Printf("[Storage] Local %s raw write failed (non-fatal): %v", prefix, err)
 			}
 		}
 	}
 	return result, nil
+}
+
+func uploadMomentFile(filename, contentType string, data []byte) (*uploadResult, error) {
+	return uploadPrefixedFile("moments", filename, contentType, data)
+}
+
+func uploadHealthFile(filename, contentType string, data []byte) (*uploadResult, error) {
+	return uploadPrefixedFile("health", filename, contentType, data)
 }
 
 func deleteFile(key string) error {
@@ -502,6 +510,12 @@ func toStorageKeys(arr []string) []string {
 func toDisplayURL(stored string, expiresInSec int64) (string, error) {
 	cfg := getStorageConfig()
 	if cfg.typ != storageS3 || cfg.s3 == nil {
+		if stored == "" {
+			return stored, nil
+		}
+		if !httpSchemeRe.MatchString(stored) && !strings.HasPrefix(stored, cfg.publicPath) {
+			return cfg.publicPath + "/" + stored, nil
+		}
 		return stored, nil
 	}
 	if stored == "" {

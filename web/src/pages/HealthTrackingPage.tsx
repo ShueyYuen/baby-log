@@ -103,7 +103,7 @@ function ViewAnnotationPanel({ entry, imageIdx, onImageIdxChange, isViewer, onSa
 export default function HealthTrackingPage() {
   const { id: conditionId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentBaby } = useBaby();
+  const { currentBaby, loading: babyLoading } = useBaby();
   const { isViewer } = useAuth();
   const { toast } = useToast();
 
@@ -139,12 +139,16 @@ export default function HealthTrackingPage() {
   const [deletingCondition, setDeletingCondition] = useState(false);
 
   useEffect(() => {
-    if (!conditionId || !currentBaby) {
+    if (babyLoading || !conditionId) {
+      return;
+    }
+    if (!currentBaby) {
       setLoading(false);
       return;
     }
+    setLoading(true);
     loadConditionAndEntries();
-  }, [conditionId, currentBaby]);
+  }, [conditionId, currentBaby, babyLoading]);
 
   // Auto-load when sentinel enters viewport
   useEffect(() => {
@@ -165,15 +169,24 @@ export default function HealthTrackingPage() {
   const loadConditionAndEntries = async () => {
     if (!conditionId || !currentBaby) return;
     try {
-      const [conditionsRes, entriesRes] = await Promise.all([
-        api.healthConditions.list(currentBaby.id),
-        api.healthConditions.listEntries(conditionId, 1),
-      ]);
+      const conditionsRes = await api.healthConditions.list(currentBaby.id);
       const cond = conditionsRes.data.find((c) => c.id === conditionId);
-      setCondition(cond || null);
-      setEntries(entriesRes.data.items);
-      setHasMore(entriesRes.data.hasMore);
-      setPage(1);
+      if (!cond) {
+        setCondition(null);
+        setLoading(false);
+        return;
+      }
+      setCondition(cond);
+      try {
+        const entriesRes = await api.healthConditions.listEntries(conditionId, 1);
+        setEntries(entriesRes.data.items);
+        setHasMore(entriesRes.data.hasMore);
+        setPage(1);
+      } catch (e) {
+        console.error('Failed to load entries:', e);
+      }
+    } catch (e) {
+      console.error('Failed to load condition:', e);
     } finally {
       setLoading(false);
     }
@@ -269,7 +282,7 @@ export default function HealthTrackingPage() {
       if (myIdx >= allowed.length) return;
       const fileIdx = startIdx + myIdx;
       try {
-        const result = await api.moments.uploadMediaSingle(allowed[myIdx], (pct) => {
+        const result = await api.healthConditions.uploadMedia(allowed[myIdx], (pct) => {
           const stepped = Math.floor(pct / STEP) * STEP;
           if (stepped <= lastR[myIdx]) return;
           lastR[myIdx] = stepped;
@@ -454,61 +467,78 @@ export default function HealthTrackingPage() {
         </div>
       )}
 
-      {/* Entries */}
+      {/* Timeline Entries */}
       {entries.length === 0 ? (
         <p className="text-center text-gray-400 py-8">暂无记录，点击上方添加</p>
       ) : (
-        <div className="space-y-3">
-          {entries.map((entry) => (
-            <Card key={entry.id}>
-              <CardContent className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {dayjs(entry.date).format('YYYY-MM-DD')}
+        <div className="relative pl-6">
+          {/* Timeline vertical line */}
+          <div className="absolute left-2.5 top-2 bottom-2 w-px bg-gray-200 dark:bg-gray-700" />
+
+          {entries.map((entry, entryIdx) => {
+            const images = (entry.images || []).filter((img) => img.mediaType !== 'video');
+            const videos = (entry.images || []).filter((img) => img.mediaType === 'video');
+            const hasAnnotations = (img: RecordImage) => entry.annotations && entry.annotations[img.key]?.length > 0;
+
+            return (
+              <div key={entry.id} className={`relative ${entryIdx < entries.length - 1 ? 'pb-6' : ''}`}>
+                {/* Timeline dot — centered on the line at left-2.5 (10px) */}
+                <div className="absolute -left-5 top-1 w-3 h-3 rounded-full border-2 border-primary-400 bg-white dark:bg-gray-900" />
+
+                {/* Date + actions */}
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                    {dayjs(entry.date).format('YYYY年M月D日')}
                   </span>
                   {!isViewer && (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => openEditEntry(entry)}
-                        className="p-1.5 rounded-md text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <Pencil size={14} />
+                    <div className="flex items-center gap-0.5">
+                      <button onClick={() => openEditEntry(entry)} className="p-1 rounded text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <Pencil size={13} />
                       </button>
-                      <button
-                        onClick={() => setDeletingEntryId(entry.id)}
-                        className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <Trash2 size={14} />
+                      <button onClick={() => setDeletingEntryId(entry.id)} className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <Trash2 size={13} />
                       </button>
                     </div>
                   )}
                 </div>
-                {entry.note && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{entry.note}</p>
-                )}
-                {entry.images && entry.images.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {entry.images.map((img, i) => (
-                      img.mediaType === 'video' ? (
-                        <div key={i} className="w-16 h-16 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                          <Play size={16} className="text-gray-500" />
-                        </div>
-                      ) : (
-                        <div key={i} className="relative group">
-                          <img src={img.url} alt="" className="w-16 h-16 rounded-lg object-cover cursor-pointer" onClick={() => openAnnotator(entry, i)} />
-                          {entry.annotations && entry.annotations[img.key]?.length > 0 && (
-                            <div className="absolute bottom-0.5 right-0.5 flex items-center rounded-md px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                              <Ruler size={12} />
-                            </div>
-                          )}
-                        </div>
-                      )
+
+                {/* Images with annotations — displayed prominently */}
+                {images.length > 0 && (
+                  <div className="space-y-2 mb-2">
+                    {images.map((img, i) => (
+                      <div key={i} className="rounded-lg overflow-hidden cursor-pointer" onClick={() => openAnnotator(entry, (entry.images || []).indexOf(img))}>
+                        {hasAnnotations(img) ? (
+                          <ImageAnnotator
+                            imageUrl={img.url}
+                            annotations={(entry.annotations![img.key] || []) as Annotation[]}
+                            readonly
+                          />
+                        ) : (
+                          <img src={img.url} alt="" className="w-full rounded-lg" loading="lazy" />
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          ))}
+
+                {/* Videos */}
+                {videos.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {videos.map((_, vi) => (
+                      <div key={vi} className="w-20 h-20 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                        <Play size={20} className="text-gray-500" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Note */}
+                {entry.note && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{entry.note}</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -582,31 +612,35 @@ export default function HealthTrackingPage() {
               </div>
             </div>
 
-            {/* Inline annotation panel */}
-            {annotatingIdx !== null && entryPreviews[annotatingIdx]?.result && entryPreviews[annotatingIdx]?.type === 'image' && (
-              <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">标注测量</span>
-                  <button type="button" onClick={() => setAnnotatingIdx(null)} className="text-gray-400 hover:text-gray-600">
-                    <X size={16} />
-                  </button>
-                </div>
-                <ImageAnnotator
-                  imageUrl={entryPreviews[annotatingIdx].url}
-                  annotations={(formAnnotations[entryPreviews[annotatingIdx].result!.key] || []) as Annotation[]}
-                  onChange={(annos) => {
-                    const key = entryPreviews[annotatingIdx!].result!.key;
-                    setFormAnnotations((prev) => ({ ...prev, [key]: annos }));
-                  }}
-                />
-              </div>
-            )}
-
             <div className="flex gap-3">
               <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowEntryForm(false); setEntryPreviews([]); setFormAnnotations({}); }}>取消</Button>
               <Button type="submit" className="flex-1" disabled={entryUploading}>保存</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Annotation modal for form images */}
+      <Dialog open={annotatingIdx !== null && !!entryPreviews[annotatingIdx!]?.result && entryPreviews[annotatingIdx!]?.type === 'image'} onOpenChange={(open) => { if (!open) setAnnotatingIdx(null); }}>
+        <DialogContent className="max-w-lg sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>标注测量</DialogTitle>
+          </DialogHeader>
+          {annotatingIdx !== null && entryPreviews[annotatingIdx]?.result && (
+            <div className="space-y-3">
+              <ImageAnnotator
+                imageUrl={entryPreviews[annotatingIdx].url}
+                annotations={(formAnnotations[entryPreviews[annotatingIdx].result!.key] || []) as Annotation[]}
+                onChange={(annos) => {
+                  const key = entryPreviews[annotatingIdx!].result!.key;
+                  setFormAnnotations((prev) => ({ ...prev, [key]: annos }));
+                }}
+              />
+              <div className="flex gap-3">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setAnnotatingIdx(null)}>关闭</Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

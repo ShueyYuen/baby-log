@@ -84,7 +84,7 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 			r.Use(idempotencyMiddleware)
 
 			// 静态文件（上传目录）— 需认证，cookie 自动随 <img> 请求发送
-			r.Handle("/uploads/*", http.StripPrefix(apiPrefix+"/uploads/", http.FileServer(http.Dir(uploadDir))))
+			r.Handle("/uploads/*", http.StripPrefix(apiPrefix+"/uploads/", immutableCacheHandler(http.FileServer(http.Dir(uploadDir)))))
 
 		r.Route("/babies", func(r chi.Router) {
 			r.Get("/", handleListBabies)
@@ -148,6 +148,11 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 					r.Delete("/{id}/entries/{entryId}", handleDeleteHealthEntry)
 				})
 				r.Get("/{id}/entries", handleListHealthEntries)
+			})
+
+			r.Route("/health", func(r chi.Router) {
+				r.Use(requireEditorRole)
+				r.Post("/upload", handleUploadHealthMedia)
 			})
 
 		r.Route("/stats", func(r chi.Router) {
@@ -287,6 +292,15 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		next.ServeHTTP(w, r)
+	})
+}
+
+// immutableCacheHandler wraps a handler to set Cache-Control for UUID-named
+// immutable uploads, consistent with S3 object metadata.
+func immutableCacheHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", s3CacheControl)
 		next.ServeHTTP(w, r)
 	})
 }
