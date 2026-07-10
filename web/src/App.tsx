@@ -5,6 +5,7 @@ import { useBaby } from './contexts/BabyContext';
 import { KeepAliveActiveContext } from './hooks/useActivated';
 import { usePullRefresh, PullRefreshProvider } from './hooks/usePullRefresh';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
+import { useServerEventsConnection } from './hooks/useServerEvents';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import TimelinePage from './pages/TimelinePage';
@@ -81,6 +82,7 @@ function KeepAlivePageWrapper({
 function KeepAliveRoutes() {
   const location = useLocation();
   const { isAdmin } = useAuth();
+  useServerEventsConnection(true);
 
   const keepAlivePages = useMemo(() => [
     { path: '/', key: 'timeline', Component: TimelinePage },

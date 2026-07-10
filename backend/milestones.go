@@ -163,6 +163,7 @@ func handleCreateMilestone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, m)
+	publishEvent(DataEvent{Type: EventMilestoneChange, BabyID: body.BabyID, ID: id, UserID: userID})
 }
 
 // PUT /milestones/{id}
@@ -290,6 +291,7 @@ func handleUpdateMilestone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, m)
+	publishEvent(DataEvent{Type: EventMilestoneChange, BabyID: babyID, ID: id, UserID: userID})
 }
 
 // DELETE /milestones/{id}
@@ -330,4 +332,5 @@ func handleDeleteMilestone(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeSuccess(w)
+	publishEvent(DataEvent{Type: EventMilestoneChange, BabyID: babyID, ID: id, UserID: userID})
 }

@@ -302,6 +302,7 @@ func handleCreateMoment(w http.ResponseWriter, r *http.Request) {
 		out.MediaItems = []MediaItemDisplay{}
 	}
 	writeOK(w, out)
+	publishEvent(DataEvent{Type: EventMomentChange, ID: id, UserID: currentUserID})
 }
 
 // PUT /moments/{id}
@@ -389,6 +390,7 @@ func handleUpdateMoment(w http.ResponseWriter, r *http.Request) {
 	markUploadedFilesUsed(usedKeys)
 
 	writeOK(w, map[string]string{"id": id})
+	publishEvent(DataEvent{Type: EventMomentChange, ID: id, UserID: currentUserID})
 }
 
 // DELETE /moments/{id}
@@ -444,6 +446,7 @@ func handleDeleteMoment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeOK(w, map[string]string{"id": id})
+	publishEvent(DataEvent{Type: EventMomentChange, ID: id, UserID: currentUserID})
 }
 
 // POST /moments/{id}/comments

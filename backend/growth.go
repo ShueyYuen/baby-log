@@ -147,6 +147,7 @@ func handleCreateGrowth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, g)
+	publishEvent(DataEvent{Type: EventGrowthCreated, BabyID: body.BabyID, ID: id, UserID: userID})
 }
 
 // PUT /growth/{id}
@@ -230,6 +231,7 @@ func handleUpdateGrowth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, g)
+	publishEvent(DataEvent{Type: EventGrowthUpdated, BabyID: babyID, ID: id, UserID: userID})
 }
 
 // DELETE /growth/{id}
@@ -262,6 +264,7 @@ func handleDeleteGrowth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeSuccess(w)
+	publishEvent(DataEvent{Type: EventGrowthDeleted, BabyID: babyID, ID: id, UserID: userID})
 }
 
 func positiveOrNil(f *float64) bool {

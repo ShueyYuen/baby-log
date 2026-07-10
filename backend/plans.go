@@ -200,6 +200,7 @@ func handleCreatePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, p)
+	publishEvent(DataEvent{Type: EventPlanCreated, BabyID: body.BabyID, ID: id, UserID: userID})
 }
 
 // PUT /plans/{id}
@@ -318,6 +319,7 @@ func handleUpdatePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, p)
+	publishEvent(DataEvent{Type: EventPlanUpdated, BabyID: babyID, ID: id, UserID: userID})
 }
 
 // DELETE /plans/{id}
@@ -363,6 +365,7 @@ func handleDeletePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeSuccess(w)
+	publishEvent(DataEvent{Type: EventPlanDeleted, BabyID: babyID, ID: id, UserID: userID})
 }
 
 func isValidPlanType(t string) bool {

@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { api, generateIdempotencyKey, type RecordImage, type UploadMomentResult, type HealthCondition } from '../lib/api';
 import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import { useRefreshHandler } from '../hooks/usePullRefresh';
+import { useServerEvent } from '../hooks/useServerEvents';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Plus, Star, Pencil, Trash2, ImagePlus, Play, X, AlertCircle, Activity, CheckCircle2 } from 'lucide-react';
@@ -220,6 +221,11 @@ export default function GrowthPage() {
   useRefreshHandler(useCallback(async () => {
     await Promise.all([loadData(true), loadHealthConditions()]);
   }, [currentBaby]));
+
+  useServerEvent(
+    ['growth.created', 'growth.updated', 'growth.deleted', 'milestone.change', 'health.change'],
+    useCallback(() => { loadData(true); loadHealthConditions(); }, [currentBaby]),
+  );
 
   const createHealthCondition = async (e: React.FormEvent) => {
     e.preventDefault();

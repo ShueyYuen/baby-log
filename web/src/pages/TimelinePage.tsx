@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { api, generateIdempotencyKey, type TimelineResponse, type TimelineRecord, type TimelineSummary, type FeedingPrediction } from '../lib/api';
 import { cacheRead, cacheReadAsync, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import { useRefreshHandler } from '../hooks/usePullRefresh';
+import { useServerEvent } from '../hooks/useServerEvents';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -357,6 +358,11 @@ export default function TimelinePage() {
   };
 
   useRefreshHandler(useCallback(async () => { await loadData(true); }, [currentBaby, filter, search]));
+
+  useServerEvent(
+    ['record.created', 'record.updated', 'record.deleted'],
+    useCallback(() => { loadData(true); }, [currentBaby, filter, search]),
+  );
 
   const loadMore = async () => {
     if (!currentBaby || loadingMore || !hasMore || records.length === 0) return;

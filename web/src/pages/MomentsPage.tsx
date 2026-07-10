@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRefreshHandler } from "../hooks/usePullRefresh";
+import { useServerEvent } from "../hooks/useServerEvents";
 import {
   Button,
   ConfirmDialog,
@@ -949,6 +950,8 @@ export default function MomentsPage() {
   }, [fetchMoments]);
 
   useRefreshHandler(useCallback(async () => { await fetchMoments(1, true); }, [fetchMoments]));
+
+  useServerEvent('moment.change', useCallback(() => { fetchMoments(1, true); }, [fetchMoments]));
 
   // Auto-load more when sentinel enters viewport
   useEffect(() => {

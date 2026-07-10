@@ -108,6 +108,7 @@ func handleCreateHealthCondition(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	})
+	publishEvent(DataEvent{Type: EventHealthChange, BabyID: body.BabyID, ID: id, UserID: userID})
 }
 
 // PUT /health-conditions/{id}
@@ -196,6 +197,7 @@ func handleUpdateHealthCondition(w http.ResponseWriter, r *http.Request) {
 	c.UpdatedAt = Millis(updated)
 	c.EntryCount = entryCount
 	writeOK(w, c)
+	publishEvent(DataEvent{Type: EventHealthChange, BabyID: babyID, ID: id, UserID: userID})
 }
 
 // DELETE /health-conditions/{id}
@@ -243,6 +245,7 @@ func handleDeleteHealthCondition(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeSuccess(w)
+	publishEvent(DataEvent{Type: EventHealthChange, BabyID: babyID, ID: id, UserID: userID})
 }
 
 // ─── Health Entries ─────────────────────────────────────────────────────────
@@ -425,6 +428,7 @@ func handleCreateHealthEntry(w http.ResponseWriter, r *http.Request) {
 		out.Annotations = body.Annotations
 	}
 	writeOK(w, out)
+	publishEvent(DataEvent{Type: EventHealthChange, BabyID: babyID, ID: conditionID, UserID: userID})
 }
 
 // PUT /health-conditions/{id}/entries/{entryId}
@@ -582,6 +586,7 @@ func handleUpdateHealthEntry(w http.ResponseWriter, r *http.Request) {
 	e.CreatedAt = Millis(created)
 	e.UpdatedAt = Millis(updated)
 	writeOK(w, e)
+	publishEvent(DataEvent{Type: EventHealthChange, BabyID: babyID, ID: conditionID, UserID: userID})
 }
 
 // DELETE /health-conditions/{id}/entries/{entryId}
@@ -632,4 +637,5 @@ func handleDeleteHealthEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeSuccess(w)
+	publishEvent(DataEvent{Type: EventHealthChange, BabyID: babyID, ID: conditionID, UserID: userID})
 }

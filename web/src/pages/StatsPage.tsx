@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import { useRefreshHandler } from '../hooks/usePullRefresh';
+import { useServerEvent } from '../hooks/useServerEvents';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -50,6 +51,11 @@ export default function StatsPage() {
   useRefreshHandler(useCallback(async () => {
     await Promise.all([loadWeekData(), loadTempData()]);
   }, [currentBaby, tempDate]));
+
+  useServerEvent(
+    ['record.created', 'record.updated', 'record.deleted'],
+    useCallback(() => { loadWeekData(); loadTempData(); }, [currentBaby, tempDate]),
+  );
 
   const loadTempData = async () => {
     if (!currentBaby) return;
