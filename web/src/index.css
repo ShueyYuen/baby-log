@@ -31,20 +31,28 @@
 @layer components {
   .btn-primary {
     @apply bg-primary-500 text-white px-4 py-2 rounded-lg font-medium
-           hover:bg-primary-600 active:bg-primary-700 transition-colors
-           disabled:opacity-50 disabled:cursor-not-allowed;
+           hover:bg-primary-600 active:bg-primary-700 transition-all
+           active:scale-[0.97]
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
   }
 
   .btn-secondary {
     @apply bg-white text-gray-700 px-4 py-2 rounded-lg font-medium border border-gray-300
-           hover:bg-gray-50 active:bg-gray-100 transition-colors
+           hover:bg-gray-50 active:bg-gray-100 transition-all
+           active:scale-[0.97]
            dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600
-           dark:hover:bg-gray-700 dark:active:bg-gray-600;
+           dark:hover:bg-gray-700 dark:active:bg-gray-600
+           disabled:active:scale-100;
   }
 
   .card {
     @apply bg-white rounded-xl shadow-sm border border-gray-100 p-4
            dark:bg-gray-800 dark:border-gray-700;
+  }
+
+  .card-interactive {
+    @apply card cursor-pointer transition-all
+           active:scale-[0.98] active:shadow-none;
   }
 
   .input {
@@ -89,6 +97,48 @@
 
 .dark .custom-scrollbar {
   scrollbar-color: rgba(75, 85, 99, 0.5) transparent;
+}
+
+@keyframes toast-slide-in {
+  from { opacity: 0; transform: translateY(-12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toast-slide-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-8px) scale(0.96); }
+}
+
+.toast-enter {
+  animation: toast-slide-in 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.toast-exit {
+  animation: toast-slide-out 200ms ease-in forwards;
+}
+
+@media (min-width: 768px) {
+  @keyframes toast-slide-in-desktop {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes toast-slide-out-desktop {
+    from { opacity: 1; transform: translateX(0); }
+    to { opacity: 0; transform: translateX(20px); }
+  }
+  .toast-enter {
+    animation: toast-slide-in-desktop 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .toast-exit {
+    animation: toast-slide-out-desktop 200ms ease-in forwards;
+  }
+}
+
+@keyframes keepalive-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.keepalive-page[data-active="true"] {
+  animation: keepalive-fade-in 150ms ease-out;
 }
 
 @keyframes slide-up {

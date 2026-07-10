@@ -262,6 +262,7 @@ func handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: now, UpdatedAt: now,
 	}
 	writeOK(w, out)
+	publishEvent(DataEvent{Type: EventRecordCreated, BabyID: body.BabyID, ID: id, UserID: userID})
 
 	if body.Category == "feeding" {
 		go func() {
@@ -401,6 +402,7 @@ func handleUpdateRecord(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, out)
+	publishEvent(DataEvent{Type: EventRecordUpdated, BabyID: existingBabyID, ID: id, UserID: userID})
 }
 
 // DELETE /records/{id}
@@ -442,6 +444,7 @@ func handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeSuccess(w)
+	publishEvent(DataEvent{Type: EventRecordDeleted, BabyID: babyID, ID: id, UserID: userID})
 }
 
 // loadRecordByID 返回不含 user 的记录（用于 PUT 响应，与原实现一致）。

@@ -1,5 +1,6 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { hapticTap } from '../lib/haptic';
 import { Clock, Calendar, TrendingUp, BarChart3, Sun, Moon, Monitor, Users, Images } from 'lucide-react';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -51,7 +52,7 @@ export default function Layout({ children }: LayoutProps) {
     }
   };
 
-  const isSecondaryPage = /^\/(record|plan\/new|plan\/[^/]+\/edit|growth\/history)/.test(location.pathname);
+  const isSecondaryPage = /^\/(record|plan\/new|plan\/[^/]+\/edit|growth\/(history|health\/))/.test(location.pathname);
 
   const navItems = [
     { path: '/', icon: Clock, label: '时间线' },
@@ -183,7 +184,8 @@ export default function Layout({ children }: LayoutProps) {
             <Link
               key={item.path}
               to={item.path}
-              className={`flex-1 flex flex-col items-center py-2.5 ${
+              onClick={hapticTap}
+              className={`flex-1 flex flex-col items-center py-2.5 transition-transform active:scale-90 ${
                 active ? 'text-primary-500' : 'text-gray-400 dark:text-gray-500'
               }`}
             >

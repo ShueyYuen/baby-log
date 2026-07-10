@@ -1,7 +1,10 @@
-import { lazy, Suspense, useState, useEffect, useMemo } from 'react';
+import { lazy, Suspense, useState, useEffect, useMemo, useRef } from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { useBaby } from './contexts/BabyContext';
+import { KeepAliveActiveContext } from './hooks/useActivated';
+import { usePullRefresh, PullRefreshProvider } from './hooks/usePullRefresh';
+import { PullRefreshIndicator } from './components/PullRefreshIndicator';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import TimelinePage from './pages/TimelinePage';
@@ -45,6 +48,36 @@ function BabyBanner() {
   );
 }
 
+function KeepAlivePageWrapper({
+  active,
+  Component,
+}: {
+  active: boolean;
+  Component: React.ComponentType;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { pullDistance, refreshing, ctxValue } = usePullRefresh(containerRef);
+
+  return (
+    <div
+      ref={containerRef}
+      className="keepalive-page h-full overflow-y-auto custom-scrollbar pt-[72px] pb-[72px] md:pt-0 md:pb-0 px-4 md:px-8"
+      data-active={active}
+      style={{ display: active ? 'block' : 'none' }}
+    >
+      <div className="max-w-4xl mx-auto">
+        <PullRefreshIndicator pullDistance={pullDistance} refreshing={refreshing} />
+        <KeepAliveActiveContext.Provider value={active}>
+          <PullRefreshProvider value={ctxValue}>
+            <BabyBanner />
+            <Component />
+          </PullRefreshProvider>
+        </KeepAliveActiveContext.Provider>
+      </div>
+    </div>
+  );
+}
+
 function KeepAliveRoutes() {
   const location = useLocation();
   const { isAdmin } = useAuth();
@@ -73,6 +106,13 @@ function KeepAliveRoutes() {
 
   const isKeepAlivePage = !!activeKeepAlive;
 
+  const nonKaScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isKeepAlivePage && nonKaScrollRef.current) {
+      nonKaScrollRef.current.scrollTop = 0;
+    }
+  }, [location.pathname, isKeepAlivePage]);
+
   return (
     <>
       {keepAlivePages.map(({ path, key, Component, guard }) => {
@@ -80,21 +120,12 @@ function KeepAliveRoutes() {
         if (guard && !guard()) return null;
         const active = location.pathname === path;
         return (
-          <div
-            key={key}
-            className="keepalive-page h-full overflow-y-auto custom-scrollbar pt-[72px] pb-[72px] md:pt-0 md:pb-0 px-4 md:px-8"
-            style={{ display: active ? 'block' : 'none' }}
-          >
-            <div className="max-w-4xl mx-auto">
-              <BabyBanner />
-              <Component />
-            </div>
-          </div>
+          <KeepAlivePageWrapper key={key} active={active} Component={Component} />
         );
       })}
 
       {!isKeepAlivePage && (
-        <div className="h-full overflow-y-auto custom-scrollbar pt-0 pb-0 px-4 md:px-8">
+        <div ref={nonKaScrollRef} className="h-full overflow-y-auto custom-scrollbar pt-0 pb-0 px-4 md:px-8">
           <div className="max-w-4xl mx-auto">
             <Suspense fallback={<PageFallback />}>
               <Routes location={location}>

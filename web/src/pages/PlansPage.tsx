@@ -5,6 +5,7 @@ import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
+import { useRefreshHandler } from '../hooks/usePullRefresh';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -208,6 +209,8 @@ export default function PlansPage() {
       setLoadingMore(false);
     }
   };
+
+  useRefreshHandler(useCallback(async () => { await loadPlans(1, true); }, [currentBaby, statusFilter]));
 
   const updateStatus = async (id: string, status: string) => {
     try {

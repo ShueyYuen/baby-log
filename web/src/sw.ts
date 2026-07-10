@@ -1,8 +1,13 @@
 /// <reference lib="webworker" />
-import { precacheAndRoute } from 'workbox-precaching';
+import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
+import { clientsClaim } from 'workbox-core';
 
 declare let self: ServiceWorkerGlobalScope;
 
+self.skipWaiting();
+clientsClaim();
+
+cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
 const POLL_INTERVAL = 600_000; // 10 minutes
@@ -54,7 +59,9 @@ self.addEventListener('activate', () => {
 });
 
 self.addEventListener('message', (event) => {
-  if (event.data?.type === 'START_POLLING') {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  } else if (event.data?.type === 'START_POLLING') {
     startPolling();
   } else if (event.data?.type === 'STOP_POLLING') {
     stopPolling();

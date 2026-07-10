@@ -187,6 +187,8 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 			})
 
 			r.Post("/admin/cleanup", handleManualCleanup)
+
+			r.Get("/events", handleSSE)
 		})
 
 		r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {

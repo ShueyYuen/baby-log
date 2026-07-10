@@ -6,6 +6,7 @@ import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { api, generateIdempotencyKey, type TimelineResponse, type TimelineRecord, type TimelineSummary, type FeedingPrediction } from '../lib/api';
 import { cacheRead, cacheReadAsync, cacheWrite, cacheInvalidate } from '../lib/queryCache';
+import { useRefreshHandler } from '../hooks/usePullRefresh';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -354,6 +355,8 @@ export default function TimelinePage() {
       if (thisLoadId === loadIdRef.current) setLoading(false);
     }
   };
+
+  useRefreshHandler(useCallback(async () => { await loadData(true); }, [currentBaby, filter, search]));
 
   const loadMore = async () => {
     if (!currentBaby || loadingMore || !hasMore || records.length === 0) return;
