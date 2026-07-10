@@ -24,7 +24,7 @@ func scanMilestoneRow(row interface {
 	m.CreatedAt = Millis(created)
 	m.UpdatedAt = Millis(updated)
 	m.Description = strPtr(desc)
-	m.Images = recordImagesToDisplay(parseRecordImages(images), currentUserID, isAdmin)
+	m.Images = recordImagesToDisplay(parseRecordImages(images), currentUserID, isAdmin, "")
 	return &m, nil
 }
 
@@ -238,6 +238,15 @@ func handleUpdateMilestone(w http.ResponseWriter, r *http.Request) {
 			args = append(args, nil)
 		} else {
 			json.Unmarshal(raw, &newImages)
+			// Preserve images not visible to current user
+			if existingImages.Valid {
+				oldImgs := parseRecordImages(existingImages)
+				for _, old := range oldImgs {
+					if !isImageVisibleTo(old.VisibleTo, userID, isAdminCtx(r), "") {
+						newImages = append(newImages, old)
+					}
+				}
+			}
 			b, _ := json.Marshal(newImages)
 			sets = append(sets, "images = ?")
 			args = append(args, string(b))

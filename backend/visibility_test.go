@@ -11,23 +11,26 @@ func TestIsImageVisibleTo(t *testing.T) {
 		visibleTo []string
 		userID    string
 		isAdmin   bool
+		createdBy string
 		want      bool
 	}{
-		{"empty list visible to all", nil, "user1", false, true},
-		{"empty slice visible to all", []string{}, "user2", false, true},
-		{"admin sees all", []string{"user1"}, "admin1", true, true},
-		{"user in list can see", []string{"user1", "user2"}, "user2", false, true},
-		{"user not in list cannot see", []string{"user1", "user2"}, "user3", false, false},
-		{"single user list match", []string{"user1"}, "user1", false, true},
-		{"single user list no match", []string{"user1"}, "user2", false, false},
+		{"empty list visible to all", nil, "user1", false, "", true},
+		{"empty slice visible to all", []string{}, "user2", false, "", true},
+		{"admin sees all", []string{"user1"}, "admin1", true, "", true},
+		{"user in list can see", []string{"user1", "user2"}, "user2", false, "", true},
+		{"user not in list cannot see", []string{"user1", "user2"}, "user3", false, "", false},
+		{"single user list match", []string{"user1"}, "user1", false, "", true},
+		{"single user list no match", []string{"user1"}, "user2", false, "", false},
+		{"creator can always see", []string{"user1"}, "creator1", false, "creator1", true},
+		{"non-creator still blocked", []string{"user1"}, "user2", false, "creator1", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isImageVisibleTo(tt.visibleTo, tt.userID, tt.isAdmin)
+			got := isImageVisibleTo(tt.visibleTo, tt.userID, tt.isAdmin, tt.createdBy)
 			if got != tt.want {
-				t.Errorf("isImageVisibleTo(%v, %q, %v) = %v, want %v",
-					tt.visibleTo, tt.userID, tt.isAdmin, got, tt.want)
+				t.Errorf("isImageVisibleTo(%v, %q, %v, %q) = %v, want %v",
+					tt.visibleTo, tt.userID, tt.isAdmin, tt.createdBy, got, tt.want)
 			}
 		})
 	}
@@ -41,14 +44,14 @@ func TestRecordImagesToDisplayFilters(t *testing.T) {
 	}
 
 	t.Run("admin sees all", func(t *testing.T) {
-		result := recordImagesToDisplay(items, "admin1", true)
+		result := recordImagesToDisplay(items, "admin1", true, "")
 		if len(result) != 3 {
 			t.Errorf("admin should see 3 images, got %d", len(result))
 		}
 	})
 
 	t.Run("user1 sees public and restricted", func(t *testing.T) {
-		result := recordImagesToDisplay(items, "user1", false)
+		result := recordImagesToDisplay(items, "user1", false, "")
 		if len(result) != 2 {
 			t.Errorf("user1 should see 2 images, got %d", len(result))
 		}
@@ -58,14 +61,14 @@ func TestRecordImagesToDisplayFilters(t *testing.T) {
 	})
 
 	t.Run("user3 sees public and private", func(t *testing.T) {
-		result := recordImagesToDisplay(items, "user3", false)
+		result := recordImagesToDisplay(items, "user3", false, "")
 		if len(result) != 2 {
 			t.Errorf("user3 should see 2 images, got %d", len(result))
 		}
 	})
 
 	t.Run("unknown user sees only public", func(t *testing.T) {
-		result := recordImagesToDisplay(items, "user99", false)
+		result := recordImagesToDisplay(items, "user99", false, "")
 		if len(result) != 1 {
 			t.Errorf("unknown user should see 1 image, got %d", len(result))
 		}
@@ -75,9 +78,16 @@ func TestRecordImagesToDisplayFilters(t *testing.T) {
 	})
 
 	t.Run("visibleTo preserved in output", func(t *testing.T) {
-		result := recordImagesToDisplay(items, "user1", false)
+		result := recordImagesToDisplay(items, "user1", false, "")
 		if result[1].VisibleTo == nil || len(result[1].VisibleTo) != 2 {
 			t.Errorf("VisibleTo should be preserved, got %v", result[1].VisibleTo)
+		}
+	})
+
+	t.Run("creator sees all own images", func(t *testing.T) {
+		result := recordImagesToDisplay(items, "creator1", false, "creator1")
+		if len(result) != 3 {
+			t.Errorf("creator should see 3 images, got %d", len(result))
 		}
 	})
 }
@@ -89,16 +99,23 @@ func TestMediaItemsToDisplayFilters(t *testing.T) {
 	}
 
 	t.Run("userA sees both", func(t *testing.T) {
-		result := mediaItemsToDisplay(items, "userA", false)
+		result := mediaItemsToDisplay(items, "userA", false, "")
 		if len(result) != 2 {
 			t.Errorf("userA should see 2, got %d", len(result))
 		}
 	})
 
 	t.Run("userB sees only public", func(t *testing.T) {
-		result := mediaItemsToDisplay(items, "userB", false)
+		result := mediaItemsToDisplay(items, "userB", false, "")
 		if len(result) != 1 {
 			t.Errorf("userB should see 1, got %d", len(result))
+		}
+	})
+
+	t.Run("creator sees all", func(t *testing.T) {
+		result := mediaItemsToDisplay(items, "userB", false, "userB")
+		if len(result) != 2 {
+			t.Errorf("creator should see 2, got %d", len(result))
 		}
 	})
 }

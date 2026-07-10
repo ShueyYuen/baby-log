@@ -149,6 +149,39 @@ export interface Member {
   avatar?: string | null;
 }
 
+// ─── Health Conditions types ────────────────────────────────────────────────
+
+export interface HealthCondition {
+  id: string;
+  babyId: string;
+  name: string;
+  description?: string | null;
+  status: 'active' | 'resolved';
+  entryCount: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HealthEntry {
+  id: string;
+  conditionId: string;
+  date: string;
+  note?: string | null;
+  images: RecordImage[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HealthEntriesResponse {
+  items: HealthEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
 // ─── API client ───────────────────────────────────────────────────────────────
 
 export const api = {
@@ -255,5 +288,33 @@ export const api = {
 
   members: {
     list: () => api.get<{ success: boolean; data: Member[] }>('/auth/members'),
+  },
+
+  healthConditions: {
+    list: (babyId: string) =>
+      api.get<{ success: boolean; data: HealthCondition[] }>(`/health-conditions?babyId=${babyId}`),
+
+    create: (data: { babyId: string; name: string; description?: string }, idempotencyKey?: string) =>
+      api.post<{ success: boolean; data: HealthCondition }>('/health-conditions', data, idempotencyKey),
+
+    update: (id: string, data: { name?: string; description?: string | null; status?: string }) =>
+      api.put<{ success: boolean; data: HealthCondition }>(`/health-conditions/${id}`, data),
+
+    delete: (id: string) =>
+      api.delete<{ success: boolean }>(`/health-conditions/${id}`),
+
+    listEntries: (conditionId: string, page = 1, pageSize = 20) =>
+      api.get<{ success: boolean; data: HealthEntriesResponse }>(
+        `/health-conditions/${conditionId}/entries?page=${page}&pageSize=${pageSize}`
+      ),
+
+    createEntry: (conditionId: string, data: { date: string; note?: string; images?: Array<{ key: string; rawKey?: string; mediaType?: string; visibleTo?: string[] }> }, idempotencyKey?: string) =>
+      api.post<{ success: boolean; data: HealthEntry }>(`/health-conditions/${conditionId}/entries`, data, idempotencyKey),
+
+    updateEntry: (conditionId: string, entryId: string, data: { date?: string; note?: string | null; images?: Array<{ key: string; rawKey?: string; mediaType?: string; visibleTo?: string[] }> }) =>
+      api.put<{ success: boolean; data: HealthEntry }>(`/health-conditions/${conditionId}/entries/${entryId}`, data),
+
+    deleteEntry: (conditionId: string, entryId: string) =>
+      api.delete<{ success: boolean }>(`/health-conditions/${conditionId}/entries/${entryId}`),
   },
 };

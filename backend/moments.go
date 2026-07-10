@@ -54,10 +54,10 @@ type momentOut struct {
 }
 
 // mediaItemsToDisplay converts stored MediaItems to display form with resolved URLs.
-func mediaItemsToDisplay(items []MediaItem, currentUserID string, isAdmin bool) []MediaItemDisplay {
+func mediaItemsToDisplay(items []MediaItem, currentUserID string, isAdmin bool, createdBy string) []MediaItemDisplay {
 	out := make([]MediaItemDisplay, 0, len(items))
 	for _, item := range items {
-		if !isImageVisibleTo(item.VisibleTo, currentUserID, isAdmin) {
+		if !isImageVisibleTo(item.VisibleTo, currentUserID, isAdmin, createdBy) {
 			continue
 		}
 		d := MediaItemDisplay{
@@ -187,7 +187,7 @@ func handleListMoments(w http.ResponseWriter, r *http.Request) {
 		if row.mediaItems.Valid && row.mediaItems.String != "" {
 			var items []MediaItem
 			if err := json.Unmarshal([]byte(row.mediaItems.String), &items); err == nil {
-				out.MediaItems = mediaItemsToDisplay(items, currentUserID, isAdminCtx(r))
+				out.MediaItems = mediaItemsToDisplay(items, currentUserID, isAdminCtx(r), row.userID)
 			}
 		}
 		if out.MediaItems == nil {
@@ -291,7 +291,7 @@ func handleCreateMoment(w http.ResponseWriter, r *http.Request) {
 		DisplayName:  displayName,
 		Avatar:       avatar,
 		Content:      body.Content,
-		MediaItems:   mediaItemsToDisplay(body.MediaItems, currentUserID, isAdminCtx(r)),
+		MediaItems:   mediaItemsToDisplay(body.MediaItems, currentUserID, isAdminCtx(r), currentUserID),
 		Comments:     []momentCommentOut{},
 		CommentCount: 0,
 		CreatedAt:    Millis(now),
@@ -331,6 +331,18 @@ func handleUpdateMoment(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "Invalid request body")
 		return
+	}
+
+	// Preserve media items the current user cannot see
+	if oldMediaJSON.Valid && oldMediaJSON.String != "" {
+		var oldItems []MediaItem
+		if err := json.Unmarshal([]byte(oldMediaJSON.String), &oldItems); err == nil {
+			for _, old := range oldItems {
+				if !isImageVisibleTo(old.VisibleTo, currentUserID, isAdminCtx(r), ownerID) {
+					body.MediaItems = append(body.MediaItems, old)
+				}
+			}
+		}
 	}
 
 	mediaJSON := "[]"

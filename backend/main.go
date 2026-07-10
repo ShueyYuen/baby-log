@@ -136,6 +136,20 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				})
 			})
 
+			r.Route("/health-conditions", func(r chi.Router) {
+				r.Get("/", handleListHealthConditions)
+				r.Group(func(r chi.Router) {
+					r.Use(requireEditorRole)
+					r.Post("/", handleCreateHealthCondition)
+					r.Put("/{id}", handleUpdateHealthCondition)
+					r.Delete("/{id}", handleDeleteHealthCondition)
+					r.Post("/{id}/entries", handleCreateHealthEntry)
+					r.Put("/{id}/entries/{entryId}", handleUpdateHealthEntry)
+					r.Delete("/{id}/entries/{entryId}", handleDeleteHealthEntry)
+				})
+				r.Get("/{id}/entries", handleListHealthEntries)
+			})
+
 		r.Route("/stats", func(r chi.Router) {
 			r.Get("/summary", handleStatsSummary)
 			r.Get("/predict", handleStatsPredict)

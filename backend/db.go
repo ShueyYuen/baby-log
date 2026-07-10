@@ -244,6 +244,35 @@ CREATE TABLE IF NOT EXISTS "UploadedFile" (
 );
 CREATE INDEX IF NOT EXISTS "UploadedFile_used_createdAt_idx" ON "UploadedFile"("used", "createdAt");
 
+CREATE TABLE IF NOT EXISTS "HealthCondition" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "babyId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'active',
+    "createdBy" TEXT NOT NULL,
+    "createdAt" INTEGER NOT NULL,
+    "updatedAt" INTEGER NOT NULL,
+    CONSTRAINT "HealthCondition_babyId_fkey" FOREIGN KEY ("babyId") REFERENCES "Baby" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "HealthCondition_createdBy_fkey" FOREIGN KEY ("createdBy") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS "HealthEntry" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "conditionId" TEXT NOT NULL,
+    "date" INTEGER NOT NULL,
+    "note" TEXT,
+    "images" TEXT,
+    "createdBy" TEXT NOT NULL,
+    "createdAt" INTEGER NOT NULL,
+    "updatedAt" INTEGER NOT NULL,
+    CONSTRAINT "HealthEntry_conditionId_fkey" FOREIGN KEY ("conditionId") REFERENCES "HealthCondition" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "HealthEntry_createdBy_fkey" FOREIGN KEY ("createdBy") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "HealthCondition_babyId_idx" ON "HealthCondition"("babyId");
+CREATE INDEX IF NOT EXISTS "HealthEntry_conditionId_date_idx" ON "HealthEntry"("conditionId", "date");
+
 CREATE TABLE IF NOT EXISTS "IdempotencyKey" (
     "key" TEXT NOT NULL,
     "userId" TEXT NOT NULL,

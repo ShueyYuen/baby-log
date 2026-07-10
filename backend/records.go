@@ -31,10 +31,10 @@ func parseRecordImages(ns sql.NullString) []RecordImageStore {
 	return items
 }
 
-func recordImagesToDisplay(items []RecordImageStore, currentUserID string, isAdmin bool) []RecordImageDisplay {
+func recordImagesToDisplay(items []RecordImageStore, currentUserID string, isAdmin bool, createdBy string) []RecordImageDisplay {
 	out := make([]RecordImageDisplay, 0, len(items))
 	for _, item := range items {
-		if !isImageVisibleTo(item.VisibleTo, currentUserID, isAdmin) {
+		if !isImageVisibleTo(item.VisibleTo, currentUserID, isAdmin, createdBy) {
 			continue
 		}
 		d := RecordImageDisplay{Key: item.Key, RawKey: item.RawKey, MediaType: item.MediaType, VisibleTo: item.VisibleTo}
@@ -49,11 +49,14 @@ func recordImagesToDisplay(items []RecordImageStore, currentUserID string, isAdm
 	return out
 }
 
-func isImageVisibleTo(visibleTo []string, userID string, isAdmin bool) bool {
+func isImageVisibleTo(visibleTo []string, userID string, isAdmin bool, createdBy string) bool {
 	if len(visibleTo) == 0 {
 		return true
 	}
 	if isAdmin {
+		return true
+	}
+	if userID == createdBy {
 		return true
 	}
 	for _, id := range visibleTo {
@@ -165,7 +168,7 @@ func handleListRecords(w http.ResponseWriter, r *http.Request) {
 		rec.CreatedAt = Millis(created)
 		rec.UpdatedAt = Millis(updated)
 		rec.Note = strPtr(note)
-		rec.Images = recordImagesToDisplay(parseRecordImages(images), userID, isAdminCtx(r))
+		rec.Images = recordImagesToDisplay(parseRecordImages(images), userID, isAdminCtx(r), rec.CreatedBy)
 		rec.User = &memberUser{ID: uID, DisplayName: uName}
 		items = append(items, rec)
 	}
@@ -255,7 +258,7 @@ func handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 	out := recordOut{
 		ID: id, BabyID: body.BabyID, Category: body.Category, Type: body.Type,
 		Data: json.RawMessage(body.Data), OccurredAt: occurred, Note: body.Note,
-		Images: recordImagesToDisplay(parseRecordImages(imagesStore), userID, isAdminCtx(r)), CreatedBy: userID,
+		Images: recordImagesToDisplay(parseRecordImages(imagesStore), userID, isAdminCtx(r), userID), CreatedBy: userID,
 		CreatedAt: now, UpdatedAt: now,
 	}
 	writeOK(w, out)
@@ -343,6 +346,17 @@ func handleUpdateRecord(w http.ResponseWriter, r *http.Request) {
 		json.Unmarshal(raw, &newImages)
 		if len(newImages) >= 0 {
 			hasImages = true
+			// Preserve images that the current user cannot see (they weren't sent by the client)
+			if existingImages.Valid {
+				var existingCreatedBy string
+				db.QueryRow(`SELECT createdBy FROM "Record" WHERE id = ?`, id).Scan(&existingCreatedBy)
+				oldImgs := parseRecordImages(existingImages)
+				for _, old := range oldImgs {
+					if !isImageVisibleTo(old.VisibleTo, userID, isAdminCtx(r), existingCreatedBy) {
+						newImages = append(newImages, old)
+					}
+				}
+			}
 			b, _ := json.Marshal(newImages)
 			sets = append(sets, "images = ?")
 			args = append(args, string(b))
@@ -446,7 +460,7 @@ func loadRecordByID(id string, currentUserID string, isAdmin bool) (*recordOut, 
 	rec.CreatedAt = Millis(created)
 	rec.UpdatedAt = Millis(updated)
 	rec.Note = strPtr(note)
-	rec.Images = recordImagesToDisplay(parseRecordImages(images), currentUserID, isAdmin)
+	rec.Images = recordImagesToDisplay(parseRecordImages(images), currentUserID, isAdmin, rec.CreatedBy)
 	return &rec, nil
 }
 

@@ -117,3 +117,26 @@ type reminderOut struct {
 	Sent      bool    `json:"sent"`
 	CreatedAt Millis  `json:"createdAt"`
 }
+
+type healthConditionOut struct {
+	ID          string  `json:"id"`
+	BabyID      string  `json:"babyId"`
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+	Status      string  `json:"status"`
+	EntryCount  int     `json:"entryCount"`
+	CreatedBy   string  `json:"createdBy"`
+	CreatedAt   Millis  `json:"createdAt"`
+	UpdatedAt   Millis  `json:"updatedAt"`
+}
+
+type healthEntryOut struct {
+	ID          string              `json:"id"`
+	ConditionID string              `json:"conditionId"`
+	Date        Millis              `json:"date"`
+	Note        *string             `json:"note"`
+	Images      []RecordImageDisplay `json:"images"`
+	CreatedBy   string              `json:"createdBy"`
+	CreatedAt   Millis              `json:"createdAt"`
+	UpdatedAt   Millis              `json:"updatedAt"`
+}

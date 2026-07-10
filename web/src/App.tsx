@@ -10,6 +10,7 @@ const PlansPage = lazy(() => import('./pages/PlansPage'));
 const PlanFormPage = lazy(() => import('./pages/PlanFormPage'));
 const GrowthPage = lazy(() => import('./pages/GrowthPage'));
 const GrowthHistoryPage = lazy(() => import('./pages/GrowthHistoryPage'));
+const HealthTrackingPage = lazy(() => import('./pages/HealthTrackingPage'));
 const StatsPage = lazy(() => import('./pages/StatsPage'));
 const BabySetupPage = lazy(() => import('./pages/BabySetupPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
@@ -58,6 +59,7 @@ export default function App() {
                     <Route path="/plan/:id/edit" element={<PlanFormPage />} />
                     <Route path="/growth" element={<GrowthPage />} />
                     <Route path="/growth/history" element={<GrowthHistoryPage />} />
+                    <Route path="/growth/health/:id" element={<HealthTrackingPage />} />
                     <Route path="/stats" element={<StatsPage />} />
                     <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
                   </Routes>
