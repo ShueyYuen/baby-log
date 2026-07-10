@@ -8,6 +8,7 @@ import { api, generateIdempotencyKey, type TimelineResponse, type TimelineRecord
 import { cacheRead, cacheReadAsync, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import { useRefreshHandler } from '../hooks/usePullRefresh';
 import { useServerEvent } from '../hooks/useServerEvents';
+import { useActivated } from '../hooks/useActivated';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -357,6 +358,7 @@ export default function TimelinePage() {
     }
   };
 
+  useActivated(useCallback(() => { loadData(true); }, [currentBaby, filter, search]));
   useRefreshHandler(useCallback(async () => { await loadData(true); }, [currentBaby, filter, search]));
 
   useServerEvent(
@@ -413,9 +415,10 @@ export default function TimelinePage() {
   }, [records]);
 
   const listRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const scrollElRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    const el = listRef.current?.closest('.keepalive-page') as HTMLElement | null;
+    const el = containerRef.current?.closest('.keepalive-page') as HTMLElement | null;
     if (el) scrollElRef.current = el;
   }, []);
 
@@ -448,7 +451,7 @@ export default function TimelinePage() {
 
   return (
     <>
-    <div className="space-y-3">
+    <div ref={containerRef} className="space-y-3">
       {/* 进行中的活动（睡眠/洗澡）— 固定在顶部 */}
       {ongoingRecords.length > 0 && (
         <div className="sticky top-0 z-20 space-y-2 -mx-4 px-4 py-2 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm">

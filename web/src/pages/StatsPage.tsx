@@ -3,6 +3,7 @@ import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
 import { useRefreshHandler } from '../hooks/usePullRefresh';
 import { useServerEvent } from '../hooks/useServerEvents';
+import { useActivated } from '../hooks/useActivated';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -48,6 +49,7 @@ export default function StatsPage() {
     loadTempData();
   }, [currentBaby, tempDate]);
 
+  useActivated(useCallback(() => { loadWeekData(); loadTempData(); }, [currentBaby, tempDate]));
   useRefreshHandler(useCallback(async () => {
     await Promise.all([loadWeekData(), loadTempData()]);
   }, [currentBaby, tempDate]));

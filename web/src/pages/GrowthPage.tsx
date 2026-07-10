@@ -6,6 +6,7 @@ import { api, generateIdempotencyKey, type RecordImage, type UploadMomentResult,
 import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import { useRefreshHandler } from '../hooks/usePullRefresh';
 import { useServerEvent } from '../hooks/useServerEvents';
+import { useActivated } from '../hooks/useActivated';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Plus, Star, Pencil, Trash2, ImagePlus, Play, X, AlertCircle, Activity, CheckCircle2 } from 'lucide-react';
@@ -218,6 +219,7 @@ export default function GrowthPage() {
     } catch { /* ignore */ }
   };
 
+  useActivated(useCallback(() => { loadData(true); loadHealthConditions(); }, [currentBaby]));
   useRefreshHandler(useCallback(async () => {
     await Promise.all([loadData(true), loadHealthConditions()]);
   }, [currentBaby]));

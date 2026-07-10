@@ -17,6 +17,7 @@ import {
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRefreshHandler } from "../hooks/usePullRefresh";
 import { useServerEvent } from "../hooks/useServerEvents";
+import { useActivated } from "../hooks/useActivated";
 import {
   Button,
   ConfirmDialog,
@@ -949,6 +950,7 @@ export default function MomentsPage() {
     fetchMoments(1, true);
   }, [fetchMoments]);
 
+  useActivated(useCallback(() => { fetchMoments(1, true); }, [fetchMoments]));
   useRefreshHandler(useCallback(async () => { await fetchMoments(1, true); }, [fetchMoments]));
 
   useServerEvent('moment.change', useCallback(() => { fetchMoments(1, true); }, [fetchMoments]));

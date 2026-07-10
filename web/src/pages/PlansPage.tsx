@@ -7,6 +7,7 @@ import { api } from '../lib/api';
 import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import { useRefreshHandler } from '../hooks/usePullRefresh';
 import { useServerEvent } from '../hooks/useServerEvents';
+import { useActivated } from '../hooks/useActivated';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -211,6 +212,7 @@ export default function PlansPage() {
     }
   };
 
+  useActivated(useCallback(() => { loadPlans(1, true); }, [currentBaby, statusFilter]));
   useRefreshHandler(useCallback(async () => { await loadPlans(1, true); }, [currentBaby, statusFilter]));
 
   useServerEvent(
