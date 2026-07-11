@@ -21,7 +21,7 @@ func createAutoFeedingReminder(babyID string) {
 		current := parsed[i+1]
 		next := parsed[i]
 		intervalMin := float64(next.occurredAt-current.occurredAt) / 60000.0
-		if intervalMin <= 0 || intervalMin > 480 {
+		if intervalMin <= 0 || intervalMin > 960 {
 			continue
 		}
 		if current.typ == "bottle" {
@@ -42,11 +42,11 @@ func createAutoFeedingReminder(babyID string) {
 	var predictedInterval *int
 
 	if lastFeeding.typ == "bottle" && len(bottleRates) >= 2 {
-		v := int(math.Round(avg(bottleRates) * numField(lastFeeding.data, "amountMl")))
+		v := int(math.Round(median(bottleRates) * numField(lastFeeding.data, "amountMl")))
 		predictedInterval = &v
 	} else if lastFeeding.typ == "breastfeed" && len(breastRates) >= 2 {
 		totalMin := numField(lastFeeding.data, "leftMinutes") + numField(lastFeeding.data, "rightMinutes")
-		v := int(math.Round(avg(breastRates) * totalMin))
+		v := int(math.Round(median(breastRates) * totalMin))
 		predictedInterval = &v
 	}
 
@@ -54,12 +54,12 @@ func createAutoFeedingReminder(babyID string) {
 		var intervals []float64
 		for i := 0; i < len(parsed)-1; i++ {
 			diff := float64(parsed[i].occurredAt-parsed[i+1].occurredAt) / 60000.0
-			if diff > 0 && diff <= 480 {
+			if diff > 0 && diff <= 960 {
 				intervals = append(intervals, diff)
 			}
 		}
 		if len(intervals) >= 2 {
-			v := int(math.Round(avg(intervals)))
+			v := int(math.Round(median(intervals)))
 			predictedInterval = &v
 		}
 	}

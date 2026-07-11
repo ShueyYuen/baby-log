@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 )
@@ -156,6 +157,20 @@ func avg(nums []float64) float64 {
 		sum += n
 	}
 	return sum / float64(len(nums))
+}
+
+func median(nums []float64) float64 {
+	if len(nums) == 0 {
+		return 0
+	}
+	sorted := make([]float64, len(nums))
+	copy(sorted, nums)
+	sort.Float64s(sorted)
+	n := len(sorted)
+	if n%2 == 0 {
+		return (sorted[n/2-1] + sorted[n/2]) / 2
+	}
+	return sorted[n/2]
 }
 
 // GET /stats/predict
@@ -636,23 +651,23 @@ func buildPrediction(babyID string) map[string]interface{} {
 		len(sessions), len(sessionIntervals), len(bottleRates), len(breastRates), lastFeeding.typ)
 
 	if lastFeeding.typ == "bottle" && len(bottleRates) >= 2 {
-		avgRate := avg(bottleRates)
+		medRate := median(bottleRates)
 		ml := numField(lastFeeding.data, "amountMl")
-		v := int(math.Round(avgRate * ml))
+		v := int(math.Round(medRate * ml))
 		predictedInterval = &v
 		m := "bottle"
 		method = &m
 	} else if lastFeeding.typ == "breastfeed" && len(breastRates) >= 2 {
-		avgRate := avg(breastRates)
+		medRate := median(breastRates)
 		totalMin := numField(lastFeeding.data, "leftMinutes") + numField(lastFeeding.data, "rightMinutes")
-		v := int(math.Round(avgRate * totalMin))
+		v := int(math.Round(medRate * totalMin))
 		predictedInterval = &v
 		m := "breastfeed"
 		method = &m
 	}
 
 	if predictedInterval == nil && len(sessionIntervals) >= 2 {
-		dur := avg(sessionIntervals)
+		dur := median(sessionIntervals)
 		feedDur := float64(lastSession.endMs-lastSession.startMs) / 60000.0
 		v := int(math.Round(dur + feedDur))
 		predictedInterval = &v

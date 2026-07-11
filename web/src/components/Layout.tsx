@@ -1,7 +1,7 @@
 import { ReactNode, useState, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { hapticTap } from '../lib/haptic';
-import { Clock, Calendar, TrendingUp, BarChart3, Sun, Moon, Monitor, Users, Images } from 'lucide-react';
+import { Clock, Calendar, TrendingUp, Activity, Sun, Moon, Monitor, Users, Images } from 'lucide-react';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -52,13 +52,13 @@ export default function Layout({ children }: LayoutProps) {
     }
   };
 
-  const isSecondaryPage = /^\/(record|plan\/new|plan\/[^/]+\/edit|growth\/(history|health\/)|milk-inventory|medical-visits)/.test(location.pathname);
+  const isSecondaryPage = /^\/(record|plan\/new|plan\/[^/]+\/edit|growth\/history|health\/[^/]+|milk-inventory|medical-visits\/|stats)/.test(location.pathname);
 
   const navItems = [
     { path: '/', icon: Clock, label: '时间线' },
     { path: '/plans', icon: Calendar, label: '计划' },
     { path: '/growth', icon: TrendingUp, label: '成长' },
-    { path: '/stats', icon: BarChart3, label: '统计' },
+    { path: '/health', icon: Activity, label: '病症' },
     { path: '/moments', icon: Images, label: '朋友圈' },
     ...(isAdmin ? [{ path: '/admin', icon: Users, label: '管理' }] : []),
   ];

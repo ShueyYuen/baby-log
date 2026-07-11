@@ -2,14 +2,14 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { api, generateIdempotencyKey, type RecordImage, type UploadMomentResult, type HealthCondition } from '../lib/api';
+import { api, generateIdempotencyKey, type RecordImage, type UploadMomentResult } from '../lib/api';
 import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import { useRefreshHandler } from '../hooks/usePullRefresh';
 import { useServerEvent } from '../hooks/useServerEvents';
 import { useActivated } from '../hooks/useActivated';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Plus, Star, Pencil, Trash2, ImagePlus, Play, X, AlertCircle, Activity, CheckCircle2, Check, Clock, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { Plus, Star, Pencil, Trash2, ImagePlus, Play, X, AlertCircle, Check, Clock, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DatePicker, ConfirmDialog, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { Textarea } from '../components/ui';
@@ -256,12 +256,6 @@ export default function GrowthPage() {
   const milestoneSentinelRef = useRef<HTMLDivElement>(null);
   const MILESTONE_PAGE_SIZE = 20;
 
-  // Health conditions state
-  const [healthConditions, setHealthConditions] = useState<HealthCondition[]>([]);
-  const [showHealthForm, setShowHealthForm] = useState(false);
-  const [hcName, setHcName] = useState('');
-  const [hcDesc, setHcDesc] = useState('');
-
   const [loading, setLoading] = useState(true);
 
   const [gDate, setGDate] = useState(dayjs().format('YYYY-MM-DD'));
@@ -282,7 +276,6 @@ export default function GrowthPage() {
       return;
     }
     loadData(true);
-    loadHealthConditions();
   }, [currentBaby]);
 
   // Auto-load milestones when sentinel enters viewport
@@ -359,41 +352,15 @@ export default function GrowthPage() {
     }
   };
 
-  const loadHealthConditions = async () => {
-    if (!currentBaby) return;
-    try {
-      const res = await api.healthConditions.list(currentBaby.id);
-      setHealthConditions(res.data);
-    } catch { /* ignore */ }
-  };
-
-  useActivated(useCallback(() => { loadData(true); loadHealthConditions(); }, [currentBaby]));
+  useActivated(useCallback(() => { loadData(true); }, [currentBaby]));
   useRefreshHandler(useCallback(async () => {
-    await Promise.all([loadData(true), loadHealthConditions()]);
+    await loadData(true);
   }, [currentBaby]));
 
   useServerEvent(
-    ['growth.created', 'growth.updated', 'growth.deleted', 'milestone.change', 'health.change'],
-    useCallback(() => { loadData(true); loadHealthConditions(); }, [currentBaby]),
+    ['growth.created', 'growth.updated', 'growth.deleted', 'milestone.change'],
+    useCallback(() => { loadData(true); }, [currentBaby]),
   );
-
-  const createHealthCondition = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentBaby || !hcName.trim()) return;
-    try {
-      await api.healthConditions.create(
-        { babyId: currentBaby.id, name: hcName.trim(), description: hcDesc.trim() || undefined },
-        generateIdempotencyKey()
-      );
-      setShowHealthForm(false);
-      setHcName('');
-      setHcDesc('');
-      loadHealthConditions();
-      toast('病症追踪已创建', 'success');
-    } catch {
-      toast('创建失败', 'error');
-    }
-  };
 
   const addGrowth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -712,79 +679,6 @@ export default function GrowthPage() {
             </DialogContent>
             </Dialog>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Health Tracking Section */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-lg dark:text-gray-100">病症追踪</h3>
-          {!isViewer && (
-            <Dialog open={showHealthForm} onOpenChange={setShowHealthForm}>
-              <DialogTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  <Plus size={14} /> 新增
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-sm">
-                <DialogHeader>
-                  <DialogTitle>新增病症追踪</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={createHealthCondition} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">名称</label>
-                    <Input value={hcName} onChange={(e) => setHcName(e.target.value)} placeholder="如：斜颈、睾丸大小" required />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">描述（可选）</label>
-                    <Textarea value={hcDesc} onChange={(e) => setHcDesc(e.target.value)} placeholder="简要描述症状或追踪目的..." rows={2} />
-                  </div>
-                  <div className="flex gap-3">
-                    <Button type="button" variant="outline" className="flex-1" onClick={() => setShowHealthForm(false)}>取消</Button>
-                    <Button type="submit" className="flex-1">创建</Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-
-        {healthConditions.length === 0 ? (
-          <p className="text-center text-gray-400 py-4 text-sm">暂无追踪项目</p>
-        ) : (
-          <div className="space-y-2">
-            {healthConditions.map((c) => (
-              <Card key={c.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/growth/health/${c.id}`)}>
-                <CardContent className="flex items-center gap-3 py-3">
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${c.status === 'active' ? 'bg-orange-50 dark:bg-orange-900/30' : 'bg-green-50 dark:bg-green-900/30'}`}>
-                    {c.status === 'active' ? (
-                      <Activity size={16} className="text-orange-500" />
-                    ) : (
-                      <CheckCircle2 size={16} className="text-green-500" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-base dark:text-gray-100">{c.name}</h4>
-                    <p className="text-sm text-gray-400">{c.entryCount} 条记录{c.status === 'resolved' ? ' · 已康复' : ''}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Medical Visits Entry */}
-      <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/medical-visits')}>
-        <CardContent className="flex items-center gap-3 py-4">
-          <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
-            <Activity size={18} className="text-blue-500" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold text-base dark:text-gray-100">就诊记录</h3>
-            <p className="text-sm text-gray-400">按时间保存每次就诊，支持图片OCR搜索</p>
-          </div>
-          <ChevronDown size={16} className="text-gray-300 -rotate-90" />
         </CardContent>
       </Card>
 

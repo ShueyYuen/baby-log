@@ -12,7 +12,7 @@ import { useActivated } from '../hooks/useActivated';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock, Square, Play, Search, Beaker, Refrigerator } from 'lucide-react';
+import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock, Square, Play, Search, Beaker, Refrigerator, BarChart3 } from 'lucide-react';
 import { ImageViewer, useToast, type ViewerImage, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ScrollDateTimePicker, DateTimePicker } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { TimelineSkeleton } from '../components/ui/skeleton';
@@ -664,20 +664,23 @@ export default function TimelinePage() {
         );
       })()}
 
-      {/* Milk Inventory Link */}
-      <Link
-        to="/milk-inventory"
-        className="card flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-      >
-        <div className="w-10 h-10 rounded-full bg-sky-100 dark:bg-sky-900/40 flex items-center justify-center flex-shrink-0">
-          <Refrigerator size={18} className="text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">母乳库存</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">管理冷藏和冷冻的存奶</p>
-        </div>
-        <span className="text-xs text-gray-400">查看 →</span>
-      </Link>
+      {/* Quick Links */}
+      <div className="flex flex-wrap gap-2 justify-end">
+        <Link
+          to="/milk-inventory"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 text-xs font-medium hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors"
+        >
+          <Refrigerator size={14} />
+          母乳库存 →
+        </Link>
+        <Link
+          to="/stats"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+        >
+          <BarChart3 size={14} />
+          数据统计 →
+        </Link>
+      </div>
 
       {/* Search & Filter */}
       <div className="flex gap-2 items-center">

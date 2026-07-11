@@ -252,7 +252,7 @@ export default function HealthTrackingPage() {
     try {
       await api.healthConditions.delete(condition.id);
       toast('已删除', 'success');
-      navigate('/growth');
+      navigate('/health');
     } catch {
       toast('删除失败', 'error');
     }
@@ -407,7 +407,7 @@ export default function HealthTrackingPage() {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/growth')} className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <button onClick={() => navigate('/health')} className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
             <ArrowLeft size={20} />
           </button>
           <h2 className="text-xl font-semibold dark:text-gray-100">加载中...</h2>
@@ -423,7 +423,7 @@ export default function HealthTrackingPage() {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/growth')} className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <button onClick={() => navigate('/health')} className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
             <ArrowLeft size={20} />
           </button>
           <h2 className="text-xl font-semibold dark:text-gray-100">未找到</h2>
@@ -438,7 +438,7 @@ export default function HealthTrackingPage() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
-          onClick={() => navigate('/growth')}
+          onClick={() => navigate('/health')}
           className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
         >
           <ArrowLeft size={20} />

@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { api } from '../lib/api';
-import { useRefreshHandler } from '../hooks/usePullRefresh';
 import { useServerEvent } from '../hooks/useServerEvents';
-import { useActivated } from '../hooks/useActivated';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getAgeDays, evaluatePee, evaluatePoop, evaluateFeeding, evaluateSleep, type DiaperStatus } from '../lib/diaper-standards';
 import { StatsSkeleton } from '../components/ui/skeleton';
 import { DatePicker } from '../components/ui';
@@ -70,6 +69,7 @@ function buildEmptyRange(startDate: string, endDate: string): DailyData[] {
 }
 
 export default function StatsPage() {
+  const navigate = useNavigate();
   const { currentBaby } = useBaby();
   const [weekData, setWeekData] = useState<DailyData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,11 +127,6 @@ export default function StatsPage() {
     if (!currentBaby) return;
     loadTempData();
   }, [currentBaby, loadTempData]);
-
-  useActivated(useCallback(() => { loadWeekData(); loadTempData(); }, [loadWeekData, loadTempData]));
-  useRefreshHandler(useCallback(async () => {
-    await Promise.all([loadWeekData(), loadTempData()]);
-  }, [loadWeekData, loadTempData]));
 
   useServerEvent(
     ['record.created', 'record.updated', 'record.deleted'],
@@ -287,8 +282,14 @@ export default function StatsPage() {
   const todayData = weekData[weekData.length - 1];
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold dark:text-gray-100">数据统计</h2>
+    <div className="fixed inset-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900">
+      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+        <button onClick={() => navigate(-1)} className="p-1 -ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+          <ArrowLeft size={20} />
+        </button>
+        <h2 className="text-lg font-semibold dark:text-gray-100">数据统计</h2>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 space-y-6">
 
       <div className="space-y-3">
         <div className="flex gap-1 p-1 rounded-lg bg-gray-100 dark:bg-gray-800">
@@ -449,6 +450,7 @@ export default function StatsPage() {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }

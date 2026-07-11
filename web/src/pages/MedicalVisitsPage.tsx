@@ -169,7 +169,7 @@ function VisitList() {
     <div className="fixed inset-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900">
       <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
           <Button variant="ghost" size="icon" asChild>
-            <Link to="/growth">
+            <Link to="/health">
               <ArrowLeft size={20} />
             </Link>
           </Button>
@@ -307,7 +307,7 @@ function VisitDetail() {
       await api.medicalVisits.delete(visit.id);
       cacheInvalidate(CACHE_KEY);
       toast('已删除', 'success');
-      navigate('/medical-visits', { replace: true });
+      navigate('/health', { replace: true });
     } catch {
       toast('删除失败', 'error');
     }
@@ -351,7 +351,7 @@ function VisitDetail() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate('/medical-visits')}
+            onClick={() => navigate('/health')}
           >
             <ArrowLeft size={20} />
           </Button>
@@ -731,7 +731,7 @@ function VisitForm() {
     if (visitId) {
       toast(isEdit ? '已更新' : '已创建', 'success');
       cacheInvalidate(CACHE_KEY);
-      navigate('/medical-visits', { replace: true });
+      navigate('/health', { replace: true });
     } else {
       toast('保存失败', 'error');
     }
@@ -1019,5 +1019,5 @@ export default function MedicalVisitsPage() {
   if (pathname.endsWith('/edit')) return <VisitForm />;
   if (/^\/medical-visits\/[^/]+$/.test(pathname) && !pathname.endsWith('/new'))
     return <VisitDetail />;
-  return <VisitList />;
+  return <VisitDetail />;
 }

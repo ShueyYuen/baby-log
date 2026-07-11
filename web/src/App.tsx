@@ -11,7 +11,7 @@ import LoginPage from './pages/LoginPage';
 import TimelinePage from './pages/TimelinePage';
 import PlansPage from './pages/PlansPage';
 import GrowthPage from './pages/GrowthPage';
-import StatsPage from './pages/StatsPage';
+import HealthPage from './pages/HealthPage';
 import MomentsPage from './pages/MomentsPage';
 import AdminPage from './pages/AdminPage';
 
@@ -19,6 +19,7 @@ const RecordFormPage = lazy(() => import('./pages/RecordFormPage'));
 const PlanFormPage = lazy(() => import('./pages/PlanFormPage'));
 const GrowthHistoryPage = lazy(() => import('./pages/GrowthHistoryPage'));
 const HealthTrackingPage = lazy(() => import('./pages/HealthTrackingPage'));
+const StatsPage = lazy(() => import('./pages/StatsPage'));
 const BabySetupPage = lazy(() => import('./pages/BabySetupPage'));
 const MilkInventoryPage = lazy(() => import('./pages/MilkInventoryPage'));
 const MedicalVisitsPage = lazy(() => import('./pages/MedicalVisitsPage'));
@@ -90,7 +91,7 @@ function KeepAliveRoutes() {
     { path: '/', key: 'timeline', Component: TimelinePage },
     { path: '/plans', key: 'plans', Component: PlansPage },
     { path: '/growth', key: 'growth', Component: GrowthPage },
-    { path: '/stats', key: 'stats', Component: StatsPage },
+    { path: '/health', key: 'health', Component: HealthPage },
     { path: '/moments', key: 'moments', Component: MomentsPage },
     { path: '/admin', key: 'admin', Component: AdminPage, guard: () => isAdmin },
   ], [isAdmin]);
@@ -139,8 +140,9 @@ function KeepAliveRoutes() {
                 <Route path="/plan/:id/edit" element={<PlanFormPage />} />
                 <Route path="/growth/history" element={<GrowthHistoryPage />} />
                 <Route path="/growth/health/:id" element={<HealthTrackingPage />} />
+                <Route path="/health/:id" element={<HealthTrackingPage />} />
+                <Route path="/stats" element={<StatsPage />} />
                 <Route path="/milk-inventory" element={<MilkInventoryPage />} />
-                <Route path="/medical-visits" element={<MedicalVisitsPage />} />
                 <Route path="/medical-visits/new" element={<MedicalVisitsPage />} />
                 <Route path="/medical-visits/:id" element={<MedicalVisitsPage />} />
                 <Route path="/medical-visits/:id/edit" element={<MedicalVisitsPage />} />
