@@ -247,6 +247,7 @@ function CalendarView({
   onComplete: (plan: PlanItem) => void;
   onCalendar: (title: string, scheduledAt: string, description: string | undefined, reminder: number) => void;
 }) {
+  const { toast } = useToast();
   const [viewMonth, setViewMonth] = useState(dayjs().startOf('month'));
   const [calPlans, setCalPlans] = useState<PlanItem[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(dayjs().format('YYYY-MM-DD'));
@@ -265,7 +266,9 @@ function CalendarView({
         );
         const items = Array.isArray(res.data) ? res.data : res.data.items;
         setCalPlans(items);
-      } catch { /* ignore */ }
+      } catch {
+        toast('加载日历计划失败', 'error');
+      }
       setLoading(false);
     };
     load();
@@ -496,7 +499,7 @@ export default function PlansPage() {
       setPlans((prev) => replace ? items : [...prev, ...items]);
       setPage(p);
     } catch {
-      // ignore
+      toast('加载计划列表失败', 'error');
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -514,7 +517,7 @@ export default function PlansPage() {
   const updateStatus = async (plan: PlanItem, status: string) => {
     const isRepeat = plan.repeat !== 'none';
     try {
-      await api.put(`/plans/${plan.id}`, { status });
+      await api.plansCrud.update(plan.id, { status });
       if (status === 'completed' && isRepeat) {
         toast('已自动创建下一期计划', 'success');
       }
@@ -523,7 +526,7 @@ export default function PlansPage() {
         setLinkRecordPlan(plan);
       }
     } catch {
-      // ignore
+      toast('更新状态失败', 'error');
     }
   };
 
@@ -533,7 +536,7 @@ export default function PlansPage() {
     if (!mapping) return;
     setCreatingRecord(true);
     try {
-      await api.post('/records', {
+      await api.recordsCrud.create({
         babyId: currentBaby.id,
         ...buildLinkedRecordPayload(linkRecordPlan, mapping),
       });

@@ -304,9 +304,7 @@ export default function RecordFormPage() {
         setLoadingRecord(false);
         return;
       }
-      const res = await api.get<{ success: boolean; data: { items: any[] } }>(
-        `/records?babyId=${currentBaby.id}&pageSize=100`,
-      );
+      const res = await api.recordsCrud.list(currentBaby.id);
       const freshRecord = res.data.items.find((r: any) => r.id === id);
       if (freshRecord) {
         setCategory(freshRecord.category as CategoryType);
@@ -319,7 +317,7 @@ export default function RecordFormPage() {
         populateData(freshRecord.type, freshRecord.data);
       }
     } catch {
-      // ignore
+      toast('加载记录失败', 'error');
     } finally {
       setLoadingRecord(false);
     }
@@ -558,9 +556,9 @@ export default function RecordFormPage() {
       };
 
       if (isEditing) {
-        await api.put(`/records/${id}`, payload);
+        await api.recordsCrud.update(id!, payload);
       } else {
-        await api.post("/records", payload, idempotencyKeyRef.current);
+        await api.recordsCrud.create(payload, idempotencyKeyRef.current);
         if (
           type === "pump" &&
           (pumpStorage === "fridge" || pumpStorage === "freezer")
@@ -1321,7 +1319,7 @@ export default function RecordFormPage() {
               className="flex-1"
               onClick={async () => {
                 try {
-                  await api.delete(`/records/${id}`);
+                  await api.recordsCrud.delete(id!);
                   cacheInvalidate("/timeline");
                   navigate("/", { replace: true });
                 } catch {

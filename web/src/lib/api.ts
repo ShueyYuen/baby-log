@@ -257,6 +257,84 @@ export interface MedicalVisitsListResponse {
   hasMore: boolean;
 }
 
+// ─── Plan types ──────────────────────────────────────────────────────────────
+
+export interface PlanItem {
+  id: string;
+  babyId: string;
+  title: string;
+  type: string;
+  scheduledAt: string;
+  status: string;
+  description?: string;
+  reminder: number;
+  repeat: string;
+  images?: RecordImage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanListResponse {
+  items: PlanItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
+// ─── Growth types ────────────────────────────────────────────────────────────
+
+export interface GrowthItem {
+  id: string;
+  date: string;
+  height?: number;
+  weight?: number;
+  headCircumference?: number;
+  note?: string;
+}
+
+export interface GrowthListResponse {
+  items: GrowthItem[];
+  total: number;
+  hasMore: boolean;
+}
+
+// ─── Milestone types ─────────────────────────────────────────────────────────
+
+export interface MilestoneItem {
+  id: string;
+  type: string;
+  title: string;
+  occurredAt: string;
+  description?: string;
+  images?: RecordImage[];
+}
+
+export interface MilestoneListResponse {
+  items: MilestoneItem[];
+  hasMore?: boolean;
+}
+
+// ─── Auth / User types ───────────────────────────────────────────────────────
+
+export interface UserItem {
+  id: string;
+  username: string;
+  displayName: string;
+  role: string;
+  createdAt: string;
+  avatar?: string | null;
+}
+
+// ─── Baby type ───────────────────────────────────────────────────────────────
+
+export interface Baby {
+  id: string;
+  name: string;
+  gender: string;
+  birthDate: string;
+}
+
 // ─── Upload helper ────────────────────────────────────────────────────────────
 
 function createUploader(endpoint: string) {
@@ -443,5 +521,112 @@ export const api = {
       api.put<{ success: boolean; data: MilkInventoryItem }>(`/milk-inventory/${id}`, data),
 
     delete: (id: string) => api.delete<{ success: boolean }>(`/milk-inventory/${id}`),
+  },
+
+  timeline: {
+    list: (babyId: string, opts?: { pageSize?: number; before?: number; category?: string; search?: string }) => {
+      const params = new URLSearchParams({ babyId, pageSize: String(opts?.pageSize ?? 50) });
+      if (opts?.before) params.set('before', String(opts.before));
+      if (opts?.category && opts.category !== 'all') params.set('category', opts.category);
+      if (opts?.search) params.set('search', opts.search);
+      return api.get<{ success: boolean; data: TimelineResponse }>(`/timeline?${params}`);
+    },
+  },
+
+  recordsCrud: {
+    list: (babyId: string, opts?: { type?: string; pageSize?: number }) => {
+      const params = new URLSearchParams({ babyId, pageSize: String(opts?.pageSize ?? 100) });
+      if (opts?.type) params.set('type', opts.type);
+      return api.get<{ success: boolean; data: { items: TimelineRecord[] } }>(`/records?${params}`);
+    },
+    create: (data: Record<string, unknown>, idempotencyKey?: string) =>
+      api.post<{ success: boolean; data: TimelineRecord }>('/records', data, idempotencyKey),
+    update: (id: string, data: Record<string, unknown>) =>
+      api.put<{ success: boolean }>(`/records/${id}`, data),
+    delete: (id: string) =>
+      api.delete<{ success: boolean }>(`/records/${id}`),
+  },
+
+  plansCrud: {
+    list: (babyId: string, opts?: { pageSize?: number; page?: number; status?: string; from?: string; to?: string }) => {
+      const params = new URLSearchParams({ babyId, pageSize: String(opts?.pageSize ?? 20) });
+      if (opts?.page) params.set('page', String(opts.page));
+      if (opts?.status) params.set('status', opts.status);
+      if (opts?.from) params.set('from', opts.from);
+      if (opts?.to) params.set('to', opts.to);
+      return api.get<{ success: boolean; data: PlanListResponse | PlanItem[] }>(`/plans?${params}`);
+    },
+    create: (data: Record<string, unknown>, idempotencyKey?: string) =>
+      api.post<{ success: boolean; data: PlanItem }>('/plans', data, idempotencyKey),
+    update: (id: string, data: Record<string, unknown>) =>
+      api.put<{ success: boolean; data: PlanItem }>(`/plans/${id}`, data),
+    delete: (id: string) =>
+      api.delete<{ success: boolean }>(`/plans/${id}`),
+    generateVaccines: (babyId: string, idempotencyKey?: string) =>
+      api.post<{ success: boolean; data: { created: number } }>('/plans/vaccine-template', { babyId }, idempotencyKey),
+  },
+
+  growth: {
+    list: (babyId: string, opts?: { page?: number; pageSize?: number }) => {
+      const params = new URLSearchParams({ babyId });
+      if (opts?.page) params.set('page', String(opts.page));
+      if (opts?.pageSize) params.set('pageSize', String(opts.pageSize));
+      return api.get<{ success: boolean; data: GrowthListResponse | GrowthItem[] }>(`/growth?${params}`);
+    },
+    create: (data: Record<string, unknown>, idempotencyKey?: string) =>
+      api.post<{ success: boolean; data: GrowthItem }>('/growth', data, idempotencyKey),
+    update: (id: string, data: Record<string, unknown>) =>
+      api.put<{ success: boolean; data: GrowthItem }>(`/growth/${id}`, data),
+    delete: (id: string) =>
+      api.delete<{ success: boolean }>(`/growth/${id}`),
+  },
+
+  milestonesCrud: {
+    list: (babyId: string, opts?: { page?: number; pageSize?: number }) => {
+      const params = new URLSearchParams({ babyId });
+      if (opts?.page) params.set('page', String(opts.page));
+      if (opts?.pageSize) params.set('pageSize', String(opts.pageSize));
+      return api.get<{ success: boolean; data: MilestoneListResponse | MilestoneItem[] }>(`/milestones?${params}`);
+    },
+    create: (data: Record<string, unknown>, idempotencyKey?: string) =>
+      api.post<{ success: boolean; data: MilestoneItem }>('/milestones', data, idempotencyKey),
+    update: (id: string, data: Record<string, unknown>) =>
+      api.put<{ success: boolean; data: MilestoneItem }>(`/milestones/${id}`, data),
+    delete: (id: string) =>
+      api.delete<{ success: boolean }>(`/milestones/${id}`),
+  },
+
+  auth: {
+    me: () => api.get<{ success: boolean; data: { id: string; username: string; displayName: string; role: string; avatar?: string | null } }>('/auth/me'),
+    login: (username: string, password: string) =>
+      api.post<{ success: boolean; data: { token: string; user: { id: string; username: string; displayName: string; role: string; avatar?: string | null } } }>('/auth/login', { username, password }),
+    logout: () => api.post<{ success: boolean }>('/auth/logout', {}),
+    listUsers: () => api.get<{ success: boolean; data: UserItem[] }>('/auth/users'),
+    createUser: (data: { username: string; displayName: string; role: string }) =>
+      api.post<{ success: boolean; data: { id: string; generatedPassword: string } }>('/auth/users', data),
+    updateUser: (id: string, data: Record<string, unknown>) =>
+      api.put<{ success: boolean }>(`/auth/users/${id}`, data),
+    updateAvatar: (id: string, avatar: string | null) =>
+      api.put<{ success: boolean }>(`/auth/users/${id}/avatar`, { avatar }),
+    deleteUser: (id: string) =>
+      api.delete<{ success: boolean }>(`/auth/users/${id}`),
+  },
+
+  babies: {
+    list: () => api.get<{ success: boolean; data: Baby[] }>('/babies'),
+    create: (data: { name: string; gender: string; birthDate: string }, idempotencyKey?: string) =>
+      api.post<{ success: boolean; data: Baby }>('/babies', data, idempotencyKey),
+    update: (id: string, data: Record<string, unknown>) =>
+      api.put<{ success: boolean; data: Baby }>(`/babies/${id}`, data),
+  },
+
+  stats: {
+    range: (babyId: string, startDate: string, endDate: string, tz: number) =>
+      api.get<{ success: boolean; data: unknown[] }>(`/stats/range?babyId=${babyId}&startDate=${startDate}&endDate=${endDate}&tz=${tz}`),
+  },
+
+  push: {
+    reminder: (data: { babyId: string; remindAt: string; source: string; title: string; body: string }, idempotencyKey?: string) =>
+      api.post<{ success: boolean }>('/push/reminder', data, idempotencyKey),
   },
 };

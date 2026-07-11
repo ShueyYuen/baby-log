@@ -177,7 +177,7 @@ export default function PlanFormPage() {
 
     try {
       if (isEditing) {
-        await api.put(`/plans/${id}`, {
+        await api.plansCrud.update(id!, {
           title,
           type,
           scheduledAt: new Date(scheduledAt).toISOString(),
@@ -187,7 +187,7 @@ export default function PlanFormPage() {
           images,
         });
       } else {
-        await api.post('/plans', {
+        await api.plansCrud.create({
           babyId: currentBaby.id,
           title,
           type,
@@ -378,7 +378,7 @@ export default function PlanFormPage() {
               className="flex-1"
               onClick={async () => {
                 try {
-                  await api.delete(`/plans/${id}`);
+                  await api.plansCrud.delete(id!);
                   navigate('/plans', { replace: true });
                 } catch {
                   toast('删除失败', 'error');

@@ -25,7 +25,7 @@ export default function BabySetupPage() {
     setLoading(true);
 
     try {
-      await api.post('/babies', { name, gender, birthDate: new Date(birthDate).toISOString() }, generateIdempotencyKey());
+      await api.babies.create({ name, gender, birthDate: new Date(birthDate).toISOString() }, generateIdempotencyKey());
       await refreshBabies();
       navigate('/');
     } catch (err: any) {

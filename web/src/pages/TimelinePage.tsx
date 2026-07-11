@@ -273,7 +273,7 @@ export default function TimelinePage() {
     }
     const nowIso = new Date().toISOString();
     try {
-      await api.post('/records', {
+      await api.recordsCrud.create({
         babyId: currentBaby.id,
         category,
         type,
@@ -303,7 +303,7 @@ export default function TimelinePage() {
     const endIso = new Date(endMs).toISOString();
     const durationMinutes = Math.max(1, Math.round((endMs - startMs) / 60000));
     try {
-      await api.put(`/records/${record.id}`, {
+      await api.recordsCrud.update(record.id, {
         data: { ...record.data, ongoing: undefined, startTime, endTime: endIso, durationMinutes },
       });
       const durH = Math.floor(durationMinutes / 60);
@@ -317,7 +317,6 @@ export default function TimelinePage() {
     setEndingRecord(null);
   };
 
-  // 非睡眠类 ongoing 直接结束（洗澡/玩耍不需要修改时间）
   const handleEndOngoing = (record: RecordItem) => {
     if (record.type === 'sleep') {
       promptEndOngoing(record);
@@ -327,7 +326,7 @@ export default function TimelinePage() {
         const endIso = new Date().toISOString();
         const durationMinutes = Math.max(1, Math.round((Date.now() - new Date(startTime).getTime()) / 60000));
         try {
-          await api.put(`/records/${record.id}`, {
+          await api.recordsCrud.update(record.id, {
             data: { ...record.data, ongoing: undefined, startTime, endTime: endIso, durationMinutes },
           });
           toast(`${typeConfig[record.type]?.label || '活动'}已结束（${durationMinutes}分钟）`, 'success');
@@ -345,7 +344,7 @@ export default function TimelinePage() {
       if (prediction?.minutesUntilNext && prediction.minutesUntilNext > 0 && currentBaby) {
         const remindAt = new Date(Date.now() + prediction.minutesUntilNext * 60000);
         try {
-          await api.post('/push/reminder', {
+          await api.push.reminder({
             babyId: currentBaby.id,
             remindAt: remindAt.toISOString(),
             source: 'feeding_manual',

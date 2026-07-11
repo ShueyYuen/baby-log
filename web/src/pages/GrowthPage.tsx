@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { api, generateIdempotencyKey, type RecordImage, type UploadMomentResult } from '../lib/api';
+import { api, generateIdempotencyKey, type RecordImage, type UploadMomentResult, type GrowthItem, type MilestoneItem } from '../lib/api';
 import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import { useRefreshHandler } from '../hooks/usePullRefresh';
 import { useServerEvent } from '../hooks/useServerEvents';
@@ -71,23 +71,6 @@ function recordImageToPreview(img: RecordImage): MilestonePreview {
   };
 }
 
-interface GrowthItem {
-  id: string;
-  date: string;
-  height?: number;
-  weight?: number;
-  headCircumference?: number;
-  note?: string;
-}
-
-interface MilestoneItem {
-  id: string;
-  type: string;
-  title: string;
-  occurredAt: string;
-  description?: string;
-  images?: RecordImage[];
-}
 
 const milestoneLabels: Record<string, string> = Object.fromEntries([
   ...milestoneStandards.map((s) => [s.type, s.label]),
@@ -365,7 +348,7 @@ export default function GrowthPage() {
   const addGrowth = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentBaby) return;
-    await api.post('/growth', {
+    await api.growth.create({
       babyId: currentBaby.id,
       date: gDate,
       height: gHeight ? +gHeight : undefined,
@@ -383,7 +366,7 @@ export default function GrowthPage() {
     e.preventDefault();
     if (!currentBaby || mUploading) return;
     const completed = mPreviews.filter((p) => p.result).map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType, visibleTo: p.visibleTo?.length ? p.visibleTo : undefined }));
-    await api.post('/milestones', {
+    await api.milestonesCrud.create({
       babyId: currentBaby.id,
       type: mType,
       title: mTitle || milestoneLabels[mType],
@@ -409,7 +392,7 @@ export default function GrowthPage() {
     e.preventDefault();
     if (!editingMilestone || mUploading) return;
     const completed = mPreviews.filter((p) => p.result).map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType, visibleTo: p.visibleTo?.length ? p.visibleTo : undefined }));
-    await api.put(`/milestones/${editingMilestone.id}`, {
+    await api.milestonesCrud.update(editingMilestone.id, {
       type: mType,
       title: mTitle || milestoneLabels[mType],
       occurredAt: new Date(mDate).toISOString(),
@@ -423,7 +406,7 @@ export default function GrowthPage() {
 
   const deleteMilestone = async (id: string) => {
     try {
-      await api.delete(`/milestones/${id}`);
+      await api.milestonesCrud.delete(id);
       toast('里程碑已删除', 'success');
       loadData(true);
     } catch {

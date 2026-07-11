@@ -1,18 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import dayjs from 'dayjs';
 import {
   ArrowLeft,
-  Plus,
-  Search,
   X,
   Trash2,
   Edit3,
-  ChevronRight,
   ImagePlus,
   FileText,
   Loader2,
-  Hospital,
   Stethoscope,
 } from 'lucide-react';
 import { useBaby } from '../contexts/BabyContext';
@@ -25,7 +21,7 @@ import {
   type OcrDataItem,
   type UploadMomentResult,
 } from '../lib/api';
-import { cacheInvalidate, cacheRead, cacheWrite } from '../lib/queryCache';
+import { cacheInvalidate } from '../lib/queryCache';
 import {
   Button,
   Card,
@@ -42,241 +38,6 @@ import {
 import { Skeleton } from '../components/ui/skeleton';
 
 const CACHE_KEY = 'medical-visits';
-
-// ── List View ───────────────────────────────────────────────────────────────
-
-function VisitListItem({
-  visit,
-  onClick,
-}: {
-  visit: MedicalVisit;
-  onClick: () => void;
-}) {
-  const thumb = visit.images?.[0];
-  return (
-    <button
-      onClick={onClick}
-      className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-primary-300 dark:hover:border-primary-600 transition-colors"
-    >
-      <div className="flex gap-3">
-        {thumb?.url ? (
-          <img
-            src={thumb.url}
-            alt=""
-            className="w-16 h-16 rounded-lg object-cover shrink-0"
-          />
-        ) : (
-          <div className="w-16 h-16 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
-            <Hospital size={24} className="text-blue-400" />
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
-              {visit.hospital || '就诊记录'}
-            </span>
-            {visit.department && (
-              <Badge variant="secondary" className="text-[10px] shrink-0">
-                {visit.department}
-              </Badge>
-            )}
-          </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-            {dayjs(visit.visitDate).format('YYYY-MM-DD')}
-            {visit.doctor ? ` · ${visit.doctor}` : ''}
-          </p>
-          {visit.diagnosis && (
-            <p className="text-sm text-gray-600 dark:text-gray-300 truncate">
-              {visit.diagnosis}
-            </p>
-          )}
-        </div>
-        <ChevronRight
-          size={18}
-          className="text-gray-300 dark:text-gray-600 shrink-0 mt-1"
-        />
-      </div>
-    </button>
-  );
-}
-
-function VisitList() {
-  const { currentBaby } = useBaby();
-  const { isViewer } = useAuth();
-  const navigate = useNavigate();
-  const [visits, setVisits] = useState<MedicalVisit[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-  const [total, setTotal] = useState(0);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
-
-  const fetchVisits = useCallback(
-    async (p = 1, q = '', append = false) => {
-      if (!currentBaby) return;
-      setLoading(true);
-      try {
-        const res = await api.medicalVisits.list(currentBaby.id, {
-          q: q || undefined,
-          page: p,
-          pageSize: 20,
-        });
-        const data = res.data;
-        if (append) {
-          setVisits((prev) => [...prev, ...data.items]);
-        } else {
-          setVisits(data.items);
-        }
-        setHasMore(data.hasMore);
-        setTotal(data.total);
-        setPage(p);
-        if (!q && p === 1) {
-          cacheWrite(CACHE_KEY, data.items);
-        }
-      } catch {
-        toast('加载失败', 'error');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [currentBaby, toast],
-  );
-
-  useEffect(() => {
-    if (!currentBaby) return;
-    const cached = cacheRead<MedicalVisit[]>(CACHE_KEY);
-    if (cached) {
-      setVisits(cached);
-      setLoading(false);
-    }
-    fetchVisits(1, '');
-  }, [currentBaby?.id]);
-
-  const handleSearch = useCallback(() => {
-    fetchVisits(1, query);
-  }, [fetchVisits, query]);
-
-  const clearSearch = useCallback(() => {
-    setQuery('');
-    setSearchOpen(false);
-    fetchVisits(1, '');
-  }, [fetchVisits]);
-
-  return (
-    <div className="fixed inset-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900">
-      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
-          <Button variant="ghost" size="icon" asChild>
-            <Link to="/health">
-              <ArrowLeft size={20} />
-            </Link>
-          </Button>
-          {searchOpen ? (
-            <div className="flex-1 flex items-center gap-2">
-              <div className="flex-1 relative">
-                <Search
-                  size={16}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  placeholder="搜索医院、诊断、处方..."
-                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 dark:text-gray-100"
-                  autoFocus
-                />
-              </div>
-              <Button size="sm" onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button variant="ghost" size="icon" onClick={clearSearch}>
-                <X size={18} />
-              </Button>
-            </div>
-          ) : (
-            <>
-              <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">
-                就诊记录
-              </h2>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  setSearchOpen(true);
-                  setTimeout(() => searchInputRef.current?.focus(), 50);
-                }}
-              >
-                <Search size={20} />
-              </Button>
-              {!isViewer && (
-                <Button
-                  size="sm"
-                  onClick={() => navigate('/medical-visits/new')}
-                >
-                  <Plus size={16} className="mr-1" />
-                  新建
-                </Button>
-              )}
-            </>
-          )}
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 space-y-3">
-        {query && !loading && (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            搜索 &quot;{query}&quot;，共 {total} 条结果
-          </p>
-        )}
-
-        {loading && visits.length === 0 ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-24 rounded-xl" />
-            ))}
-          </div>
-        ) : visits.length === 0 ? (
-          <div className="text-center py-20 text-gray-400 dark:text-gray-500">
-            <Hospital size={48} className="mx-auto mb-3 opacity-40" />
-            <p>{query ? '没有找到匹配的记录' : '暂无就诊记录'}</p>
-            {!query && !isViewer && (
-              <Button
-                className="mt-4"
-                onClick={() => navigate('/medical-visits/new')}
-              >
-                添加就诊记录
-              </Button>
-            )}
-          </div>
-        ) : (
-          <>
-            {visits.map((v) => (
-              <VisitListItem
-                key={v.id}
-                visit={v}
-                onClick={() => navigate(`/medical-visits/${v.id}`)}
-              />
-            ))}
-            {hasMore && (
-              <Button
-                variant="secondary"
-                className="w-full"
-                onClick={() => fetchVisits(page + 1, query, true)}
-                disabled={loading}
-              >
-                {loading ? '加载中...' : '加载更多'}
-              </Button>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ── Detail View ─────────────────────────────────────────────────────────────
 

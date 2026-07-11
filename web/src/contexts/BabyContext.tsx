@@ -1,12 +1,8 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import { api } from '../lib/api';
+import { api, type Baby as ApiBaby } from '../lib/api';
 
-interface Baby {
-  id: string;
-  name: string;
-  gender: string;
-  birthDate: string;
+interface Baby extends ApiBaby {
   avatar?: string;
 }
 
@@ -34,15 +30,15 @@ export function BabyProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const res = await api.get<{ success: boolean; data: Baby[] }>('/babies');
+      const res = await api.babies.list();
       setBabies(res.data);
       const savedId = localStorage.getItem('currentBabyId');
       const found = res.data.find((b) => b.id === savedId);
       if (found) setCurrentBaby(found);
       else if (res.data.length > 0) setCurrentBaby(res.data[0]);
       else setCurrentBaby(null);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('Failed to load babies:', err);
     } finally {
       setLoading(false);
     }

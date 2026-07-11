@@ -7,14 +7,7 @@ import { UserPlus, Trash2, KeyRound, Copy, Check, User as UserIcon, HardDrive, C
 import { Button, Input, Card, CardContent, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, ConfirmDialog, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 
-interface UserItem {
-  id: string;
-  username: string;
-  displayName: string;
-  role: string;
-  createdAt: string;
-  avatar?: string | null;
-}
+import type { UserItem } from '../lib/api';
 
 export default function AdminPage() {
   const { user: currentUser } = useAuth();
@@ -54,10 +47,10 @@ export default function AdminPage() {
 
   const loadUsers = async () => {
     try {
-      const res = await api.get<{ success: boolean; data: UserItem[] }>('/auth/users');
+      const res = await api.auth.listUsers();
       setUsers(res.data);
     } catch {
-      // ignore
+      toast('加载用户列表失败', 'error');
     }
   };
 
@@ -65,13 +58,13 @@ export default function AdminPage() {
     e.preventDefault();
     setCreating(true);
     try {
-      const res = await api.post<{ success: boolean; data: { id: string; generatedPassword: string } }>('/auth/users', {
+      const res = await api.auth.createUser({
         username: newUsername,
         displayName: newDisplayName,
         role: newUserRole,
       });
       if (newAvatarPreview) {
-        await api.put(`/auth/users/${res.data.id}/avatar`, { avatar: newAvatarPreview });
+        await api.auth.updateAvatar(res.data.id, newAvatarPreview);
       }
       setGeneratedPassword(res.data.generatedPassword);
       setNewUsername('');
@@ -94,7 +87,7 @@ export default function AdminPage() {
 
     if (type === 'delete') {
       try {
-        await api.delete(`/auth/users/${id}`);
+        await api.auth.deleteUser(id);
         toast('用户已删除', 'success');
         loadUsers();
       } catch (err: any) {
@@ -128,7 +121,7 @@ export default function AdminPage() {
         payload.role = editRole;
       }
       if (Object.keys(payload).length > 0) {
-        await api.put(`/auth/users/${editTarget.id}`, payload);
+        await api.auth.updateUser(editTarget.id, payload);
       }
       toast('用户信息已更新', 'success');
       setEditTarget(null);
@@ -307,7 +300,7 @@ export default function AdminPage() {
                     size="sm"
                     onClick={async () => {
                       if (!editTarget) return;
-                      await api.put(`/auth/users/${editTarget.id}/avatar`, { avatar: null });
+                      await api.auth.updateAvatar(editTarget.id, null);
                       toast('头像已移除', 'success');
                       setEditTarget({ ...editTarget, avatar: null });
                       loadUsers();

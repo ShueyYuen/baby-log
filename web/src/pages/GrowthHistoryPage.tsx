@@ -2,19 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { api } from '../lib/api';
+import { api, type GrowthItem } from '../lib/api';
 import dayjs from 'dayjs';
 import { ArrowLeft } from 'lucide-react';
 import { Button, Input, Card, CardContent, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DatePicker } from '../components/ui';
-
-interface GrowthItem {
-  id: string;
-  date: string;
-  height?: number;
-  weight?: number;
-  headCircumference?: number;
-  note?: string;
-}
 
 export default function GrowthHistoryPage() {
   const navigate = useNavigate();
@@ -58,12 +49,10 @@ export default function GrowthHistoryPage() {
     if (!currentBaby) return;
     if (p > 1) setLoadingMore(true);
     try {
-      const res = await api.get<{ success: boolean; data: { items: GrowthItem[]; total: number; hasMore: boolean } | GrowthItem[] }>(
-        `/growth?babyId=${currentBaby.id}&page=${p}&pageSize=${PAGE_SIZE}`
-      );
+      const res = await api.growth.list(currentBaby.id, { page: p, pageSize: PAGE_SIZE });
       const items = Array.isArray(res.data) ? res.data : res.data.items;
-      const more = Array.isArray(res.data) ? false : res.data.hasMore;
-      const t = Array.isArray(res.data) ? items.length : res.data.total;
+      const more = Array.isArray(res.data) ? false : (res.data as { hasMore: boolean }).hasMore;
+      const t = Array.isArray(res.data) ? items.length : (res.data as { total: number }).total;
       setHasMore(more);
       setTotal(t);
       setRecords((prev) => replace ? items : [...prev, ...items]);
@@ -84,7 +73,7 @@ export default function GrowthHistoryPage() {
   const saveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRecord) return;
-    await api.put(`/growth/${editingRecord.id}`, {
+    await api.growth.update(editingRecord.id, {
       date: gDate,
       height: gHeight ? +gHeight : undefined,
       weight: gWeight ? +gWeight : undefined,
@@ -101,7 +90,7 @@ export default function GrowthHistoryPage() {
 
   const doDelete = async () => {
     if (!deleteTarget) return;
-    await api.delete(`/growth/${deleteTarget}`);
+    await api.growth.delete(deleteTarget);
     setShowDeleteConfirm(false);
     setDeleteTarget(null);
     loadRecords(1, true);

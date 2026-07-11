@@ -139,7 +139,6 @@ function KeepAliveRoutes() {
                 <Route path="/plan/new" element={<PlanFormPage />} />
                 <Route path="/plan/:id/edit" element={<PlanFormPage />} />
                 <Route path="/growth/history" element={<GrowthHistoryPage />} />
-                <Route path="/growth/health/:id" element={<HealthTrackingPage />} />
                 <Route path="/health/:id" element={<HealthTrackingPage />} />
                 <Route path="/stats" element={<StatsPage />} />
                 <Route path="/milk-inventory" element={<MilkInventoryPage />} />

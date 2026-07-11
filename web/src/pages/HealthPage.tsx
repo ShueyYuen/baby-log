@@ -43,8 +43,10 @@ export default function HealthPage() {
       const res = await api.healthConditions.list(currentBaby.id);
       cacheWrite(cKey, res);
       setConditions(res.data);
-    } catch { /* ignore */ }
-  }, [currentBaby]);
+    } catch {
+      toast('加载病症失败', 'error');
+    }
+  }, [currentBaby, toast]);
 
   const fetchVisits = useCallback(async (p = 1, q = '', append = false) => {
     if (!currentBaby) return;
@@ -64,9 +66,11 @@ export default function HealthPage() {
       setVisitsHasMore(data.hasMore);
       setVisitsTotal(data.total);
       setVisitsPage(p);
-    } catch { /* ignore */ }
+    } catch {
+      toast('加载就诊记录失败', 'error');
+    }
     setVisitsLoading(false);
-  }, [currentBaby]);
+  }, [currentBaby, toast]);
 
   const loadAll = useCallback(async () => {
     await Promise.all([loadConditions(), fetchVisits(1, '')]);

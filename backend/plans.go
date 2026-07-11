@@ -73,12 +73,16 @@ func handleListPlans(w http.ResponseWriter, r *http.Request) {
 		args = append(args, status)
 	}
 	if from := q.Get("from"); from != "" {
-		where += ` AND scheduledAt >= ?`
-		args = append(args, from)
+		if fromMs, err := millisFromInput(from); err == nil {
+			where += ` AND scheduledAt >= ?`
+			args = append(args, int64(fromMs))
+		}
 	}
 	if to := q.Get("to"); to != "" {
-		where += ` AND scheduledAt < ?`
-		args = append(args, to)
+		if toMs, err := millisFromInput(to); err == nil {
+			where += ` AND scheduledAt < ?`
+			args = append(args, int64(toMs))
+		}
 	}
 
 	var total int

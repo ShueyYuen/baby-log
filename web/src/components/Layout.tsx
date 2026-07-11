@@ -6,7 +6,7 @@ import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { api } from '../lib/api';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, Button, Input, DateTimePicker } from './ui';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, Button, Input, DateTimePicker, useToast } from './ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui';
 import dayjs from 'dayjs';
 
@@ -19,6 +19,7 @@ export default function Layout({ children }: LayoutProps) {
   const { currentBaby, loading: babyLoading, refreshBabies } = useBaby();
   const { user, logout, isAdmin, isViewer } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { toast } = useToast();
 
   const [showBabyEdit, setShowBabyEdit] = useState(false);
   const [editName, setEditName] = useState('');
@@ -38,7 +39,7 @@ export default function Layout({ children }: LayoutProps) {
     if (!currentBaby || !editName.trim()) return;
     setSaving(true);
     try {
-      await api.put(`/babies/${currentBaby.id}`, {
+      await api.babies.update(currentBaby.id, {
         name: editName.trim(),
         gender: editGender,
         birthDate: editBirthDate ? new Date(editBirthDate).toISOString() : undefined,
@@ -46,7 +47,7 @@ export default function Layout({ children }: LayoutProps) {
       await refreshBabies();
       setShowBabyEdit(false);
     } catch {
-      // ignore
+      toast('保存失败', 'error');
     } finally {
       setSaving(false);
     }
