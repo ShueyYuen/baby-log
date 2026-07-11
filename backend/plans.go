@@ -3,9 +3,11 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -69,6 +71,14 @@ func handleListPlans(w http.ResponseWriter, r *http.Request) {
 	if status != "" {
 		where += ` AND status = ?`
 		args = append(args, status)
+	}
+	if from := q.Get("from"); from != "" {
+		where += ` AND scheduledAt >= ?`
+		args = append(args, from)
+	}
+	if to := q.Get("to"); to != "" {
+		where += ` AND scheduledAt < ?`
+		args = append(args, to)
 	}
 
 	var total int
@@ -208,8 +218,8 @@ func handleUpdatePlan(w http.ResponseWriter, r *http.Request) {
 	userID := getUserID(r)
 	id := chiURLParam(r, "id")
 
-	var babyID string
-	if err := db.QueryRow(`SELECT babyId FROM "Plan" WHERE id = ?`, id).Scan(&babyID); err != nil {
+	var babyID, oldStatus string
+	if err := db.QueryRow(`SELECT babyId, status FROM "Plan" WHERE id = ?`, id).Scan(&babyID, &oldStatus); err != nil {
 		if isNoRows(err) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
@@ -236,6 +246,12 @@ func handleUpdatePlan(w http.ResponseWriter, r *http.Request) {
 
 	sets := []string{}
 	args := []interface{}{}
+	statusToCompleted := false
+	if raw, ok := body["status"]; ok {
+		if s := jsonString(raw); s == "completed" && oldStatus != "completed" {
+			statusToCompleted = true
+		}
+	}
 	if raw, ok := body["title"]; ok {
 		if s := jsonString(raw); s != "" {
 			sets = append(sets, "title = ?")
@@ -312,6 +328,14 @@ func handleUpdatePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if statusToCompleted {
+		if newID, err := autoRepeatPlan(id); err != nil {
+			log.Printf("[Plan] autoRepeatPlan failed for %s: %v", id, err)
+		} else if newID != "" {
+			publishEvent(DataEvent{Type: EventPlanCreated, BabyID: babyID, ID: newID, UserID: userID})
+		}
+	}
+
 	row := db.QueryRow(`SELECT `+planCols+` FROM "Plan" WHERE id = ?`, id)
 	p, err := scanPlanRow(row, userID, isAdminCtx(r))
 	if err != nil {
@@ -378,8 +402,80 @@ func isValidPlanType(t string) bool {
 
 func isValidRepeat(rp string) bool {
 	switch rp {
-	case "none", "daily", "weekly", "monthly":
+	case "none", "daily", "weekly", "monthly", "yearly":
 		return true
 	}
 	return false
+}
+
+func nextPlanScheduledAt(from Millis, repeat string) (Millis, bool) {
+	t := from.Time()
+	switch repeat {
+	case "daily":
+		return Millis(t.AddDate(0, 0, 1).UnixMilli()), true
+	case "weekly":
+		return Millis(t.AddDate(0, 0, 7).UnixMilli()), true
+	case "monthly":
+		return Millis(t.AddDate(0, 1, 0).UnixMilli()), true
+	case "yearly":
+		return Millis(t.AddDate(1, 0, 0).UnixMilli()), true
+	default:
+		return 0, false
+	}
+}
+
+func createPlanReminder(babyID, planID, title string, scheduled Millis, reminder sql.NullString) {
+	nowMs := time.Now().UnixMilli()
+	if int64(scheduled) <= nowMs {
+		return
+	}
+	reminderMinutes := 30
+	if reminder.Valid && reminder.String != "" {
+		if n, err := strconv.Atoi(reminder.String); err == nil && n != 0 {
+			reminderMinutes = n
+		}
+	}
+	remindAt := int64(scheduled) - int64(reminderMinutes)*60000
+	if remindAt <= nowMs {
+		return
+	}
+	_, _ = db.Exec(`INSERT INTO "Reminder" (id, babyId, remindAt, source, title, body, refId, sent, createdAt)
+		VALUES (?, ?, ?, 'plan', ?, ?, ?, 0, ?)`,
+		uuid.NewString(), babyID, remindAt,
+		"📋 "+title, "计划将在"+strconv.Itoa(reminderMinutes)+"分钟后开始", planID, nowMs)
+}
+
+// autoRepeatPlan 在重复计划完成后创建下一期，返回新计划 ID（未创建则返回空字符串）。
+func autoRepeatPlan(planID string) (string, error) {
+	var (
+		babyID, title, planType, repeat, status, createdBy string
+		scheduled                                            int64
+		desc, reminder, imagesJSON                           sql.NullString
+	)
+	err := db.QueryRow(`SELECT babyId, title, type, scheduledAt, description, reminder, repeat, status, createdBy, images FROM "Plan" WHERE id = ?`, planID).
+		Scan(&babyID, &title, &planType, &scheduled, &desc, &reminder, &repeat, &status, &createdBy, &imagesJSON)
+	if err != nil {
+		return "", err
+	}
+	if repeat == "" || repeat == "none" || status != "completed" {
+		return "", nil
+	}
+
+	nextScheduled, ok := nextPlanScheduledAt(Millis(scheduled), repeat)
+	if !ok {
+		return "", nil
+	}
+
+	newID := uuid.NewString()
+	now := nowMillis()
+
+	if _, err := db.Exec(`INSERT INTO "Plan" (id, babyId, title, type, scheduledAt, description, reminder, repeat, status, createdBy, createdAt, updatedAt, images)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+		newID, babyID, title, planType, int64(nextScheduled),
+		desc, reminder, repeat, createdBy, int64(now), int64(now), imagesJSON); err != nil {
+		return "", err
+	}
+
+	createPlanReminder(babyID, newID, title, nextScheduled, reminder)
+	return newID, nil
 }

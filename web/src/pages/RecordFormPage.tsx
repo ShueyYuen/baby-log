@@ -248,6 +248,8 @@ export default function RecordFormPage() {
   >(_d.location || "axillary");
   const [playDuration, setPlayDuration] = useState(_d.durationMinutes ?? 30);
   const [bathDuration, setBathDuration] = useState(_d.durationMinutes ?? 15);
+  const [isOngoing, setIsOngoing] = useState(false);
+  const [ongoingStartTime, setOngoingStartTime] = useState<string | null>(null);
 
   useEffect(() => {
     if (isEditing && currentBaby) {
@@ -340,7 +342,10 @@ export default function RecordFormPage() {
         setSupplementName(data.name || "");
         break;
       case "sleep":
-        if (data.endTime) {
+        if (data.ongoing) {
+          setIsOngoing(true);
+          setOngoingStartTime(data.startTime || null);
+        } else if (data.endTime) {
           setSleepEndTime(dayjs(data.endTime).format('YYYY-MM-DDTHH:mm'));
         } else if (data.startTime && data.durationMinutes) {
           setSleepEndTime(dayjs(data.startTime).add(data.durationMinutes, 'minute').format('YYYY-MM-DDTHH:mm'));
@@ -351,10 +356,20 @@ export default function RecordFormPage() {
         setTempLocation(data.location || "axillary");
         break;
       case "play":
-        setPlayDuration(data.durationMinutes || 30);
+        if (data.ongoing) {
+          setIsOngoing(true);
+          setOngoingStartTime(data.startTime || null);
+        } else {
+          setPlayDuration(data.durationMinutes || 30);
+        }
         break;
       case "bath":
-        setBathDuration(data.durationMinutes || 15);
+        if (data.ongoing) {
+          setIsOngoing(true);
+          setOngoingStartTime(data.startTime || null);
+        } else {
+          setBathDuration(data.durationMinutes || 15);
+        }
         break;
     }
   };
@@ -470,12 +485,14 @@ export default function RecordFormPage() {
       case "diaper":
         return { type: diaperType };
       case "bath":
+        if (isOngoing) return { ongoing: true, startTime: ongoingStartTime || new Date(occurredAt).toISOString() };
         return { durationMinutes: bathDuration };
       case "supplement":
         return { name: supplementName };
       case "temperature":
         return { value: temperature, location: tempLocation };
       case "sleep": {
+        if (isOngoing) return { ongoing: true, startTime: ongoingStartTime || new Date(occurredAt).toISOString() };
         const sStart = new Date(occurredAt);
         let sEnd = new Date(sleepEndTime);
         if (sEnd.getTime() <= sStart.getTime()) {
@@ -489,6 +506,7 @@ export default function RecordFormPage() {
         };
       }
       case "play":
+        if (isOngoing) return { ongoing: true, startTime: ongoingStartTime || new Date(occurredAt).toISOString() };
         return { durationMinutes: playDuration };
       default:
         return {};
@@ -756,6 +774,17 @@ export default function RecordFormPage() {
           </div>
         );
       case "sleep": {
+        if (isOngoing) {
+          return (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800">
+              <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
+              <span className="text-sm font-medium text-primary-700 dark:text-primary-300">
+                睡眠进行中，如需结束请返回时间线
+              </span>
+            </div>
+          );
+        }
+
         const sleepStart = new Date(occurredAt);
         let sleepEnd = new Date(sleepEndTime);
         if (sleepEnd.getTime() <= sleepStart.getTime()) {
@@ -834,6 +863,16 @@ export default function RecordFormPage() {
         );
       }
       case "bath":
+        if (isOngoing) {
+          return (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800">
+              <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
+              <span className="text-sm font-medium text-primary-700 dark:text-primary-300">
+                洗澡进行中，如需结束请返回时间线
+              </span>
+            </div>
+          );
+        }
         return (
           <div>
             <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -866,6 +905,16 @@ export default function RecordFormPage() {
           </div>
         );
       case "play":
+        if (isOngoing) {
+          return (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800">
+              <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
+              <span className="text-sm font-medium text-primary-700 dark:text-primary-300">
+                活动进行中，如需结束请返回时间线
+              </span>
+            </div>
+          );
+        }
         return (
           <div>
             <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">

@@ -58,7 +58,6 @@ func TestListPlansWithStatusFilter(t *testing.T) {
 	var p planOut
 	jsonUnmarshal(mustOK(t, created).Data, &p)
 
-	// 标记完成
 	s.do(http.MethodPut, "/plans/"+p.ID, uid, map[string]interface{}{"status": "completed"})
 
 	e := mustOK(t, s.do(http.MethodGet, "/plans/?babyId="+bid+"&status=completed", uid, nil))
@@ -73,6 +72,47 @@ func TestListPlansWithStatusFilter(t *testing.T) {
 	jsonUnmarshal(extractItems(ePending.Data), &pending)
 	if len(pending) != 0 {
 		t.Errorf("expected 0 pending, got %d", len(pending))
+	}
+}
+
+func TestAutoRepeatPlanOnComplete(t *testing.T) {
+	s := newTestServer(t)
+	uid := insertUser(t, "u", "U", "user")
+	bid := createBabyFor(t, uid, "宝宝")
+
+	scheduled := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Second)
+	created := s.do(http.MethodPost, "/plans/", uid, map[string]interface{}{
+		"babyId":      bid,
+		"title":       "每周体检",
+		"type":        "checkup",
+		"scheduledAt": scheduled.Format(isoLayout),
+		"repeat":      "weekly",
+		"reminder":    "30",
+	})
+	var p planOut
+	jsonUnmarshal(mustOK(t, created).Data, &p)
+
+	s.do(http.MethodPut, "/plans/"+p.ID, uid, map[string]interface{}{"status": "completed"})
+
+	ePending := mustOK(t, s.do(http.MethodGet, "/plans/?babyId="+bid+"&status=pending", uid, nil))
+	var pending []planOut
+	jsonUnmarshal(extractItems(ePending.Data), &pending)
+	if len(pending) != 1 {
+		t.Fatalf("expected 1 pending repeat plan, got %d", len(pending))
+	}
+	next := pending[0]
+	if next.Title != "每周体检" || next.Repeat != "weekly" || next.Status != "pending" {
+		t.Fatalf("repeat plan wrong: %+v", next)
+	}
+	expected := scheduled.AddDate(0, 0, 7)
+	if next.ScheduledAt.Time().UTC().Format(isoLayout) != expected.UTC().Format(isoLayout) {
+		t.Errorf("scheduledAt = %v, want %v", next.ScheduledAt.Time(), expected)
+	}
+
+	var cnt int
+	db.QueryRow(`SELECT COUNT(*) FROM "Reminder" WHERE refId = ? AND source = 'plan'`, next.ID).Scan(&cnt)
+	if cnt != 1 {
+		t.Errorf("expected 1 reminder for next plan, got %d", cnt)
 	}
 }
 

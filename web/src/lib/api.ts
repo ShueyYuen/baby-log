@@ -82,6 +82,8 @@ export interface Moment {
   avatar?: string | null;
   content: string | null;
   mediaItems: MediaItemDisplay[];
+  likeCount: number;
+  liked: boolean;
   commentCount: number;
   comments: MomentComment[];
   createdAt: string;
@@ -268,6 +270,11 @@ export const api = {
     deleteComment: (momentId: string, commentId: string) =>
       api.delete<{ success: boolean; data: { id: string } }>(
         `/moments/${momentId}/comments/${commentId}`
+      ),
+
+    toggleLike: (momentId: string) =>
+      api.post<{ success: boolean; data: { liked: boolean; likeCount: number } }>(
+        `/moments/${momentId}/like`, {}
       ),
 
     uploadMediaSingle: createUploader('/upload/moments'),

@@ -231,6 +231,17 @@ CREATE INDEX IF NOT EXISTS "Moment_createdAt_idx" ON "Moment"("createdAt");
 CREATE INDEX IF NOT EXISTS "Moment_userId_idx" ON "Moment"("userId");
 CREATE INDEX IF NOT EXISTS "MomentComment_momentId_idx" ON "MomentComment"("momentId");
 
+CREATE TABLE IF NOT EXISTS "MomentLike" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "momentId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "createdAt" INTEGER NOT NULL,
+    CONSTRAINT "MomentLike_momentId_fkey" FOREIGN KEY ("momentId") REFERENCES "Moment" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "MomentLike_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "MomentLike_momentId_userId_key" ON "MomentLike"("momentId", "userId");
+CREATE INDEX IF NOT EXISTS "MomentLike_momentId_idx" ON "MomentLike"("momentId");
+
 CREATE TABLE IF NOT EXISTS "ReminderDelivered" (
     "reminderId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,

@@ -32,34 +32,72 @@ interface TempPoint {
   location: string;
 }
 
+type RangePreset = '7' | '14' | '30' | 'custom';
+
+const RANGE_PRESETS: { value: RangePreset; label: string }[] = [
+  { value: '7', label: '7天' },
+  { value: '14', label: '14天' },
+  { value: '30', label: '30天' },
+  { value: 'custom', label: '自定义' },
+];
+
+function getPresetDateRange(preset: RangePreset, customStart: string, customEnd: string) {
+  if (preset === 'custom') {
+    return { startDate: customStart, endDate: customEnd };
+  }
+  const days = parseInt(preset, 10);
+  return {
+    startDate: dayjs().subtract(days - 1, 'day').format('YYYY-MM-DD'),
+    endDate: dayjs().format('YYYY-MM-DD'),
+  };
+}
+
+function buildEmptyRange(startDate: string, endDate: string): DailyData[] {
+  const days: DailyData[] = [];
+  let cursor = dayjs(startDate);
+  const end = dayjs(endDate);
+  while (cursor.isBefore(end) || cursor.isSame(end, 'day')) {
+    days.push({
+      date: cursor.format('YYYY-MM-DD'),
+      feedingCount: 0, diaperCount: 0, peeCount: 0, poopCount: 0, sleepMinutes: 0,
+      feedingDetails: { breastfeed: 0, bottle: 0, solid: 0 },
+    });
+    cursor = cursor.add(1, 'day');
+  }
+  return days;
+}
+
 export default function StatsPage() {
   const { currentBaby } = useBaby();
   const [weekData, setWeekData] = useState<DailyData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rangePreset, setRangePreset] = useState<RangePreset>('7');
+  const [customStartDate, setCustomStartDate] = useState(dayjs().subtract(6, 'day').format('YYYY-MM-DD'));
+  const [customEndDate, setCustomEndDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [tempDate, setTempDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [tempData, setTempData] = useState<TempPoint[]>([]);
 
-  useEffect(() => {
+  const dateRange = getPresetDateRange(rangePreset, customStartDate, customEndDate);
+
+  const loadWeekData = useCallback(async () => {
     if (!currentBaby) return;
-    loadWeekData();
-  }, [currentBaby]);
+    setLoading(true);
 
-  useEffect(() => {
-    if (!currentBaby) return;
-    loadTempData();
-  }, [currentBaby, tempDate]);
+    const { startDate, endDate } = getPresetDateRange(rangePreset, customStartDate, customEndDate);
+    const tz = new Date().getTimezoneOffset();
+    try {
+      const res = await api.get<{ success: boolean; data: DailyData[] }>(
+        `/stats/range?babyId=${currentBaby.id}&startDate=${startDate}&endDate=${endDate}&tz=${tz}`
+      );
+      setWeekData(res.data);
+    } catch {
+      setWeekData(buildEmptyRange(startDate, endDate));
+    } finally {
+      setLoading(false);
+    }
+  }, [currentBaby, rangePreset, customStartDate, customEndDate]);
 
-  useActivated(useCallback(() => { loadWeekData(); loadTempData(); }, [currentBaby, tempDate]));
-  useRefreshHandler(useCallback(async () => {
-    await Promise.all([loadWeekData(), loadTempData()]);
-  }, [currentBaby, tempDate]));
-
-  useServerEvent(
-    ['record.created', 'record.updated', 'record.deleted'],
-    useCallback(() => { loadWeekData(); loadTempData(); }, [currentBaby, tempDate]),
-  );
-
-  const loadTempData = async () => {
+  const loadTempData = useCallback(async () => {
     if (!currentBaby) return;
     try {
       const res = await api.get<{ success: boolean; data: { items: any[] } }>(
@@ -77,35 +115,27 @@ export default function StatsPage() {
     } catch {
       setTempData([]);
     }
-  };
+  }, [currentBaby, tempDate]);
 
-  const loadWeekData = async () => {
+  useEffect(() => {
     if (!currentBaby) return;
-    setLoading(true);
+    loadWeekData();
+  }, [currentBaby, loadWeekData]);
 
-    const tz = new Date().getTimezoneOffset();
-    const startDate = dayjs().subtract(6, 'day').format('YYYY-MM-DD');
-    const endDate = dayjs().format('YYYY-MM-DD');
-    try {
-      const res = await api.get<{ success: boolean; data: DailyData[] }>(
-        `/stats/range?babyId=${currentBaby.id}&startDate=${startDate}&endDate=${endDate}&tz=${tz}`
-      );
-      setWeekData(res.data);
-    } catch {
-      // 兜底：填充 7 天空数据
-      const days: DailyData[] = [];
-      for (let i = 6; i >= 0; i--) {
-        days.push({
-          date: dayjs().subtract(i, 'day').format('YYYY-MM-DD'),
-          feedingCount: 0, diaperCount: 0, peeCount: 0, poopCount: 0, sleepMinutes: 0,
-          feedingDetails: { breastfeed: 0, bottle: 0, solid: 0 },
-        });
-      }
-      setWeekData(days);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!currentBaby) return;
+    loadTempData();
+  }, [currentBaby, loadTempData]);
+
+  useActivated(useCallback(() => { loadWeekData(); loadTempData(); }, [loadWeekData, loadTempData]));
+  useRefreshHandler(useCallback(async () => {
+    await Promise.all([loadWeekData(), loadTempData()]);
+  }, [loadWeekData, loadTempData]));
+
+  useServerEvent(
+    ['record.created', 'record.updated', 'record.deleted'],
+    useCallback(() => { loadWeekData(); loadTempData(); }, [loadWeekData, loadTempData]),
+  );
 
   const chartData = weekData.map((d) => ({
     date: dayjs(d.date).format('MM/DD'),
@@ -116,6 +146,28 @@ export default function StatsPage() {
     大便: d.poopCount,
     睡眠: Math.round(d.sleepMinutes / 60 * 10) / 10,
   }));
+
+  const xAxisInterval = chartData.length > 14 ? Math.max(1, Math.ceil(chartData.length / 7) - 1) : 0;
+
+  const rangeChartTitle = (suffix: string) => {
+    if (rangePreset === 'custom') {
+      return `${dayjs(dateRange.startDate).format('MM/DD')}-${dayjs(dateRange.endDate).format('MM/DD')}${suffix}`;
+    }
+    return `近${rangePreset}天${suffix}`;
+  };
+
+  const todayStr = dayjs().format('YYYY-MM-DD');
+
+  const handleCustomStartChange = (value: string) => {
+    setCustomStartDate(value);
+    if (value > customEndDate) setCustomEndDate(value);
+  };
+
+  const handleCustomEndChange = (value: string) => {
+    const capped = value > todayStr ? todayStr : value;
+    setCustomEndDate(capped);
+    if (capped < customStartDate) setCustomStartDate(capped);
+  };
 
   const FeedingTooltip = ({ active, payload }: any) => {
     if (!active || !payload || payload.length === 0) return null;
@@ -215,6 +267,51 @@ export default function StatsPage() {
     <div className="space-y-6">
       <h2 className="text-xl font-semibold dark:text-gray-100">数据统计</h2>
 
+      <div className="space-y-3">
+        <div className="flex gap-1 p-1 rounded-lg bg-gray-100 dark:bg-gray-800">
+          {RANGE_PRESETS.map((preset) => (
+            <button
+              key={preset.value}
+              type="button"
+              onClick={() => setRangePreset(preset.value)}
+              className={`flex-1 min-w-0 py-1.5 px-1 rounded-md text-xs sm:text-sm font-medium transition-colors ${
+                rangePreset === preset.value
+                  ? 'bg-primary-500 text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-gray-700'
+              }`}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
+        {rangePreset === 'custom' && (
+          <div className="flex flex-col sm:flex-row gap-3">
+            <label className="flex-1">
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">开始日期</span>
+              <input
+                type="date"
+                value={customStartDate}
+                max={customEndDate}
+                onChange={(e) => handleCustomStartChange(e.target.value)}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </label>
+            <label className="flex-1">
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">结束日期</span>
+              <input
+                type="date"
+                value={customEndDate}
+                min={customStartDate}
+                max={todayStr}
+                onChange={(e) => handleCustomEndChange(e.target.value)}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </label>
+          </div>
+        )}
+      </div>
+
       {loading ? (
         <StatsSkeleton />
       ) : (
@@ -239,11 +336,11 @@ export default function StatsPage() {
 
           {/* Feeding Chart */}
           <div className="card">
-            <h3 className="font-medium mb-4 dark:text-gray-100">近7天喂养次数</h3>
+            <h3 className="font-medium mb-4 dark:text-gray-100">{rangeChartTitle('喂养次数')}</h3>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                <XAxis dataKey="date" fontSize={12} tick={{ fill: 'var(--chart-axis)' }} />
+                <XAxis dataKey="date" fontSize={12} interval={xAxisInterval} tick={{ fill: 'var(--chart-axis)' }} />
                 <YAxis fontSize={12} allowDecimals={false} tick={{ fill: 'var(--chart-axis)' }} />
                 <Tooltip content={<FeedingTooltip />} cursor={{ stroke: 'var(--chart-cursor)' }} />
                 <Line type="monotone" dataKey="喂养" stroke="#f19232" strokeWidth={2} dot={{ r: 3 }} animationDuration={300} />
@@ -253,11 +350,11 @@ export default function StatsPage() {
 
           {/* Diaper Chart */}
           <div className="card">
-            <h3 className="font-medium mb-4 dark:text-gray-100">近7天大小便次数</h3>
+            <h3 className="font-medium mb-4 dark:text-gray-100">{rangeChartTitle('大小便次数')}</h3>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                <XAxis dataKey="date" fontSize={12} tick={{ fill: 'var(--chart-axis)' }} />
+                <XAxis dataKey="date" fontSize={12} interval={xAxisInterval} tick={{ fill: 'var(--chart-axis)' }} />
                 <YAxis fontSize={12} allowDecimals={false} tick={{ fill: 'var(--chart-axis)' }} />
                 <Tooltip content={<DiaperTooltip />} cursor={{ stroke: 'var(--chart-cursor)' }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -269,11 +366,11 @@ export default function StatsPage() {
 
           {/* Sleep Chart */}
           <div className="card">
-            <h3 className="font-medium mb-4 dark:text-gray-100">近7天睡眠时长(小时)</h3>
+            <h3 className="font-medium mb-4 dark:text-gray-100">{rangeChartTitle('睡眠时长(小时)')}</h3>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                <XAxis dataKey="date" fontSize={12} tick={{ fill: 'var(--chart-axis)' }} />
+                <XAxis dataKey="date" fontSize={12} interval={xAxisInterval} tick={{ fill: 'var(--chart-axis)' }} />
                 <YAxis fontSize={12} tick={{ fill: 'var(--chart-axis)' }} />
                 <Tooltip content={<SleepTooltip />} cursor={{ stroke: 'var(--chart-cursor)' }} />
                 <Line type="monotone" dataKey="睡眠" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} animationDuration={300} />

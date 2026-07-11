@@ -9,13 +9,22 @@ import { useServerEvent } from '../hooks/useServerEvents';
 import { useActivated } from '../hooks/useActivated';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Plus, Star, Pencil, Trash2, ImagePlus, Play, X, AlertCircle, Activity, CheckCircle2 } from 'lucide-react';
+import { Plus, Star, Pencil, Trash2, ImagePlus, Play, X, AlertCircle, Activity, CheckCircle2, Check, Clock, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DatePicker, ConfirmDialog, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { Textarea } from '../components/ui';
 import { GrowthSkeleton } from '../components/ui/skeleton';
 import { VisibilityPicker } from '../components/ui/visibility-picker';
 import { getPercentileData, PercentileData } from '../lib/growth-standards';
+import {
+  milestoneStandards,
+  milestoneCategoryLabels,
+  milestoneCategoryColors,
+  getMilestonesForAge,
+  evaluateMilestoneTiming,
+  formatMonthRange,
+  type MilestoneStandard,
+} from '../lib/milestone-standards';
 
 interface MilestonePreview {
   file?: File;
@@ -80,16 +89,155 @@ interface MilestoneItem {
   images?: RecordImage[];
 }
 
-const milestoneLabels: Record<string, string> = {
-  roll_over: '翻身',
-  smile: '微笑',
-  head_up: '抬头',
-  sleep_through: '睡整觉',
-  first_tooth: '长牙',
-  crawl: '爬行',
-  walk: '走路',
-  custom: '自定义',
-};
+const milestoneLabels: Record<string, string> = Object.fromEntries([
+  ...milestoneStandards.map((s) => [s.type, s.label]),
+  ['custom', '自定义'],
+]);
+
+function DevelopmentChecklist({
+  birthDate,
+  milestones,
+  onRecord,
+  isViewer,
+}: {
+  birthDate?: string;
+  milestones: MilestoneItem[];
+  onRecord: (std: MilestoneStandard) => void;
+  isViewer: boolean;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  if (!birthDate) return null;
+
+  const ageMonths = dayjs().diff(dayjs(birthDate), 'month', true);
+  const relevant = getMilestonesForAge(ageMonths);
+
+  const achievedTypes = new Set(milestones.map((m) => m.type));
+  const achievedMap = new Map<string, MilestoneItem>();
+  for (const m of milestones) {
+    if (!achievedMap.has(m.type)) achievedMap.set(m.type, m);
+  }
+
+  const items = relevant.map((std) => {
+    const achieved = achievedMap.get(std.type);
+    const achievedAge = achieved ? dayjs(achieved.occurredAt).diff(dayjs(birthDate), 'month', true) : null;
+    const timing = evaluateMilestoneTiming(std, achievedAge, ageMonths);
+    return { std, achieved: !!achieved, achievedAge, timing };
+  });
+
+  const doneCount = items.filter((i) => i.achieved).length;
+  const totalCount = items.length;
+
+  const timingIcon = (timing: string) => {
+    switch (timing) {
+      case 'early': return <Check size={14} className="text-blue-500" />;
+      case 'on_time': return <Check size={14} className="text-green-500" />;
+      case 'late': return <AlertCircle size={14} className="text-orange-500" />;
+      case 'not_yet': return <Clock size={14} className="text-yellow-500" />;
+      case 'upcoming': return <Clock size={14} className="text-gray-300 dark:text-gray-600" />;
+      default: return null;
+    }
+  };
+
+  const timingLabel = (timing: string) => {
+    switch (timing) {
+      case 'early': return '偏早达成';
+      case 'on_time': return '正常达成';
+      case 'late': return '偏晚达成';
+      case 'not_yet': return '待观察';
+      case 'upcoming': return '即将到来';
+      default: return '';
+    }
+  };
+
+  return (
+    <div>
+      <button
+        className="flex items-center justify-between w-full mb-3 group"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-lg dark:text-gray-100">发育里程碑参考</h3>
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            {doneCount}/{totalCount}
+          </span>
+        </div>
+        {expanded
+          ? <ChevronUp size={18} className="text-gray-400" />
+          : <ChevronDown size={18} className="text-gray-400" />
+        }
+      </button>
+
+      {expanded && (
+        <Card>
+          <CardContent className="space-y-1 py-2">
+            <div className="flex items-center gap-1.5 mb-2 text-[11px] text-gray-400 dark:text-gray-500">
+              <Info size={12} />
+              <span>基于 WHO 运动发育研究和 CDC/AAP 指南，{ageMonths.toFixed(1)} 月龄参考</span>
+            </div>
+
+            {/* Progress bar */}
+            <div className="h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
+              <div
+                className="h-full bg-green-400 dark:bg-green-500 rounded-full transition-all duration-500"
+                style={{ width: `${totalCount > 0 ? (doneCount / totalCount) * 100 : 0}%` }}
+              />
+            </div>
+
+            {items.map(({ std, achieved, achievedAge, timing }) => (
+              <div
+                key={std.type}
+                className={`flex items-center gap-3 py-2 px-2 rounded-lg transition-colors ${
+                  achieved
+                    ? 'bg-gray-50 dark:bg-gray-800/50'
+                    : timing === 'not_yet' || timing === 'late'
+                    ? 'bg-yellow-50/50 dark:bg-yellow-900/10'
+                    : ''
+                }`}
+              >
+                <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center border border-gray-200 dark:border-gray-600">
+                  {timingIcon(timing)}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`font-medium text-sm ${achieved ? 'line-through text-gray-400 dark:text-gray-500' : 'dark:text-gray-100'}`}>
+                      {std.label}
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${milestoneCategoryColors[std.category]}`}>
+                      {milestoneCategoryLabels[std.category]}
+                    </span>
+                    {std.whoSource && (
+                      <span className="text-[9px] px-1 py-0.5 rounded bg-indigo-50 text-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300 font-medium">WHO</span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+                    {formatMonthRange(std.earliestMonth, std.latestMonth)}
+                    {achieved && achievedAge !== null && (
+                      <span className="ml-1.5">
+                        · {achievedAge < 1 ? `${Math.round(achievedAge * 30)}天` : `${achievedAge.toFixed(1)}月`}达成
+                      </span>
+                    )}
+                    {!achieved && <span className="ml-1.5">· {timingLabel(timing)}</span>}
+                  </div>
+                </div>
+
+                {!achieved && !isViewer && (
+                  <button
+                    onClick={() => onRecord(std)}
+                    className="flex-shrink-0 text-xs text-primary-500 hover:text-primary-600 px-2 py-1 rounded hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                  >
+                    记录
+                  </button>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
 
 export default function GrowthPage() {
   const { currentBaby } = useBaby();
@@ -626,6 +774,21 @@ export default function GrowthPage() {
         )}
       </div>
 
+      {/* WHO Development Checklist */}
+      <DevelopmentChecklist
+        birthDate={birthDate}
+        milestones={milestones}
+        onRecord={(std) => {
+          setMType(std.type);
+          setMTitle(std.label);
+          setMDate(dayjs().format('YYYY-MM-DD'));
+          setMDesc('');
+          setMPreviews([]);
+          setShowMilestoneForm(true);
+        }}
+        isViewer={isViewer}
+      />
+
       {/* Milestones */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -711,15 +874,39 @@ export default function GrowthPage() {
           <p className="text-center text-gray-400 py-6">暂无里程碑记录</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {milestones.map((m) => (
+            {milestones.map((m) => {
+              const std = milestoneStandards.find((s) => s.type === m.type);
+              const achievedAge = birthDate ? dayjs(m.occurredAt).diff(dayjs(birthDate), 'month', true) : null;
+              const timing = std && achievedAge !== null ? evaluateMilestoneTiming(std, achievedAge, 0) : null;
+              const timingBadge = timing === 'early'
+                ? { text: '偏早', cls: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' }
+                : timing === 'on_time'
+                ? { text: '正常', cls: 'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-300' }
+                : timing === 'late'
+                ? { text: '偏晚', cls: 'bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-300' }
+                : null;
+              return (
               <Card key={m.id}>
                 <CardContent className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-full bg-yellow-50 dark:bg-yellow-900/30 flex items-center justify-center flex-shrink-0">
                     <Star size={18} className="text-yellow-500" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-base dark:text-gray-100">{m.title}</h4>
-                    <p className="text-sm text-gray-400 dark:text-gray-500">{dayjs(m.occurredAt).format('YYYY-MM-DD')}</p>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-medium text-base dark:text-gray-100">{m.title}</h4>
+                      {timingBadge && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${timingBadge.cls}`}>{timingBadge.text}</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-400 dark:text-gray-500">
+                      {dayjs(m.occurredAt).format('YYYY-MM-DD')}
+                      {achievedAge !== null && <span className="ml-1.5">({achievedAge < 1 ? `${Math.round(achievedAge * 30)}天` : `${achievedAge.toFixed(1)}月龄`})</span>}
+                    </p>
+                    {std && (
+                      <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                        {std.whoSource ? 'WHO' : ''} 参考：{formatMonthRange(std.earliestMonth, std.latestMonth)}
+                      </p>
+                    )}
                     {m.description && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{m.description}</p>}
                     {m.images && m.images.length > 0 && (
                       <div className="flex gap-1 mt-1.5">
@@ -756,7 +943,8 @@ export default function GrowthPage() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
         {milestoneLoadingMore && (

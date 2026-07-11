@@ -323,6 +323,7 @@ export default function PlanFormPage() {
               <SelectItem value="daily">每天</SelectItem>
               <SelectItem value="weekly">每周</SelectItem>
               <SelectItem value="monthly">每月</SelectItem>
+              <SelectItem value="yearly">每年</SelectItem>
             </SelectContent>
           </Select>
         </div>

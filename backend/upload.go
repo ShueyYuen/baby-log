@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -105,21 +106,26 @@ func handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cfg := getStorageConfig()
+
+	// S3: use streaming multipart reader to overlap browser→backend and backend→S3
+	if cfg.typ == storageS3 && cfg.s3 != nil {
+		handleUploadMediaStreamingS3(w, r, prefix, cfg)
+		return
+	}
+
+	// Local storage: use ParseMultipartForm
 	if err := r.ParseMultipartForm(32 * 1024 * 1024); err != nil {
 		writeErr(w, http.StatusBadRequest, "No files uploaded")
 		return
 	}
-
 	if r.MultipartForm == nil || len(r.MultipartForm.File["files"]) == 0 {
 		writeErr(w, http.StatusBadRequest, "No files uploaded")
 		return
 	}
 
 	headers := r.MultipartForm.File["files"]
-	cfg := getStorageConfig()
-	useAsync := cfg.typ == storageS3 && cfg.s3 != nil
-
-	log.Printf("[Upload] %s media: count=%d storage=%s async=%v", prefix, len(headers), cfg.typ, useAsync)
+	log.Printf("[Upload] %s media: count=%d storage=local", prefix, len(headers))
 
 	results := make([]*uploadResult, 0, len(headers))
 	for _, header := range headers {
@@ -145,65 +151,163 @@ func handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if useAsync {
-			uid := uuid.NewString()
-			origExt := strings.ToLower(filepath.Ext(header.Filename))
-			if origExt == "" {
-				origExt = mimeToExt(contentType)
-			}
-			compExt := origExt
-			if isImageMIME(contentType) {
-				compExt = ".jpg"
-			}
-
-			compKey := prefix + "/" + uid + compExt
-			var rawKey string
-			if isImageMIME(contentType) {
-				rawKey = prefix + "/raw/" + uid + origExt
-			}
-
-			result := &uploadResult{
-				Key:    compKey,
-				RawKey: rawKey,
-			}
-			if cfg.s3.publicURL != "" {
-				result.URL = buildPublicURL(cfg.s3, compKey)
-				if rawKey != "" {
-					result.RawURL = buildPublicURL(cfg.s3, rawKey)
-				}
-			}
-			if isImageMIME(contentType) {
-				result.MediaType = "image"
-			} else {
-				result.MediaType = "video"
-			}
-
-			trackUploadedFile(compKey, rawKey)
-
-			dataCopy := data
-			ct := contentType
-			startAsyncUpload(compKey, func() error {
-				return uploadToS3Async(cfg.s3, compKey, rawKey, ct, dataCopy)
-			})
-
-			results = append(results, result)
+		result, err := uploadPrefixedFile(prefix, header.Filename, contentType, data)
+		if err != nil {
+			log.Printf("[Upload] %s failed: %v", prefix, err)
+			writeErr(w, http.StatusInternalServerError, "Upload failed")
+			return
+		}
+		if isImageMIME(contentType) {
+			result.MediaType = "image"
 		} else {
-			result, err := uploadPrefixedFile(prefix, header.Filename, contentType, data)
+			result.MediaType = "video"
+		}
+		trackUploadedFile(result.Key, result.RawKey)
+		results = append(results, result)
+	}
+	writeOK(w, results)
+}
+
+// handleUploadMediaStreamingS3 uses MultipartReader for streaming:
+// as each byte arrives from the browser, it is simultaneously forwarded to S3.
+//
+// For images: raw original streams to S3 in real-time; after fully received,
+// the image is compressed and the compressed version is uploaded.
+// For videos: the data streams directly to S3 for the single key.
+func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix string, cfg storageConfig) {
+	mr, err := r.MultipartReader()
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "No files uploaded")
+		return
+	}
+
+	var results []*uploadResult
+
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "Failed to read upload")
+			return
+		}
+		if part.FormName() != "files" {
+			part.Close()
+			continue
+		}
+
+		contentType := part.Header.Get("Content-Type")
+		if !momentAllowedMimeTypes[contentType] {
+			part.Close()
+			writeErr(w, http.StatusBadRequest, "不支持的文件类型")
+			return
+		}
+
+		filename := part.FileName()
+		uid := uuid.NewString()
+		origExt := strings.ToLower(filepath.Ext(filename))
+		if origExt == "" {
+			origExt = mimeToExt(contentType)
+		}
+
+		isImage := isImageMIME(contentType)
+		compExt := origExt
+		if isImage {
+			compExt = ".jpg"
+		}
+		compKey := prefix + "/" + uid + compExt
+		var rawKey string
+		if isImage {
+			rawKey = prefix + "/raw/" + uid + origExt
+		}
+
+		// Determine which key to stream to during browser upload:
+		// images → raw key (original); videos → comp key (only key)
+		streamKey := compKey
+		if rawKey != "" {
+			streamKey = rawKey
+		}
+
+		// Start S3 upload goroutine reading from pipe
+		pr, pw := io.Pipe()
+		s3Done := make(chan error, 1)
+		go func() {
+			err := putToS3(streamKey, contentType, pr)
 			if err != nil {
-				log.Printf("[Upload] %s failed: %v", prefix, err)
+				// Drain remaining data to prevent pipe deadlock
+				io.Copy(io.Discard, pr)
+			}
+			s3Done <- err
+		}()
+
+		// TeeReader: read from browser part → data goes to both local buffer and S3 pipe
+		tee := io.TeeReader(io.LimitReader(part, maxMomentUploadSize+1), pw)
+		data, readErr := io.ReadAll(tee)
+		pw.Close()
+		part.Close()
+
+		// Wait for streaming S3 upload to finish
+		s3Err := <-s3Done
+
+		if readErr != nil || len(data) > maxMomentUploadSize {
+			writeErr(w, http.StatusBadRequest, "文件过大")
+			return
+		}
+		if !validateMediaType(data) {
+			writeErr(w, http.StatusBadRequest, "文件内容与声明的类型不匹配")
+			return
+		}
+
+		result := &uploadResult{Key: compKey}
+		if isImage {
+			result.MediaType = "image"
+		} else {
+			result.MediaType = "video"
+		}
+
+		if isImage {
+			// Raw already uploaded via streaming; now compress and upload compressed
+			if s3Err != nil {
+				log.Printf("[Storage] S3 %s raw streaming upload failed (non-fatal): %v", prefix, s3Err)
+			}
+			compData, compMIME := compressImage(data, contentType)
+			if err := putToS3(compKey, compMIME, bytes.NewReader(compData)); err != nil {
+				log.Printf("[Storage] S3 %s compressed upload failed: %v", prefix, err)
 				writeErr(w, http.StatusInternalServerError, "Upload failed")
 				return
 			}
-			if isImageMIME(contentType) {
-				result.MediaType = "image"
+			result.RawKey = rawKey
+			if cfg.s3.publicURL != "" {
+				result.RawURL = buildPublicURL(cfg.s3, rawKey)
 			} else {
-				result.MediaType = "video"
+				result.RawURL, _ = getSignedDownloadURL(rawKey, 86400)
 			}
-			trackUploadedFile(result.Key, result.RawKey)
-			results = append(results, result)
+		} else {
+			// Video was streamed directly to compKey
+			if s3Err != nil {
+				log.Printf("[Storage] S3 %s video streaming upload failed: %v", prefix, s3Err)
+				writeErr(w, http.StatusInternalServerError, "Upload failed")
+				return
+			}
 		}
+
+		if cfg.s3.publicURL != "" {
+			result.URL = buildPublicURL(cfg.s3, compKey)
+		} else {
+			result.URL, _ = getSignedDownloadURL(compKey, 3600)
+		}
+
+		trackUploadedFile(compKey, rawKey)
+		results = append(results, result)
 	}
 
+	if len(results) == 0 {
+		writeErr(w, http.StatusBadRequest, "No files uploaded")
+		return
+	}
+
+	log.Printf("[Upload] %s media streaming: count=%d", prefix, len(results))
 	writeOK(w, results)
 }
 

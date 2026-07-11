@@ -164,6 +164,8 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 			r.Post("/", handleUploadSingle)
 			r.Group(func(r chi.Router) {
 				r.Use(requireEditorRole)
+				r.Post("/presign/{prefix}", handlePresignUpload)
+				r.Post("/presign-complete/{prefix}", handlePresignComplete)
 				r.Post("/{prefix}", handleUploadMedia)
 			})
 		})
@@ -173,6 +175,7 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				r.Post("/", handleCreateMoment)
 				r.Put("/{id}", handleUpdateMoment)
 				r.Delete("/{id}", handleDeleteMoment)
+				r.Post("/{id}/like", handleToggleLike)
 				r.Post("/{id}/comments", handleCreateMomentComment)
 				r.Delete("/{id}/comments/{commentId}", handleDeleteMomentComment)
 			})

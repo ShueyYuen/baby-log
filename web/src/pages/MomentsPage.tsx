@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Download,
   Edit2,
+  Heart,
   ImagePlus,
   MessageCircle,
   Play,
@@ -416,6 +417,7 @@ function MomentCard({
   currentUserId,
   onDelete,
   onEdit,
+  onToggleLike,
   onAddComment,
   onDeleteComment,
 }: {
@@ -423,11 +425,22 @@ function MomentCard({
   currentUserId: string;
   onDelete: (id: string) => void;
   onEdit: (moment: Moment) => void;
+  onToggleLike: (momentId: string) => Promise<void>;
   onAddComment: (momentId: string, content: string) => Promise<void>;
   onDeleteComment: (momentId: string, commentId: string) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const [likeAnimating, setLikeAnimating] = useState(false);
+
+  const handleLike = async () => {
+    setLikeAnimating(true);
+    try {
+      await onToggleLike(moment.id);
+    } finally {
+      setTimeout(() => setLikeAnimating(false), 300);
+    }
+  };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
@@ -477,21 +490,43 @@ function MomentCard({
 
       {/* Actions */}
       <div className="mt-3 flex items-center justify-between">
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-500"
-        >
-          <MessageCircle size={16} />
-          <span>
-            {moment.commentCount > 0 ? `${moment.commentCount} 条评论` : "评论"}
-          </span>
-          {moment.commentCount > 0 && (
-            <ChevronDown
-              size={14}
-              className={`transition-transform ${expanded ? "rotate-180" : ""}`}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleLike}
+            className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors"
+          >
+            <Heart
+              size={16}
+              className={`transition-all duration-300 ${
+                likeAnimating ? "scale-125" : "scale-100"
+              } ${
+                moment.liked
+                  ? "fill-red-500 text-red-500"
+                  : "fill-none text-gray-400"
+              }`}
             />
-          )}
-        </button>
+            {moment.likeCount > 0 && (
+              <span className={moment.liked ? "text-red-500" : ""}>
+                {moment.likeCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-500"
+          >
+            <MessageCircle size={16} />
+            <span>
+              {moment.commentCount > 0 ? `${moment.commentCount} 条评论` : "评论"}
+            </span>
+            {moment.commentCount > 0 && (
+              <ChevronDown
+                size={14}
+                className={`transition-transform ${expanded ? "rotate-180" : ""}`}
+              />
+            )}
+          </button>
+        </div>
         <span className="text-xs text-gray-400">
           {dayjs(moment.createdAt).format("MM/DD HH:mm")}
         </span>
@@ -1024,6 +1059,44 @@ export default function MomentsPage() {
     }
   };
 
+  const handleToggleLike = async (momentId: string) => {
+    const target = moments.find((m) => m.id === momentId);
+    if (!target) return;
+
+    const prevLiked = target.liked;
+    const prevCount = target.likeCount;
+    const nextLiked = !prevLiked;
+    const nextCount = nextLiked ? prevCount + 1 : Math.max(0, prevCount - 1);
+
+    setMoments((prev) =>
+      prev.map((m) =>
+        m.id === momentId
+          ? { ...m, liked: nextLiked, likeCount: nextCount }
+          : m,
+      ),
+    );
+
+    try {
+      const res = await api.moments.toggleLike(momentId);
+      setMoments((prev) =>
+        prev.map((m) =>
+          m.id === momentId
+            ? { ...m, liked: res.data.liked, likeCount: res.data.likeCount }
+            : m,
+        ),
+      );
+    } catch (e) {
+      console.error(e);
+      setMoments((prev) =>
+        prev.map((m) =>
+          m.id === momentId
+            ? { ...m, liked: prevLiked, likeCount: prevCount }
+            : m,
+        ),
+      );
+    }
+  };
+
   const handleAddComment = async (momentId: string, content: string) => {
     const res = await api.moments.addComment(
       momentId,
@@ -1087,6 +1160,7 @@ export default function MomentsPage() {
               setEditMoment(m);
               setShowCreate(true);
             }}
+            onToggleLike={handleToggleLike}
             onAddComment={handleAddComment}
             onDeleteComment={handleDeleteComment}
           />

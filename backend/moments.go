@@ -46,6 +46,8 @@ type momentOut struct {
 	Avatar       *string            `json:"avatar"`
 	Content      *string            `json:"content"`
 	MediaItems   []MediaItemDisplay `json:"mediaItems"`
+	LikeCount    int                `json:"likeCount"`
+	Liked        bool               `json:"liked"`
 	CommentCount int                `json:"commentCount"`
 	Comments     []momentCommentOut `json:"comments"`
 	CreatedAt    Millis             `json:"createdAt"`
@@ -141,6 +143,47 @@ func handleListMoments(w http.ResponseWriter, r *http.Request) {
 		momentIDs = append(momentIDs, row.id)
 	}
 
+	// Batch-fetch like counts and current user's likes
+	likeCountByMoment := map[string]int{}
+	likedByMoment := map[string]bool{}
+	if len(momentIDs) > 0 {
+		ph := placeholders(len(momentIDs))
+		args := make([]interface{}, len(momentIDs))
+		for i, id := range momentIDs {
+			args[i] = id
+		}
+		lrows, err := db.Query(`
+			SELECT momentId, COUNT(*) FROM "MomentLike"
+			WHERE momentId IN (`+ph+`)
+			GROUP BY momentId
+		`, args...)
+		if err == nil {
+			defer lrows.Close()
+			for lrows.Next() {
+				var mid string
+				var cnt int
+				if err := lrows.Scan(&mid, &cnt); err == nil {
+					likeCountByMoment[mid] = cnt
+				}
+			}
+		}
+		if currentUserID != "" {
+			ulrows, err := db.Query(`
+				SELECT momentId FROM "MomentLike"
+				WHERE momentId IN (`+ph+`) AND userId = ?
+			`, append(args, currentUserID)...)
+			if err == nil {
+				defer ulrows.Close()
+				for ulrows.Next() {
+					var mid string
+					if err := ulrows.Scan(&mid); err == nil {
+						likedByMoment[mid] = true
+					}
+				}
+			}
+		}
+	}
+
 	// Batch-fetch comments for all moments
 	commentsByMoment := map[string][]momentCommentOut{}
 	if len(momentIDs) > 0 {
@@ -199,6 +242,8 @@ func handleListMoments(w http.ResponseWriter, r *http.Request) {
 		}
 		out.Comments = comments
 		out.CommentCount = len(comments)
+		out.LikeCount = likeCountByMoment[row.id]
+		out.Liked = likedByMoment[row.id]
 		items = append(items, out)
 	}
 
@@ -294,6 +339,8 @@ func handleCreateMoment(w http.ResponseWriter, r *http.Request) {
 		MediaItems:   mediaItemsToDisplay(body.MediaItems, currentUserID, isAdminCtx(r), currentUserID),
 		Comments:     []momentCommentOut{},
 		CommentCount: 0,
+		LikeCount:    0,
+		Liked:        false,
 		CreatedAt:    Millis(now),
 		UpdatedAt:    Millis(now),
 		IsOwner:      true,
@@ -424,6 +471,10 @@ func handleDeleteMoment(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
 	}
+	if _, err := tx.Exec(`DELETE FROM "MomentLike" WHERE momentId = ?`, id); err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
 	if _, err := tx.Exec(`DELETE FROM "Moment" WHERE id = ?`, id); err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
@@ -447,6 +498,56 @@ func handleDeleteMoment(w http.ResponseWriter, r *http.Request) {
 
 	writeOK(w, map[string]string{"id": id})
 	publishEvent(DataEvent{Type: EventMomentChange, ID: id, UserID: currentUserID})
+}
+
+// POST /moments/{id}/like
+func handleToggleLike(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getUserID(r)
+	momentID := chi.URLParam(r, "id")
+
+	var exists bool
+	if err := db.QueryRow(`SELECT COUNT(*) > 0 FROM "Moment" WHERE id = ?`, momentID).Scan(&exists); err != nil || !exists {
+		writeErr(w, http.StatusNotFound, "Moment not found")
+		return
+	}
+
+	var likeID string
+	err := db.QueryRow(`SELECT id FROM "MomentLike" WHERE momentId = ? AND userId = ?`, momentID, currentUserID).Scan(&likeID)
+
+	var liked bool
+	if err == nil {
+		if _, err := db.Exec(`DELETE FROM "MomentLike" WHERE id = ?`, likeID); err != nil {
+			writeErr(w, http.StatusInternalServerError, "Failed to unlike")
+			return
+		}
+		liked = false
+	} else if isNoRows(err) {
+		likeID = uuid.NewString()
+		now := int64(nowMillis())
+		if _, err := db.Exec(`
+			INSERT INTO "MomentLike" (id, momentId, userId, createdAt)
+			VALUES (?, ?, ?, ?)
+		`, likeID, momentID, currentUserID, now); err != nil {
+			writeErr(w, http.StatusInternalServerError, "Failed to like")
+			return
+		}
+		liked = true
+	} else {
+		writeErr(w, http.StatusInternalServerError, "Failed to toggle like")
+		return
+	}
+
+	var likeCount int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM "MomentLike" WHERE momentId = ?`, momentID).Scan(&likeCount); err != nil {
+		writeErr(w, http.StatusInternalServerError, "Failed to count likes")
+		return
+	}
+
+	writeOK(w, map[string]interface{}{
+		"liked":     liked,
+		"likeCount": likeCount,
+	})
+	publishEvent(DataEvent{Type: EventMomentChange, ID: momentID, UserID: currentUserID})
 }
 
 // POST /moments/{id}/comments

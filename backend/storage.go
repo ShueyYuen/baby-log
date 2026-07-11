@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"log"
 	"net/url"
 	"os"
@@ -140,6 +142,23 @@ func getS3Client() *s3.Client {
 		})
 	})
 	return s3ClientInst
+}
+
+// putToS3 uploads data from a reader to an S3 key.
+func putToS3(key, contentType string, body io.Reader) error {
+	cfg := getStorageConfig()
+	if cfg.s3 == nil {
+		return fmt.Errorf("S3 not configured")
+	}
+	client := getS3Client()
+	_, err := client.PutObject(context.Background(), &s3.PutObjectInput{
+		Bucket:       aws.String(cfg.s3.bucket),
+		Key:          aws.String(key),
+		Body:         body,
+		ContentType:  aws.String(contentType),
+		CacheControl: aws.String(s3CacheControl),
+	})
+	return err
 }
 
 // uploadResult holds the display URL, storage key, and optional raw file info.

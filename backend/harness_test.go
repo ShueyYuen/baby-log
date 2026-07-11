@@ -33,6 +33,7 @@ func setupTestDB(t *testing.T) {
 		t.Fatalf("init schema: %v", err)
 	}
 	db = conn
+	runMigrations()
 	t.Cleanup(func() {
 		conn.Close()
 		db = prev

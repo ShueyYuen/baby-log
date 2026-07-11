@@ -16,12 +16,16 @@ func startReminderScheduler() {
 	log.Println("[Scheduler] Reminder scheduler started (every 5 minutes)")
 }
 
+var lastSummaryDate string
+
 func runReminderTick() {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[Scheduler] Error: %v", r)
 		}
 	}()
+
+	checkDailySummary()
 
 	now := int64(nowMillis())
 	rows, err := db.Query(`
@@ -73,4 +77,19 @@ func runReminderTick() {
 			log.Printf("[Scheduler] Marked reminder %s as sent", d.id)
 		}
 	}
+}
+
+// checkDailySummary 每天 21:00（服务器本地时间）发送一次每日小结推送。
+func checkDailySummary() {
+	now := time.Now()
+	if now.Hour() < 21 {
+		return
+	}
+	today := now.Format("2006-01-02")
+	if lastSummaryDate == today {
+		return
+	}
+	log.Printf("[Scheduler] Triggering daily summary for %s", today)
+	sendDailySummary()
+	lastSummaryDate = today
 }
