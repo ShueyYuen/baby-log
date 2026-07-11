@@ -771,7 +771,7 @@ export default function PlansPage() {
               根据国家免疫规划，基于宝宝出生日期自动生成 {VACCINE_SCHEDULE.length} 项疫苗接种计划。已过期的疫苗也会生成，方便补种记录。
             </DialogDescription>
           </DialogHeader>
-          <div className="overflow-y-auto flex-1 -mx-1 px-1 space-y-1.5 min-h-0">
+          <div className="overflow-y-auto flex-1 -mx-1 px-1 space-y-1.5 min-h-0 custom-scrollbar">
             {vaccinePreview.map((item) => (
               <div
                 key={item.title}

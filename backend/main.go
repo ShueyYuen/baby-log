@@ -127,15 +127,30 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				})
 			})
 
-			r.Route("/milk-inventory", func(r chi.Router) {
-				r.Get("/", handleListMilkInventory)
-				r.Group(func(r chi.Router) {
-					r.Use(requireEditorRole)
-					r.Post("/", handleCreateMilkInventory)
-					r.Put("/{id}", handleUpdateMilkInventory)
-					r.Delete("/{id}", handleDeleteMilkInventory)
-				})
+		r.Route("/milk-inventory", func(r chi.Router) {
+			r.Get("/", handleListMilkInventory)
+			r.Group(func(r chi.Router) {
+				r.Use(requireEditorRole)
+				r.Post("/", handleCreateMilkInventory)
+				r.Put("/{id}", handleUpdateMilkInventory)
+				r.Delete("/{id}", handleDeleteMilkInventory)
 			})
+		})
+
+		r.Route("/medical-visits", func(r chi.Router) {
+			r.Get("/", handleListMedicalVisits)
+			r.Get("/{id}", handleGetMedicalVisit)
+			r.Group(func(r chi.Router) {
+				r.Use(requireEditorRole)
+				r.Post("/", handleCreateMedicalVisit)
+				r.Put("/{id}", handleUpdateMedicalVisit)
+				r.Delete("/{id}", handleDeleteMedicalVisit)
+				r.Post("/{id}/ocr", handleMedicalVisitOCR)
+			})
+		})
+
+		r.Get("/ocr/status", handleOCRStatus)
+		r.Post("/ocr/recognize", handleOCRRecognize)
 
 		r.Route("/milestones", func(r chi.Router) {
 			r.Get("/", handleListMilestones)

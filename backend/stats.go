@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -558,9 +559,15 @@ func buildPrediction(babyID string) map[string]interface{} {
 	nilResult := map[string]interface{}{"minutesUntilNext": nil, "avgIntervalMinutes": nil, "method": nil}
 
 	parsed, err := loadRecentFeedings(babyID, 60)
-	if err != nil || len(parsed) < 2 {
+	if err != nil {
+		log.Printf("[Prediction] loadRecentFeedings error: %v", err)
 		return nilResult
 	}
+	if len(parsed) < 2 {
+		log.Printf("[Prediction] only %d feeding records (need ≥2)", len(parsed))
+		return nilResult
+	}
+	log.Printf("[Prediction] loaded %d feedings, latest type=%s at %d", len(parsed), parsed[0].typ, parsed[0].occurredAt)
 
 	now := time.Now()
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).UnixMilli()
@@ -579,7 +586,7 @@ func buildPrediction(babyID string) map[string]interface{} {
 		var out []float64
 		for i := 0; i < len(sess)-1; i++ {
 			gap := float64(sess[i+1].startMs-sess[i].endMs) / 60000.0
-			if gap > 0 && gap <= 480 {
+			if gap > 0 && gap <= 960 {
 				out = append(out, gap)
 			}
 		}
@@ -600,7 +607,7 @@ func buildPrediction(babyID string) map[string]interface{} {
 		current := parsed[i+1]
 		next := parsed[i]
 		gap := float64(next.occurredAt-feedingEndMs(current)) / 60000.0
-		if gap < 0 || gap > 480 {
+		if gap < 0 || gap > 960 {
 			continue
 		}
 		startToStart := float64(next.occurredAt-current.occurredAt) / 60000.0
@@ -624,6 +631,9 @@ func buildPrediction(babyID string) map[string]interface{} {
 	lastSession := sessions[len(sessions)-1]
 	var predictedInterval *int
 	var method *string
+
+	log.Printf("[Prediction] sessions=%d, sessionIntervals=%d, bottleRates=%d, breastRates=%d, lastType=%s",
+		len(sessions), len(sessionIntervals), len(bottleRates), len(breastRates), lastFeeding.typ)
 
 	if lastFeeding.typ == "bottle" && len(bottleRates) >= 2 {
 		avgRate := avg(bottleRates)
@@ -651,6 +661,7 @@ func buildPrediction(babyID string) map[string]interface{} {
 	}
 
 	if predictedInterval == nil {
+		log.Printf("[Prediction] no valid prediction method found")
 		return nilResult
 	}
 

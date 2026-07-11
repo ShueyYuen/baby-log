@@ -774,6 +774,20 @@ export default function GrowthPage() {
         )}
       </div>
 
+      {/* Medical Visits Entry */}
+      <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/medical-visits')}>
+        <CardContent className="flex items-center gap-3 py-4">
+          <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+            <Activity size={18} className="text-blue-500" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-base dark:text-gray-100">就诊记录</h3>
+            <p className="text-sm text-gray-400">按时间保存每次就诊，支持图片OCR搜索</p>
+          </div>
+          <ChevronDown size={16} className="text-gray-300 -rotate-90" />
+        </CardContent>
+      </Card>
+
       {/* WHO Development Checklist */}
       <DevelopmentChecklist
         birthDate={birthDate}

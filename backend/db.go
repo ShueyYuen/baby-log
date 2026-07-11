@@ -69,6 +69,7 @@ func runMigrations() {
 		`ALTER TABLE "User" ADD COLUMN "avatar" TEXT`,
 		`ALTER TABLE "HealthEntry" ADD COLUMN "annotations" TEXT`,
 		`ALTER TABLE "Plan" ADD COLUMN "images" TEXT`,
+		`ALTER TABLE "MedicalVisit" ADD COLUMN "ocrData" TEXT NOT NULL DEFAULT '[]'`,
 	}
 	for _, m := range migrations {
 		if _, err := db.Exec(m); err != nil {
@@ -313,4 +314,25 @@ CREATE TABLE IF NOT EXISTS "MilkInventory" (
 
 CREATE INDEX IF NOT EXISTS "MilkInventory_babyId_status_idx" ON "MilkInventory"("babyId", "status");
 CREATE INDEX IF NOT EXISTS "MilkInventory_expiresAt_idx" ON "MilkInventory"("expiresAt");
+
+CREATE TABLE IF NOT EXISTS "MedicalVisit" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "babyId" TEXT NOT NULL,
+    "visitDate" INTEGER NOT NULL,
+    "hospital" TEXT NOT NULL DEFAULT '',
+    "department" TEXT NOT NULL DEFAULT '',
+    "doctor" TEXT NOT NULL DEFAULT '',
+    "diagnosis" TEXT NOT NULL DEFAULT '',
+    "prescription" TEXT NOT NULL DEFAULT '',
+    "notes" TEXT NOT NULL DEFAULT '',
+    "images" TEXT NOT NULL DEFAULT '[]',
+    "ocrText" TEXT NOT NULL DEFAULT '',
+    "createdBy" TEXT NOT NULL,
+    "createdAt" INTEGER NOT NULL,
+    "updatedAt" INTEGER NOT NULL,
+    CONSTRAINT "MedicalVisit_babyId_fkey" FOREIGN KEY ("babyId") REFERENCES "Baby" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "MedicalVisit_createdBy_fkey" FOREIGN KEY ("createdBy") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "MedicalVisit_babyId_visitDate_idx" ON "MedicalVisit"("babyId", "visitDate" DESC);
 `

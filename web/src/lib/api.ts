@@ -202,6 +202,61 @@ export interface MilkInventoryItem {
   updatedAt: string;
 }
 
+// ─── Medical Visit types ──────────────────────────────────────────────────────
+
+export interface MedicalVisitImage {
+  key: string;
+  rawKey?: string;
+  mediaType?: 'image' | 'video';
+  url?: string;
+  rawUrl?: string;
+}
+
+export interface OcrDataItem {
+  key: string;
+  text: string;
+}
+
+export interface MedicalVisit {
+  id: string;
+  babyId: string;
+  visitDate: string;
+  hospital: string;
+  department: string;
+  doctor: string;
+  diagnosis: string;
+  prescription: string;
+  notes: string;
+  images: MedicalVisitImage[];
+  ocrText: string;
+  ocrData: OcrDataItem[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MedicalVisitInput {
+  babyId: string;
+  visitDate?: string;
+  hospital?: string;
+  department?: string;
+  doctor?: string;
+  diagnosis?: string;
+  prescription?: string;
+  notes?: string;
+  images?: MedicalVisitImage[];
+  ocrText?: string;
+  ocrData?: OcrDataItem[];
+}
+
+export interface MedicalVisitsListResponse {
+  items: MedicalVisit[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
 // ─── Upload helper ────────────────────────────────────────────────────────────
 
 function createUploader(endpoint: string) {
@@ -337,6 +392,40 @@ export const api = {
 
   plans: {
     uploadMedia: createUploader('/upload/plans'),
+  },
+
+  medicalVisits: {
+    list: (babyId: string, opts?: { q?: string; page?: number; pageSize?: number }) =>
+      api.get<{ success: boolean; data: MedicalVisitsListResponse }>(
+        `/medical-visits?babyId=${babyId}${opts?.q ? `&q=${encodeURIComponent(opts.q)}` : ''}${opts?.page ? `&page=${opts.page}` : ''}${opts?.pageSize ? `&pageSize=${opts.pageSize}` : ''}`
+      ),
+
+    get: (id: string) =>
+      api.get<{ success: boolean; data: MedicalVisit }>(`/medical-visits/${id}`),
+
+    create: (data: MedicalVisitInput, idempotencyKey?: string) =>
+      api.post<{ success: boolean; data: MedicalVisit }>('/medical-visits', data, idempotencyKey),
+
+    update: (id: string, data: Partial<MedicalVisitInput>) =>
+      api.put<{ success: boolean; data: MedicalVisit }>(`/medical-visits/${id}`, data),
+
+    delete: (id: string) =>
+      api.delete<{ success: boolean }>(`/medical-visits/${id}`),
+
+    uploadMedia: createUploader('/upload/medical'),
+
+    runOcr: (id: string) =>
+      api.post<{ success: boolean; data: { ocrText: string; ocrData: OcrDataItem[]; imageCount: number; recognized: number } }>(
+        `/medical-visits/${id}/ocr`, {}
+      ),
+  },
+
+  ocr: {
+    status: () => api.get<{ success: boolean; data: { available: boolean } }>('/ocr/status'),
+    recognize: (images: { key: string; rawKey?: string }[]) =>
+      api.post<{ success: boolean; data: { ocrText: string; ocrData: OcrDataItem[]; imageCount: number; recognized: number } }>(
+        '/ocr/recognize', { images }
+      ),
   },
 
   milkInventory: {

@@ -52,7 +52,7 @@ export default function Layout({ children }: LayoutProps) {
     }
   };
 
-  const isSecondaryPage = /^\/(record|plan\/new|plan\/[^/]+\/edit|growth\/(history|health\/)|milk-inventory)/.test(location.pathname);
+  const isSecondaryPage = /^\/(record|plan\/new|plan\/[^/]+\/edit|growth\/(history|health\/)|milk-inventory|medical-visits)/.test(location.pathname);
 
   const navItems = [
     { path: '/', icon: Clock, label: '时间线' },

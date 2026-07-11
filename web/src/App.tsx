@@ -21,6 +21,7 @@ const GrowthHistoryPage = lazy(() => import('./pages/GrowthHistoryPage'));
 const HealthTrackingPage = lazy(() => import('./pages/HealthTrackingPage'));
 const BabySetupPage = lazy(() => import('./pages/BabySetupPage'));
 const MilkInventoryPage = lazy(() => import('./pages/MilkInventoryPage'));
+const MedicalVisitsPage = lazy(() => import('./pages/MedicalVisitsPage'));
 
 function PageFallback() {
   return (
@@ -63,7 +64,7 @@ function KeepAlivePageWrapper({
   return (
     <div
       ref={containerRef}
-      className="keepalive-page h-full overflow-y-auto custom-scrollbar pt-[72px] pb-[72px] md:pt-0 md:pb-0 px-4 md:px-8"
+      className="keepalive-page h-full overflow-y-auto custom-scrollbar pt-[72px] pb-[72px] md:pt-6 md:pb-0 px-4 md:px-8"
       data-active={active}
       style={{ display: active ? 'block' : 'none' }}
     >
@@ -128,7 +129,7 @@ function KeepAliveRoutes() {
       })}
 
       {!isKeepAlivePage && (
-        <div ref={nonKaScrollRef} className="h-full overflow-y-auto custom-scrollbar pt-0 pb-0 px-4 md:px-8">
+        <div ref={nonKaScrollRef} className="h-full overflow-y-auto custom-scrollbar pt-0 pb-0 md:pt-6 px-4 md:px-8">
           <div className="max-w-4xl mx-auto">
             <Suspense fallback={<PageFallback />}>
               <Routes location={location}>
@@ -139,6 +140,10 @@ function KeepAliveRoutes() {
                 <Route path="/growth/history" element={<GrowthHistoryPage />} />
                 <Route path="/growth/health/:id" element={<HealthTrackingPage />} />
                 <Route path="/milk-inventory" element={<MilkInventoryPage />} />
+                <Route path="/medical-visits" element={<MedicalVisitsPage />} />
+                <Route path="/medical-visits/new" element={<MedicalVisitsPage />} />
+                <Route path="/medical-visits/:id" element={<MedicalVisitsPage />} />
+                <Route path="/medical-visits/:id/edit" element={<MedicalVisitsPage />} />
               </Routes>
             </Suspense>
           </div>
