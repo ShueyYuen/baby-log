@@ -139,6 +139,13 @@ func numField(m map[string]interface{}, key string) float64 {
 	return 0
 }
 
+func bottleAmountFromData(m map[string]interface{}) float64 {
+	if v := numField(m, "amountMl"); v > 0 {
+		return v
+	}
+	return numField(m, "amount")
+}
+
 func avg(nums []float64) float64 {
 	if len(nums) == 0 {
 		return 0
@@ -215,6 +222,7 @@ func handleStatsDaily(w http.ResponseWriter, r *http.Request) {
 
 	feedingCount, diaperCount, peeCount, poopCount := 0, 0, 0, 0
 	sleepMinutes := 0.0
+	bottleAmountMl := 0.0
 	feedingDetails := map[string]int{"breastfeed": 0, "bottle": 0, "solid": 0}
 
 	for rows.Next() {
@@ -229,6 +237,9 @@ func handleStatsDaily(w http.ResponseWriter, r *http.Request) {
 				feedingDetails["breastfeed"]++
 			} else if typ == "bottle" {
 				feedingDetails["bottle"]++
+				m := map[string]interface{}{}
+				_ = json.Unmarshal([]byte(dataStr), &m)
+				bottleAmountMl += bottleAmountFromData(m)
 			} else if typ == "solid" {
 				feedingDetails["solid"]++
 			}
@@ -257,6 +268,7 @@ func handleStatsDaily(w http.ResponseWriter, r *http.Request) {
 		"peeCount":       peeCount,
 		"poopCount":      poopCount,
 		"sleepMinutes":   sleepMinutesValue(sleepMinutes),
+		"bottleAmountMl": bottleAmountMl,
 		"feedingDetails": feedingDetails,
 	})
 }
@@ -268,6 +280,7 @@ type dailyAgg struct {
 	peeCount       int
 	poopCount      int
 	sleepMinutes   float64
+	bottleAmountMl float64
 	feedingDetails map[string]int
 }
 
@@ -356,6 +369,11 @@ func handleStatsRange(w http.ResponseWriter, r *http.Request) {
 			if _, ok := agg.feedingDetails[typ]; ok {
 				agg.feedingDetails[typ]++
 			}
+			if typ == "bottle" {
+				m := map[string]interface{}{}
+				_ = json.Unmarshal([]byte(dataStr), &m)
+				agg.bottleAmountMl += bottleAmountFromData(m)
+			}
 		case typ == "diaper":
 			agg.diaperCount++
 			m := map[string]interface{}{}
@@ -383,6 +401,7 @@ func handleStatsRange(w http.ResponseWriter, r *http.Request) {
 			"peeCount":       agg.peeCount,
 			"poopCount":      agg.poopCount,
 			"sleepMinutes":   sleepMinutesValue(agg.sleepMinutes),
+			"bottleAmountMl": agg.bottleAmountMl,
 			"feedingDetails": agg.feedingDetails,
 		}
 	}

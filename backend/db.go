@@ -296,4 +296,21 @@ CREATE TABLE IF NOT EXISTS "IdempotencyKey" (
     "createdAt" INTEGER NOT NULL,
     PRIMARY KEY ("key", "userId")
 );
+
+CREATE TABLE IF NOT EXISTS "MilkInventory" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "babyId" TEXT NOT NULL,
+    "amountMl" REAL NOT NULL,
+    "storageType" TEXT NOT NULL,
+    "storedAt" DATETIME NOT NULL,
+    "expiresAt" DATETIME NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'available',
+    "note" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "MilkInventory_babyId_fkey" FOREIGN KEY ("babyId") REFERENCES "Baby" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "MilkInventory_babyId_status_idx" ON "MilkInventory"("babyId", "status");
+CREATE INDEX IF NOT EXISTS "MilkInventory_expiresAt_idx" ON "MilkInventory"("expiresAt");
 `

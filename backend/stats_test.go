@@ -185,11 +185,12 @@ func TestStatsRange(t *testing.T) {
 
 	e := mustOK(t, s.do(http.MethodGet, "/stats/range?babyId="+bid+"&startDate=2025-06-01&endDate=2025-06-03&tz=0", uid, nil))
 	var days []struct {
-		Date         string  `json:"date"`
-		FeedingCount int     `json:"feedingCount"`
-		DiaperCount  int     `json:"diaperCount"`
-		PeeCount     int     `json:"peeCount"`
-		SleepMinutes float64 `json:"sleepMinutes"`
+		Date           string  `json:"date"`
+		FeedingCount   int     `json:"feedingCount"`
+		DiaperCount    int     `json:"diaperCount"`
+		PeeCount       int     `json:"peeCount"`
+		SleepMinutes   float64 `json:"sleepMinutes"`
+		BottleAmountMl float64 `json:"bottleAmountMl"`
 	}
 	jsonUnmarshal(e.Data, &days)
 	if len(days) != 3 {
@@ -197,6 +198,9 @@ func TestStatsRange(t *testing.T) {
 	}
 	if days[0].Date != "2025-06-01" || days[0].FeedingCount != 2 || days[0].PeeCount != 1 {
 		t.Errorf("day0 wrong: %+v", days[0])
+	}
+	if days[0].BottleAmountMl != 100 {
+		t.Errorf("day0 bottleAmountMl got %v, want 100", days[0].BottleAmountMl)
 	}
 	if days[1].FeedingCount != 0 || days[1].DiaperCount != 0 {
 		t.Errorf("day1 (06-02) should be empty: %+v", days[1])

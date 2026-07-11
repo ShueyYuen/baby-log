@@ -392,6 +392,128 @@ func handleDeletePlan(w http.ResponseWriter, r *http.Request) {
 	publishEvent(DataEvent{Type: EventPlanDeleted, BabyID: babyID, ID: id, UserID: userID})
 }
 
+type vaccineScheduleEntry struct {
+	title  string
+	years  int
+	months int
+}
+
+var nationalVaccineSchedule = []vaccineScheduleEntry{
+	{title: "乙肝疫苗(第1剂)", years: 0, months: 0},
+	{title: "卡介苗", years: 0, months: 0},
+	{title: "乙肝疫苗(第2剂)", years: 0, months: 1},
+	{title: "脊灰灭活疫苗(第1剂)", years: 0, months: 2},
+	{title: "脊灰减毒疫苗(第2剂)", years: 0, months: 3},
+	{title: "百白破疫苗(第1剂)", years: 0, months: 3},
+	{title: "脊灰减毒疫苗(第3剂)", years: 0, months: 4},
+	{title: "百白破疫苗(第2剂)", years: 0, months: 4},
+	{title: "百白破疫苗(第3剂)", years: 0, months: 5},
+	{title: "乙肝疫苗(第3剂)", years: 0, months: 6},
+	{title: "A群流脑多糖疫苗(第1剂)", years: 0, months: 6},
+	{title: "麻腮风疫苗(第1剂)", years: 0, months: 8},
+	{title: "乙脑减毒疫苗(第1剂)", years: 0, months: 8},
+	{title: "A群流脑多糖疫苗(第2剂)", years: 0, months: 9},
+	{title: "甲肝减毒疫苗", years: 0, months: 18},
+	{title: "麻腮风疫苗(第2剂)", years: 0, months: 18},
+	{title: "百白破疫苗(第4剂)", years: 0, months: 18},
+	{title: "乙脑减毒疫苗(第2剂)", years: 2, months: 0},
+	{title: "A群C群流脑多糖疫苗(第1剂)", years: 3, months: 0},
+	{title: "脊灰减毒疫苗(第4剂)", years: 4, months: 0},
+	{title: "白破疫苗", years: 6, months: 0},
+	{title: "A群C群流脑多糖疫苗(第2剂)", years: 6, months: 0},
+}
+
+func vaccineScheduledAt(birth time.Time, entry vaccineScheduleEntry) Millis {
+	t := birth.UTC()
+	if entry.years > 0 {
+		t = t.AddDate(entry.years, 0, 0)
+	} else if entry.months > 0 {
+		t = t.AddDate(0, entry.months, 0)
+	}
+	return Millis(t.UnixMilli())
+}
+
+// POST /plans/vaccine-template
+func handleVaccineTemplate(w http.ResponseWriter, r *http.Request) {
+	userID := getUserID(r)
+
+	var body struct {
+		BabyID string `json:"babyId"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, http.StatusBadRequest, "Invalid input")
+		return
+	}
+	if body.BabyID == "" {
+		writeErr(w, http.StatusBadRequest, "Invalid input")
+		return
+	}
+
+	ok, err := findMembership(body.BabyID, userID, "admin", "editor")
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	if !ok {
+		writeErr(w, http.StatusForbidden, "Permission denied")
+		return
+	}
+
+	var birthMillis int64
+	if err := db.QueryRow(`SELECT birthDate FROM "Baby" WHERE id = ?`, body.BabyID).Scan(&birthMillis); err != nil {
+		if isNoRows(err) {
+			writeErr(w, http.StatusNotFound, "Not found")
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	birth := time.UnixMilli(birthMillis).UTC()
+
+	existing := map[string]bool{}
+	rows, err := db.Query(`SELECT title FROM "Plan" WHERE babyId = ? AND type = 'vaccine'`, body.BabyID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	for rows.Next() {
+		var title string
+		if err := rows.Scan(&title); err != nil {
+			rows.Close()
+			writeErr(w, http.StatusInternalServerError, "Server error")
+			return
+		}
+		existing[title] = true
+	}
+	rows.Close()
+
+	desc := "国家免疫规划"
+	reminder := "1440"
+	now := nowMillis()
+	created := 0
+
+	for _, entry := range nationalVaccineSchedule {
+		if existing[entry.title] {
+			continue
+		}
+		scheduled := vaccineScheduledAt(birth, entry)
+		id := uuid.NewString()
+
+		if _, err := db.Exec(`INSERT INTO "Plan" (id, babyId, title, type, scheduledAt, description, reminder, repeat, status, createdBy, createdAt, updatedAt, images)
+			VALUES (?, ?, ?, 'vaccine', ?, ?, ?, 'none', 'pending', ?, ?, ?, NULL)`,
+			id, body.BabyID, entry.title, int64(scheduled), desc, reminder, userID, int64(now), int64(now)); err != nil {
+			writeErr(w, http.StatusInternalServerError, "Server error")
+			return
+		}
+
+		createPlanReminder(body.BabyID, id, entry.title, scheduled, sql.NullString{String: reminder, Valid: true})
+		publishEvent(DataEvent{Type: EventPlanCreated, BabyID: body.BabyID, ID: id, UserID: userID})
+		created++
+	}
+
+	writeOK(w, map[string]interface{}{"created": created})
+}
+
 func isValidPlanType(t string) bool {
 	switch t {
 	case "vaccine", "doctor", "checkup", "medicine", "custom":

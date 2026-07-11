@@ -110,6 +110,7 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				r.Get("/", handleListPlans)
 				r.Group(func(r chi.Router) {
 					r.Use(requireEditorRole)
+					r.Post("/vaccine-template", handleVaccineTemplate)
 					r.Post("/", handleCreatePlan)
 					r.Put("/{id}", handleUpdatePlan)
 					r.Delete("/{id}", handleDeletePlan)
@@ -123,6 +124,16 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 					r.Post("/", handleCreateGrowth)
 					r.Put("/{id}", handleUpdateGrowth)
 					r.Delete("/{id}", handleDeleteGrowth)
+				})
+			})
+
+			r.Route("/milk-inventory", func(r chi.Router) {
+				r.Get("/", handleListMilkInventory)
+				r.Group(func(r chi.Router) {
+					r.Use(requireEditorRole)
+					r.Post("/", handleCreateMilkInventory)
+					r.Put("/{id}", handleUpdateMilkInventory)
+					r.Delete("/{id}", handleDeleteMilkInventory)
 				})
 			})
 

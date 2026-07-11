@@ -11,10 +11,11 @@ import { useActivated } from '../hooks/useActivated';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Calendar, CheckCircle, Clock, Plus, CalendarPlus, List, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Button, Card, CardContent, Badge, ConfirmDialog, useToast } from '../components/ui';
+import { Calendar, CheckCircle, Clock, Plus, CalendarPlus, List, ChevronLeft, ChevronRight, Syringe } from 'lucide-react';
+import { Button, Card, CardContent, Badge, ConfirmDialog, useToast, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui';
 import { addPlanToCalendar } from '../lib/calendar';
 import { PlansSkeleton } from '../components/ui/skeleton';
+import { generateIdempotencyKey } from '../lib/api';
 
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
@@ -60,10 +61,92 @@ const statusConfig: Record<string, { label: string; variant: 'warning' | 'succes
   postponed: { label: '已延期', variant: 'info' },
 };
 
+const LINKABLE_PLAN_TYPES = new Set(['vaccine', 'medicine', 'checkup', 'doctor']);
+
+const recordCategoryLabels: Record<string, string> = {
+  feeding: '喂养',
+  nursing: '护理',
+  activity: '活动',
+};
+
+const recordTypeLabels: Record<string, string> = {
+  breastfeed: '母乳',
+  bottle: '瓶喂',
+  solid: '辅食',
+  water: '喝水',
+  diaper: '换尿布',
+  bath: '洗澡',
+  supplement: '营养补充',
+  temperature: '体温',
+  sleep: '睡眠',
+  play: '玩耍',
+  other: '其他',
+};
+
+function getLinkedRecordMapping(planType: string): { category: string; type: string; data: Record<string, string> } | null {
+  switch (planType) {
+    case 'vaccine':
+      return { category: 'nursing', type: 'supplement', data: { name: '' } };
+    case 'medicine':
+      return { category: 'activity', type: 'other', data: { note: '' } };
+    case 'checkup':
+    case 'doctor':
+      return { category: 'activity', type: 'other', data: { note: '' } };
+    default:
+      return null;
+  }
+}
+
+function buildLinkedRecordPayload(plan: PlanItem, mapping: { category: string; type: string; data: Record<string, string> }) {
+  const data =
+    mapping.type === 'supplement'
+      ? { name: plan.title }
+      : { note: plan.title };
+  return {
+    category: mapping.category,
+    type: mapping.type,
+    data,
+    occurredAt: new Date(plan.scheduledAt).toISOString(),
+    note: plan.description || plan.title,
+  };
+}
+
+const VACCINE_SCHEDULE = [
+  { title: '乙肝疫苗(第1剂)', years: 0, months: 0 },
+  { title: '卡介苗', years: 0, months: 0 },
+  { title: '乙肝疫苗(第2剂)', years: 0, months: 1 },
+  { title: '脊灰灭活疫苗(第1剂)', years: 0, months: 2 },
+  { title: '脊灰减毒疫苗(第2剂)', years: 0, months: 3 },
+  { title: '百白破疫苗(第1剂)', years: 0, months: 3 },
+  { title: '脊灰减毒疫苗(第3剂)', years: 0, months: 4 },
+  { title: '百白破疫苗(第2剂)', years: 0, months: 4 },
+  { title: '百白破疫苗(第3剂)', years: 0, months: 5 },
+  { title: '乙肝疫苗(第3剂)', years: 0, months: 6 },
+  { title: 'A群流脑多糖疫苗(第1剂)', years: 0, months: 6 },
+  { title: '麻腮风疫苗(第1剂)', years: 0, months: 8 },
+  { title: '乙脑减毒疫苗(第1剂)', years: 0, months: 8 },
+  { title: 'A群流脑多糖疫苗(第2剂)', years: 0, months: 9 },
+  { title: '甲肝减毒疫苗', years: 0, months: 18 },
+  { title: '麻腮风疫苗(第2剂)', years: 0, months: 18 },
+  { title: '百白破疫苗(第4剂)', years: 0, months: 18 },
+  { title: '乙脑减毒疫苗(第2剂)', years: 2, months: 0 },
+  { title: 'A群C群流脑多糖疫苗(第1剂)', years: 3, months: 0 },
+  { title: '脊灰减毒疫苗(第4剂)', years: 4, months: 0 },
+  { title: '白破疫苗', years: 6, months: 0 },
+  { title: 'A群C群流脑多糖疫苗(第2剂)', years: 6, months: 0 },
+] as const;
+
+function vaccineScheduledDate(birthDate: string, years: number, months: number) {
+  let d = dayjs(birthDate);
+  if (years > 0) d = d.add(years, 'year');
+  else if (months > 0) d = d.add(months, 'month');
+  return d;
+}
+
 interface PlanCardItemProps {
   plan: PlanItem;
   isViewer: boolean;
-  onComplete: (id: string) => void;
+  onComplete: (plan: PlanItem) => void;
   onCalendar: (title: string, scheduledAt: string, description: string | undefined, reminder: number) => void;
 }
 
@@ -128,7 +211,7 @@ function PlanCardItem({ plan, isViewer, onComplete, onCalendar }: PlanCardItemPr
               </button>
               {!isViewer && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); onComplete(plan.id); }}
+                  onClick={(e) => { e.stopPropagation(); onComplete(plan); }}
                   className="p-1.5 rounded-md text-gray-300 dark:text-gray-600 hover:text-green-500 dark:hover:text-green-400 transition-colors"
                   title="标记完成"
                 >
@@ -161,7 +244,7 @@ function CalendarView({
 }: {
   currentBaby: { id: string } | null;
   isViewer: boolean;
-  onComplete: (id: string) => void;
+  onComplete: (plan: PlanItem) => void;
   onCalendar: (title: string, scheduledAt: string, description: string | undefined, reminder: number) => void;
 }) {
   const [viewMonth, setViewMonth] = useState(dayjs().startOf('month'));
@@ -344,11 +427,16 @@ export default function PlansPage() {
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('pending');
-  const [completingId, setCompletingId] = useState<string | null>(null);
+  const [completingPlan, setCompletingPlan] = useState<PlanItem | null>(null);
+  const [linkRecordPlan, setLinkRecordPlan] = useState<PlanItem | null>(null);
+  const [creatingRecord, setCreatingRecord] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [vaccineDialogOpen, setVaccineDialogOpen] = useState(false);
+  const [vaccineGenerating, setVaccineGenerating] = useState(false);
+  const [existingVaccineTitles, setExistingVaccineTitles] = useState<Set<string>>(new Set());
   const sentinelRef = useRef<HTMLDivElement>(null);
   const PAGE_SIZE = 20;
 
@@ -423,20 +511,99 @@ export default function PlansPage() {
     useCallback(() => { loadPlans(1, true); }, [currentBaby, statusFilter]),
   );
 
-  const updateStatus = async (id: string, status: string) => {
-    const plan = plans.find((p) => p.id === id);
-    const isRepeat = plan && plan.repeat !== 'none';
+  const updateStatus = async (plan: PlanItem, status: string) => {
+    const isRepeat = plan.repeat !== 'none';
     try {
-      await api.put(`/plans/${id}`, { status });
+      await api.put(`/plans/${plan.id}`, { status });
       if (status === 'completed' && isRepeat) {
         toast('已自动创建下一期计划', 'success');
       }
       loadPlans(1, true);
+      if (status === 'completed' && LINKABLE_PLAN_TYPES.has(plan.type)) {
+        setLinkRecordPlan(plan);
+      }
     } catch {
       // ignore
     }
   };
 
+  const createLinkedRecord = async () => {
+    if (!linkRecordPlan || !currentBaby) return;
+    const mapping = getLinkedRecordMapping(linkRecordPlan.type);
+    if (!mapping) return;
+    setCreatingRecord(true);
+    try {
+      await api.post('/records', {
+        babyId: currentBaby.id,
+        ...buildLinkedRecordPayload(linkRecordPlan, mapping),
+      });
+      cacheInvalidate('/timeline');
+      toast('记录已创建', 'success');
+      setLinkRecordPlan(null);
+    } catch {
+      toast('创建记录失败', 'error');
+    } finally {
+      setCreatingRecord(false);
+    }
+  };
+
+  const openVaccineDialog = async () => {
+    if (!currentBaby) return;
+    setVaccineDialogOpen(true);
+    try {
+      type PlansRes = { success: boolean; data: { items: PlanItem[] } | PlanItem[] };
+      const res = await api.get<PlansRes>(`/plans?babyId=${currentBaby.id}&pageSize=100`);
+      const items = Array.isArray(res.data) ? res.data : res.data.items;
+      setExistingVaccineTitles(new Set(items.filter((p) => p.type === 'vaccine').map((p) => p.title)));
+    } catch {
+      setExistingVaccineTitles(new Set());
+    }
+  };
+
+  const vaccinePreview = useMemo(() => {
+    if (!currentBaby?.birthDate) return [];
+    const now = dayjs();
+    return VACCINE_SCHEDULE.map((entry) => {
+      const scheduled = vaccineScheduledDate(currentBaby.birthDate, entry.years, entry.months);
+      return {
+        ...entry,
+        scheduledAt: scheduled,
+        expired: scheduled.isBefore(now, 'day'),
+        exists: existingVaccineTitles.has(entry.title),
+      };
+    });
+  }, [currentBaby?.birthDate, existingVaccineTitles]);
+
+  const vaccineToCreateCount = useMemo(
+    () => vaccinePreview.filter((v) => !v.exists).length,
+    [vaccinePreview],
+  );
+
+  const generateVaccinePlans = async () => {
+    if (!currentBaby) return;
+    setVaccineGenerating(true);
+    try {
+      type VaccineRes = { success: boolean; data: { created: number } };
+      const res = await api.post<VaccineRes>(
+        '/plans/vaccine-template',
+        { babyId: currentBaby.id },
+        generateIdempotencyKey(),
+      );
+      const created = res.data.created;
+      if (created > 0) {
+        toast(`成功创建 ${created} 条疫苗计划`, 'success');
+      } else {
+        toast('所有疫苗计划已存在，未创建新计划', 'info');
+      }
+      setVaccineDialogOpen(false);
+      cacheInvalidate('/plans');
+      loadPlans(1, true);
+    } catch {
+      toast('生成疫苗计划失败', 'error');
+    } finally {
+      setVaccineGenerating(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -472,7 +639,7 @@ export default function PlansPage() {
       {viewMode === 'list' ? (
         <>
           {/* Status Filter */}
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {[
               { value: 'pending', label: '待完成' },
               { value: 'completed', label: '已完成' },
@@ -487,6 +654,17 @@ export default function PlansPage() {
                 {item.label}
               </Button>
             ))}
+            {!isViewer && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openVaccineDialog}
+                disabled={!currentBaby?.birthDate}
+                title={!currentBaby?.birthDate ? '请先设置宝宝出生日期' : undefined}
+              >
+                <Syringe size={16} /> 生成疫苗计划
+              </Button>
+            )}
           </div>
 
           {/* Plans List */}
@@ -501,7 +679,7 @@ export default function PlansPage() {
                   key={plan.id}
                   plan={plan}
                   isViewer={isViewer}
-                  onComplete={(id) => setCompletingId(id)}
+                  onComplete={(plan) => setCompletingPlan(plan)}
                   onCalendar={(title, scheduledAt, description, reminder) => addPlanToCalendar(title, scheduledAt, description, reminder)}
                 />
               ))}
@@ -525,25 +703,116 @@ export default function PlansPage() {
         <CalendarView
           currentBaby={currentBaby}
           isViewer={isViewer}
-          onComplete={(id) => setCompletingId(id)}
+          onComplete={(plan) => setCompletingPlan(plan)}
           onCalendar={(title, scheduledAt, description, reminder) => addPlanToCalendar(title, scheduledAt, description, reminder)}
         />
       )}
 
       <ConfirmDialog
-        open={!!completingId}
-        onOpenChange={(open) => { if (!open) setCompletingId(null); }}
+        open={!!completingPlan}
+        onOpenChange={(open) => { if (!open) setCompletingPlan(null); }}
         title="标记完成"
         description="确定将此计划标记为已完成？"
         confirmLabel="完成"
         variant="default"
         onConfirm={() => {
-          if (completingId) {
-            updateStatus(completingId, 'completed');
-            setCompletingId(null);
+          if (completingPlan) {
+            updateStatus(completingPlan, 'completed');
+            setCompletingPlan(null);
           }
         }}
       />
+
+      <Dialog open={!!linkRecordPlan} onOpenChange={(open) => { if (!open) setLinkRecordPlan(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>同步创建记录</DialogTitle>
+            <DialogDescription>
+              计划「{linkRecordPlan?.title}」已完成，是否创建对应记录？
+            </DialogDescription>
+          </DialogHeader>
+          {linkRecordPlan && (() => {
+            const mapping = getLinkedRecordMapping(linkRecordPlan.type);
+            if (!mapping) return null;
+            return (
+              <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1.5 py-2">
+                <p>计划类型：{typeLabels[linkRecordPlan.type] || linkRecordPlan.type}</p>
+                <p>记录类型：{recordTypeLabels[mapping.type]}（{recordCategoryLabels[mapping.category]}）</p>
+                <p>标题：{linkRecordPlan.title}</p>
+                <p>时间：{dayjs(linkRecordPlan.scheduledAt).format('YYYY-MM-DD HH:mm')}</p>
+              </div>
+            );
+          })()}
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setLinkRecordPlan(null)}
+              disabled={creatingRecord}
+            >
+              跳过
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={createLinkedRecord}
+              disabled={creatingRecord}
+            >
+              {creatingRecord ? '创建中...' : '创建记录'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={vaccineDialogOpen} onOpenChange={setVaccineDialogOpen}>
+        <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>生成疫苗计划</DialogTitle>
+            <DialogDescription>
+              根据国家免疫规划，基于宝宝出生日期自动生成 {VACCINE_SCHEDULE.length} 项疫苗接种计划。已过期的疫苗也会生成，方便补种记录。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto flex-1 -mx-1 px-1 space-y-1.5 min-h-0">
+            {vaccinePreview.map((item) => (
+              <div
+                key={item.title}
+                className={`flex items-center justify-between text-sm py-1.5 px-2 rounded-md ${
+                  item.exists ? 'opacity-50' : ''
+                }`}
+              >
+                <span className="flex-1 min-w-0 truncate dark:text-gray-200">{item.title}</span>
+                <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                  <span className="text-gray-400 dark:text-gray-500 text-xs">
+                    {item.scheduledAt.format('YYYY-MM-DD')}
+                  </span>
+                  {item.expired && !item.exists && (
+                    <Badge variant="secondary" className="text-xs">已过期</Badge>
+                  )}
+                  {item.exists && (
+                    <Badge variant="secondary" className="text-xs">已存在</Badge>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setVaccineDialogOpen(false)}
+              disabled={vaccineGenerating}
+            >
+              取消
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={generateVaccinePlans}
+              disabled={vaccineGenerating || vaccineToCreateCount === 0}
+            >
+              {vaccineGenerating ? '生成中...' : `确认生成 (${vaccineToCreateCount})`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

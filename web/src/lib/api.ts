@@ -189,6 +189,19 @@ export interface HealthEntriesResponse {
   hasMore: boolean;
 }
 
+export interface MilkInventoryItem {
+  id: string;
+  babyId: string;
+  amountMl: number;
+  storageType: 'fridge' | 'freezer';
+  storedAt: string;
+  expiresAt: string;
+  status: 'available' | 'used' | 'expired' | 'discarded';
+  note?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Upload helper ────────────────────────────────────────────────────────────
 
 function createUploader(endpoint: string) {
@@ -324,5 +337,22 @@ export const api = {
 
   plans: {
     uploadMedia: createUploader('/upload/plans'),
+  },
+
+  milkInventory: {
+    list: (babyId: string, status?: string) =>
+      api.get<{ success: boolean; data: MilkInventoryItem[] }>(
+        `/milk-inventory?babyId=${babyId}${status ? `&status=${status}` : ''}`
+      ),
+
+    create: (
+      data: { babyId: string; amountMl: number; storageType: 'fridge' | 'freezer'; storedAt?: string; note?: string },
+      idempotencyKey?: string,
+    ) => api.post<{ success: boolean; data: MilkInventoryItem }>('/milk-inventory', data, idempotencyKey),
+
+    update: (id: string, data: { status?: string; note?: string | null }) =>
+      api.put<{ success: boolean; data: MilkInventoryItem }>(`/milk-inventory/${id}`, data),
+
+    delete: (id: string) => api.delete<{ success: boolean }>(`/milk-inventory/${id}`),
   },
 };

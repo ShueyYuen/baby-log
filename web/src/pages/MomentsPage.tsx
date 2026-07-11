@@ -9,6 +9,7 @@ import {
   Edit2,
   Heart,
   ImagePlus,
+  Lock,
   MessageCircle,
   Play,
   Send,
@@ -92,6 +93,33 @@ function Avatar({
   );
 }
 
+// ── Visibility badge (read-only) ─────────────────────────────────────────────
+
+function VisibilityBadge({ visibleTo }: { visibleTo?: string[] }) {
+  const [members, setMembers] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    if (!visibleTo || visibleTo.length === 0) return;
+    api.members.list().then((res) => {
+      const map = new Map<string, string>();
+      for (const m of res.data) map.set(m.id, m.displayName);
+      setMembers(map);
+    }).catch(() => {});
+  }, [visibleTo]);
+
+  if (!visibleTo || visibleTo.length === 0) return null;
+
+  const names = visibleTo.map((id) => members.get(id) || '').filter(Boolean);
+  const label = names.length > 0 ? names.join('、') : `${visibleTo.length}人`;
+
+  return (
+    <div className="absolute top-1 left-1 flex items-center gap-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full backdrop-blur-sm pointer-events-none">
+      <Lock size={10} />
+      <span className="truncate max-w-[100px]">{label}可见</span>
+    </div>
+  );
+}
+
 // ── Media grid ───────────────────────────────────────────────────────────────
 
 const GRID_PAGE_SIZE = 9;
@@ -156,6 +184,7 @@ function MediaGrid({
                 decoding="async"
               />
             )}
+            <VisibilityBadge visibleTo={item.visibleTo} />
             {isLastWithMore && (
               <div
                 className="absolute inset-0 bg-black/50 flex items-center justify-center cursor-pointer"

@@ -116,6 +116,40 @@ func TestAutoRepeatPlanOnComplete(t *testing.T) {
 	}
 }
 
+func TestVaccineTemplate(t *testing.T) {
+	s := newTestServer(t)
+	uid := insertUser(t, "u", "U", "user")
+	bid := createBabyFor(t, uid, "宝宝")
+
+	r := s.do(http.MethodPost, "/plans/vaccine-template", uid, map[string]interface{}{
+		"babyId": bid,
+	})
+	e := mustOK(t, r)
+	var out struct {
+		Created int `json:"created"`
+	}
+	jsonUnmarshal(e.Data, &out)
+	if out.Created != len(nationalVaccineSchedule) {
+		t.Fatalf("expected %d created, got %d", len(nationalVaccineSchedule), out.Created)
+	}
+
+	var cnt int
+	db.QueryRow(`SELECT COUNT(*) FROM "Plan" WHERE babyId = ? AND type = 'vaccine'`, bid).Scan(&cnt)
+	if cnt != len(nationalVaccineSchedule) {
+		t.Errorf("expected %d vaccine plans in db, got %d", len(nationalVaccineSchedule), cnt)
+	}
+
+	// 再次调用应跳过已存在的计划
+	r2 := s.do(http.MethodPost, "/plans/vaccine-template", uid, map[string]interface{}{
+		"babyId": bid,
+	})
+	e2 := mustOK(t, r2)
+	jsonUnmarshal(e2.Data, &out)
+	if out.Created != 0 {
+		t.Errorf("expected 0 created on second run, got %d", out.Created)
+	}
+}
+
 func TestUpdateAndDeletePlan(t *testing.T) {
 	s := newTestServer(t)
 	uid := insertUser(t, "u", "U", "user")

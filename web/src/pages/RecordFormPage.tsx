@@ -112,6 +112,7 @@ const subTypes: Record<CategoryType, { value: string; label: string }[]> = {
   feeding: [
     { value: "breastfeed", label: "母乳" },
     { value: "bottle", label: "瓶喂" },
+    { value: "pump", label: "吸奶" },
     { value: "solid", label: "辅食" },
     { value: "water", label: "喝水" },
   ],
@@ -248,6 +249,12 @@ export default function RecordFormPage() {
   >(_d.location || "axillary");
   const [playDuration, setPlayDuration] = useState(_d.durationMinutes ?? 30);
   const [bathDuration, setBathDuration] = useState(_d.durationMinutes ?? 15);
+  const [pumpAmountMl, setPumpAmountMl] = useState(_d.amountMl ?? 120);
+  const [pumpSide, setPumpSide] = useState<"left" | "right" | "both">(_d.side || "both");
+  const [pumpDuration, setPumpDuration] = useState(_d.durationMinutes ?? 15);
+  const [pumpStorage, setPumpStorage] = useState<"fridge" | "freezer" | "direct_feed">(
+    _d.storage || "fridge",
+  );
   const [isOngoing, setIsOngoing] = useState(false);
   const [ongoingStartTime, setOngoingStartTime] = useState<string | null>(null);
 
@@ -370,6 +377,12 @@ export default function RecordFormPage() {
         } else {
           setBathDuration(data.durationMinutes || 15);
         }
+        break;
+      case "pump":
+        setPumpAmountMl(data.amountMl ?? 120);
+        setPumpSide(data.side || "both");
+        setPumpDuration(data.durationMinutes ?? 15);
+        setPumpStorage(data.storage || "fridge");
         break;
     }
   };
@@ -508,6 +521,13 @@ export default function RecordFormPage() {
       case "play":
         if (isOngoing) return { ongoing: true, startTime: ongoingStartTime || new Date(occurredAt).toISOString() };
         return { durationMinutes: playDuration };
+      case "pump":
+        return {
+          amountMl: pumpAmountMl,
+          side: pumpSide,
+          durationMinutes: pumpDuration,
+          storage: pumpStorage,
+        };
       default:
         return {};
     }
@@ -541,6 +561,25 @@ export default function RecordFormPage() {
         await api.put(`/records/${id}`, payload);
       } else {
         await api.post("/records", payload, idempotencyKeyRef.current);
+        if (
+          type === "pump" &&
+          (pumpStorage === "fridge" || pumpStorage === "freezer")
+        ) {
+          try {
+            await api.milkInventory.create(
+              {
+                babyId: currentBaby.id,
+                amountMl: pumpAmountMl,
+                storageType: pumpStorage,
+                storedAt: new Date(occurredAt).toISOString(),
+              },
+              generateIdempotencyKey(),
+            );
+            cacheInvalidate("/milk-inventory");
+          } catch {
+            toast("记录已保存，但自动入库失败", "error");
+          }
+        }
       }
       cacheInvalidate("/timeline");
       navigate("/", { replace: true });
@@ -943,6 +982,87 @@ export default function RecordFormPage() {
                   {min}分钟
                 </button>
               ))}
+            </div>
+          </div>
+        );
+      case "pump":
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
+                吸出量
+              </label>
+              <Slider
+                value={pumpAmountMl}
+                onChange={setPumpAmountMl}
+                min={0}
+                max={300}
+                step={5}
+                unit="ml"
+              />
+            </div>
+            <div>
+              <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
+                侧别
+              </label>
+              <div className="flex gap-3">
+                {[
+                  { value: "left" as const, label: "左" },
+                  { value: "right" as const, label: "右" },
+                  { value: "both" as const, label: "双侧" },
+                ].map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => setPumpSide(item.value)}
+                    className={`flex-1 py-2.5 rounded-lg border-2 text-base ${
+                      pumpSide === item.value
+                        ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300"
+                        : "border-gray-200 dark:border-gray-600 dark:text-gray-300"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
+                时长
+              </label>
+              <Slider
+                value={pumpDuration}
+                onChange={setPumpDuration}
+                min={0}
+                max={60}
+                step={1}
+                unit="分钟"
+              />
+            </div>
+            <div>
+              <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
+                存储方式
+              </label>
+              <div className="flex gap-2">
+                {[
+                  { value: "fridge" as const, label: "冷藏" },
+                  { value: "freezer" as const, label: "冷冻" },
+                  { value: "direct_feed" as const, label: "直接喂" },
+                ].map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => setPumpStorage(item.value)}
+                    className={`flex-1 py-2.5 rounded-lg border-2 text-sm ${
+                      pumpStorage === item.value
+                        ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300"
+                        : "border-gray-200 dark:border-gray-600 dark:text-gray-300"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         );

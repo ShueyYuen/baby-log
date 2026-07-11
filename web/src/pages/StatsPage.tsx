@@ -9,6 +9,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getAgeDays, evaluatePee, evaluatePoop, evaluateFeeding, evaluateSleep, type DiaperStatus } from '../lib/diaper-standards';
 import { StatsSkeleton } from '../components/ui/skeleton';
+import { DatePicker } from '../components/ui';
 
 interface DailyData {
   date: string;
@@ -17,6 +18,7 @@ interface DailyData {
   peeCount: number;
   poopCount: number;
   sleepMinutes: number;
+  bottleAmountMl?: number;
   feedingDetails: { breastfeed: number; bottle: number; solid: number };
 }
 
@@ -59,7 +61,7 @@ function buildEmptyRange(startDate: string, endDate: string): DailyData[] {
   while (cursor.isBefore(end) || cursor.isSame(end, 'day')) {
     days.push({
       date: cursor.format('YYYY-MM-DD'),
-      feedingCount: 0, diaperCount: 0, peeCount: 0, poopCount: 0, sleepMinutes: 0,
+      feedingCount: 0, diaperCount: 0, peeCount: 0, poopCount: 0, sleepMinutes: 0, bottleAmountMl: 0,
       feedingDetails: { breastfeed: 0, bottle: 0, solid: 0 },
     });
     cursor = cursor.add(1, 'day');
@@ -76,7 +78,6 @@ export default function StatsPage() {
   const [customEndDate, setCustomEndDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [tempDate, setTempDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [tempData, setTempData] = useState<TempPoint[]>([]);
-
   const dateRange = getPresetDateRange(rangePreset, customStartDate, customEndDate);
 
   const loadWeekData = useCallback(async () => {
@@ -145,6 +146,7 @@ export default function StatsPage() {
     小便: d.peeCount,
     大便: d.poopCount,
     睡眠: Math.round(d.sleepMinutes / 60 * 10) / 10,
+    奶量: d.bottleAmountMl ?? 0,
   }));
 
   const xAxisInterval = chartData.length > 14 ? Math.max(1, Math.ceil(chartData.length / 7) - 1) : 0;
@@ -261,6 +263,27 @@ export default function StatsPage() {
     );
   };
 
+  const BottleTooltip = ({ active, payload }: any) => {
+    if (!active || !payload || payload.length === 0) return null;
+    const row = payload[0].payload;
+    return (
+      <div
+        className="rounded-lg p-3 max-w-[260px] shadow-lg"
+        style={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', color: 'var(--chart-tooltip-text)' }}
+      >
+        <p className="text-xs font-medium mb-2">{dayjs(row.rawDate).format('MM月DD日')}</p>
+        {row.奶量 === 0 ? (
+          <p className="text-xs opacity-70">当天无瓶喂记录</p>
+        ) : (
+          <p className="text-xs">
+            <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: '#3b82f6' }} />
+            瓶喂 {row.奶量} ml
+          </p>
+        )}
+      </div>
+    );
+  };
+
   const todayData = weekData[weekData.length - 1];
 
   return (
@@ -287,27 +310,14 @@ export default function StatsPage() {
 
         {rangePreset === 'custom' && (
           <div className="flex flex-col sm:flex-row gap-3">
-            <label className="flex-1">
+            <div className="flex-1">
               <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">开始日期</span>
-              <input
-                type="date"
-                value={customStartDate}
-                max={customEndDate}
-                onChange={(e) => handleCustomStartChange(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
-            </label>
-            <label className="flex-1">
+              <DatePicker value={customStartDate} onChange={handleCustomStartChange} placeholder="开始日期" />
+            </div>
+            <div className="flex-1">
               <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">结束日期</span>
-              <input
-                type="date"
-                value={customEndDate}
-                min={customStartDate}
-                max={todayStr}
-                onChange={(e) => handleCustomEndChange(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
-            </label>
+              <DatePicker value={customEndDate} onChange={handleCustomEndChange} placeholder="结束日期" />
+            </div>
           </div>
         )}
       </div>
@@ -374,6 +384,20 @@ export default function StatsPage() {
                 <YAxis fontSize={12} tick={{ fill: 'var(--chart-axis)' }} />
                 <Tooltip content={<SleepTooltip />} cursor={{ stroke: 'var(--chart-cursor)' }} />
                 <Line type="monotone" dataKey="睡眠" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} animationDuration={300} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Bottle Amount Chart */}
+          <div className="card">
+            <h3 className="font-medium mb-4 dark:text-gray-100">{rangeChartTitle('奶量(ml)')}</h3>
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis dataKey="date" fontSize={12} interval={xAxisInterval} tick={{ fill: 'var(--chart-axis)' }} />
+                <YAxis fontSize={12} allowDecimals={false} tick={{ fill: 'var(--chart-axis)' }} unit="ml" />
+                <Tooltip content={<BottleTooltip />} cursor={{ stroke: 'var(--chart-cursor)' }} />
+                <Line type="monotone" dataKey="奶量" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} animationDuration={300} />
               </LineChart>
             </ResponsiveContainer>
           </div>

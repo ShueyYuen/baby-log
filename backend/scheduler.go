@@ -26,6 +26,7 @@ func runReminderTick() {
 	}()
 
 	checkDailySummary()
+	markExpiredMilkInventory()
 
 	now := int64(nowMillis())
 	rows, err := db.Query(`

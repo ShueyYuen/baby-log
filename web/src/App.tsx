@@ -20,6 +20,7 @@ const PlanFormPage = lazy(() => import('./pages/PlanFormPage'));
 const GrowthHistoryPage = lazy(() => import('./pages/GrowthHistoryPage'));
 const HealthTrackingPage = lazy(() => import('./pages/HealthTrackingPage'));
 const BabySetupPage = lazy(() => import('./pages/BabySetupPage'));
+const MilkInventoryPage = lazy(() => import('./pages/MilkInventoryPage'));
 
 function PageFallback() {
   return (
@@ -137,6 +138,7 @@ function KeepAliveRoutes() {
                 <Route path="/plan/:id/edit" element={<PlanFormPage />} />
                 <Route path="/growth/history" element={<GrowthHistoryPage />} />
                 <Route path="/growth/health/:id" element={<HealthTrackingPage />} />
+                <Route path="/milk-inventory" element={<MilkInventoryPage />} />
               </Routes>
             </Suspense>
           </div>

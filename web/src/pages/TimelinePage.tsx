@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,7 +12,7 @@ import { useActivated } from '../hooks/useActivated';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock, Square, Play, Search } from 'lucide-react';
+import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock, Square, Play, Search, Beaker, Refrigerator } from 'lucide-react';
 import { ImageViewer, useToast, type ViewerImage, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ScrollDateTimePicker, DateTimePicker } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { TimelineSkeleton } from '../components/ui/skeleton';
@@ -28,6 +28,7 @@ type RecordItem = TimelineRecord;
 const typeConfig: Record<string, { label: string; icon: any; color: string }> = {
   breastfeed: { label: '母乳', icon: Heart, color: 'text-pink-500 bg-pink-50 dark:bg-pink-950/40' },
   bottle: { label: '瓶喂', icon: Milk, color: 'text-blue-500 bg-blue-50 dark:bg-blue-950/40' },
+  pump: { label: '吸奶', icon: Beaker, color: 'text-rose-500 bg-rose-50 dark:bg-rose-950/40' },
   solid: { label: '辅食', icon: Apple, color: 'text-green-500 bg-green-50 dark:bg-green-950/40' },
   water: { label: '喝水', icon: GlassWater, color: 'text-cyan-500 bg-cyan-50 dark:bg-cyan-950/40' },
   diaper: { label: '换尿布', icon: Droplets, color: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-950/40' },
@@ -42,6 +43,7 @@ const typeConfig: Record<string, { label: string; icon: any; color: string }> = 
 const allRecordTypes = [
   { type: 'breastfeed', category: 'feeding', label: '母乳', icon: Heart, color: 'text-pink-500 bg-pink-50 dark:bg-pink-950/40' },
   { type: 'bottle', category: 'feeding', label: '瓶喂', icon: Milk, color: 'text-blue-500 bg-blue-50 dark:bg-blue-950/40' },
+  { type: 'pump', category: 'feeding', label: '吸奶', icon: Beaker, color: 'text-rose-500 bg-rose-50 dark:bg-rose-950/40' },
   { type: 'solid', category: 'feeding', label: '辅食', icon: Apple, color: 'text-green-500 bg-green-50 dark:bg-green-950/40' },
   { type: 'water', category: 'feeding', label: '喝水', icon: GlassWater, color: 'text-cyan-500 bg-cyan-50 dark:bg-cyan-950/40' },
   { type: 'diaper', category: 'nursing', label: '换尿布', icon: Droplets, color: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-950/40' },
@@ -61,6 +63,13 @@ function formatRecordDetail(record: RecordItem): string {
       return `左${data.leftMinutes || 0}分钟 / 右${data.rightMinutes || 0}分钟`;
     case 'bottle':
       return `${data.milkType === 'formula' ? '配方奶' : '母乳'} ${data.amountMl}ml`;
+    case 'pump': {
+      const sideLabels: Record<string, string> = { left: '左', right: '右', both: '双侧' };
+      const storageLabels: Record<string, string> = { fridge: '冷藏', freezer: '冷冻', direct_feed: '直接喂' };
+      const parts = [`${data.amountMl}ml`, sideLabels[data.side] || data.side, `${data.durationMinutes || 0}分钟`];
+      if (data.storage) parts.push(storageLabels[data.storage] || data.storage);
+      return parts.join(' · ');
+    }
     case 'solid':
       return `${data.name}${data.amount ? ` (${data.amount})` : ''}`;
     case 'water':
@@ -654,6 +663,21 @@ export default function TimelinePage() {
           </div>
         );
       })()}
+
+      {/* Milk Inventory Link */}
+      <Link
+        to="/milk-inventory"
+        className="card flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+      >
+        <div className="w-10 h-10 rounded-full bg-sky-100 dark:bg-sky-900/40 flex items-center justify-center flex-shrink-0">
+          <Refrigerator size={18} className="text-sky-600 dark:text-sky-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">母乳库存</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">管理冷藏和冷冻的存奶</p>
+        </div>
+        <span className="text-xs text-gray-400">查看 →</span>
+      </Link>
 
       {/* Search & Filter */}
       <div className="flex gap-2 items-center">
