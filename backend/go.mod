@@ -13,7 +13,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.58.2
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/google/uuid v1.6.0
-	golang.org/x/crypto v0.31.0
+	golang.org/x/crypto v0.52.0
 	golang.org/x/image v0.43.0
 	modernc.org/sqlite v1.31.1
 )
@@ -51,8 +51,8 @@ require (
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
-	golang.org/x/net v0.26.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/net v0.54.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6 // indirect
 	modernc.org/libc v1.55.3 // indirect
