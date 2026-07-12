@@ -356,6 +356,14 @@ function VisitForm() {
             u.id === up.id ? { ...u, progress: 100, result } : u,
           ),
         );
+        if (result.ocrText !== undefined) {
+          const item: OcrDataItem = { key: result.key, text: result.ocrText || '' };
+          setOcrData((prev) => {
+            const next = [...prev.filter((d) => d.key !== result.key), item];
+            setOcrText(next.map((d) => d.text).filter(Boolean).join('\n\n'));
+            return next;
+          });
+        }
       } catch {
         toast('图片上传失败', 'error');
         setUploads((prev) => prev.filter((u) => u.id !== up.id));
@@ -663,25 +671,22 @@ function VisitForm() {
           />
         </div>
 
-        {/* OCR Button */}
-        {allImageCount > 0 && ocrAvailable && (
+        {/* OCR Status / Re-run */}
+        {ocrRunning && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-sm text-blue-700 dark:text-blue-300">
+            <Loader2 size={16} className="animate-spin" />
+            正在识别图片文字...
+          </div>
+        )}
+        {allImageCount > 0 && ocrAvailable && !ocrRunning && ocrData.length > 0 && (
           <Button
-            variant="secondary"
-            className="w-full"
+            variant="ghost"
+            size="sm"
             onClick={runOcr}
-            disabled={ocrRunning || saving}
+            disabled={saving}
           >
-            {ocrRunning ? (
-              <>
-                <Loader2 size={16} className="mr-2 animate-spin" />
-                识别中...
-              </>
-            ) : (
-              <>
-                <FileText size={16} className="mr-2" />
-                OCR 识别图片文字
-              </>
-            )}
+            <FileText size={14} className="mr-1" />
+            重新识别未处理的图片
           </Button>
         )}
 

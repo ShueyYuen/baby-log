@@ -104,6 +104,7 @@ export interface UploadMomentResult {
   rawUrl?: string;
   rawKey?: string;
   mediaType: 'image' | 'video';
+  ocrText?: string;
 }
 
 // ─── Timeline types ──────────────────────────────────────────────────────────

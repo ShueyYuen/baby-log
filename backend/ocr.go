@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	s3sdk "github.com/aws/aws-sdk-go-v2/service/s3"
 
 	openapi "github.com/alibabacloud-go/darabonba-openapi/v2/client"
 	ocr "github.com/alibabacloud-go/ocr-api-20210707/v3/client"
@@ -59,21 +63,6 @@ type ocrResult struct {
 	Content string `json:"content"`
 }
 
-func ocrFromURL(imageURL string) (string, error) {
-	client, err := getOCRClient()
-	if err != nil {
-		return "", err
-	}
-	req := &ocr.RecognizeGeneralRequest{
-		Url: tea.String(imageURL),
-	}
-	resp, err := client.RecognizeGeneral(req)
-	if err != nil {
-		return "", fmt.Errorf("aliyun ocr: %w", err)
-	}
-	return extractOCRText(resp.Body.Data), nil
-}
-
 func ocrFromStream(r io.Reader) (string, error) {
 	client, err := getOCRClient()
 	if err != nil {
@@ -105,11 +94,16 @@ func ocrImageByKey(key string) (string, error) {
 	cfg := getStorageConfig()
 
 	if cfg.typ == storageS3 && cfg.s3 != nil {
-		u, err := toDisplayURL(key, 3600)
+		client := getS3Client()
+		out, err := client.GetObject(context.Background(), &s3sdk.GetObjectInput{
+			Bucket: aws.String(cfg.s3.bucket),
+			Key:    aws.String(key),
+		})
 		if err != nil {
-			return "", fmt.Errorf("get url: %w", err)
+			return "", fmt.Errorf("s3 get: %w", err)
 		}
-		return ocrFromURL(u)
+		defer out.Body.Close()
+		return ocrFromStream(out.Body)
 	}
 
 	localPath := filepath.Join(cfg.uploadDir, key)

@@ -159,6 +159,14 @@ func handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 		}
 		if isImageMIME(contentType) {
 			result.MediaType = "image"
+			if prefix == "medical" && isOCRAvailable() {
+				text, ocrErr := ocrFromStream(bytes.NewReader(data))
+				if ocrErr != nil {
+					log.Printf("[OCR] auto-ocr failed for %s: %v", result.Key, ocrErr)
+				} else {
+					result.OcrText = text
+				}
+			}
 		} else {
 			result.MediaType = "video"
 		}
@@ -296,6 +304,15 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 			result.URL = buildPublicURL(cfg.s3, compKey)
 		} else {
 			result.URL, _ = getSignedDownloadURL(compKey, 3600)
+		}
+
+		if isImage && prefix == "medical" && isOCRAvailable() {
+			text, ocrErr := ocrFromStream(bytes.NewReader(data))
+			if ocrErr != nil {
+				log.Printf("[OCR] auto-ocr failed for %s: %v", compKey, ocrErr)
+			} else {
+				result.OcrText = text
+			}
 		}
 
 		trackUploadedFile(compKey, rawKey)

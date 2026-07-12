@@ -168,6 +168,7 @@ type uploadResult struct {
 	RawURL    string `json:"rawUrl,omitempty"`
 	RawKey    string `json:"rawKey,omitempty"`
 	MediaType string `json:"mediaType,omitempty"`
+	OcrText   string `json:"ocrText,omitempty"`
 }
 
 func buildPublicURL(cfg *s3Config, s3Key string) string {
