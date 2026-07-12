@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	s3sdk "github.com/aws/aws-sdk-go-v2/service/s3"
@@ -25,6 +27,69 @@ var (
 	ocrClientOnce sync.Once
 	ocrInitErr    error
 )
+
+// ocrCache stores OCR results from background processing during uploads.
+// Key: storage key, Value: *ocrCacheEntry
+var ocrCache sync.Map
+
+type ocrCacheEntry struct {
+	text      string
+	err       error
+	done      chan struct{} // closed when OCR completes
+	expiresAt time.Time
+}
+
+const ocrCacheTTL = 10 * time.Minute
+const ocrMaxConcurrent = 3
+
+var ocrSem = make(chan struct{}, ocrMaxConcurrent)
+
+// ocrEnqueueBackground starts OCR for the given data in a background goroutine.
+// Results are cached so that handleOCRRecognize can retrieve them without re-downloading.
+func ocrEnqueueBackground(key string, data []byte) {
+	entry := &ocrCacheEntry{
+		done:      make(chan struct{}),
+		expiresAt: time.Now().Add(ocrCacheTTL),
+	}
+	ocrCache.Store(key, entry)
+
+	go func() {
+		defer close(entry.done)
+		ocrSem <- struct{}{}
+		defer func() { <-ocrSem }()
+
+		text, err := ocrFromStream(bytes.NewReader(data))
+		entry.text = text
+		entry.err = err
+		if err != nil {
+			log.Printf("[OCR] background failed for %s: %v", key, err)
+		} else {
+			log.Printf("[OCR] background done for %s (%d chars)", key, len(text))
+		}
+	}()
+}
+
+// ocrGetCached waits for a cached OCR result (with timeout). Returns text, ok.
+func ocrGetCached(key string, timeout time.Duration) (string, bool) {
+	val, ok := ocrCache.Load(key)
+	if !ok {
+		return "", false
+	}
+	entry := val.(*ocrCacheEntry)
+	if time.Now().After(entry.expiresAt) {
+		ocrCache.Delete(key)
+		return "", false
+	}
+	select {
+	case <-entry.done:
+		if entry.err != nil {
+			return "", false
+		}
+		return entry.text, true
+	case <-time.After(timeout):
+		return "", false
+	}
+}
 
 func getOCRClient() (*ocr.Client, error) {
 	ocrClientOnce.Do(func() {
@@ -187,7 +252,8 @@ func handleMedicalVisitOCR(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// POST /ocr/recognize — stateless OCR, does not save to DB
+// POST /ocr/recognize — stateless OCR, does not save to DB.
+// Checks the background OCR cache first; processes remaining images concurrently.
 func handleOCRRecognize(w http.ResponseWriter, r *http.Request) {
 	if !isOCRAvailable() {
 		writeErr(w, http.StatusServiceUnavailable, "OCR service not available")
@@ -202,28 +268,67 @@ func handleOCRRecognize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var texts []string
-	var ocrItems []ocrDataItem
-	for _, img := range body.Images {
-		key := img.Key
+	type indexedResult struct {
+		idx  int
+		item ocrDataItem
+	}
+
+	results := make([]ocrDataItem, len(body.Images))
+	var needProcess []int
+
+	for i, img := range body.Images {
+		lookupKey := img.Key
 		if img.RawKey != "" {
-			key = img.RawKey
+			lookupKey = img.RawKey
 		}
-		text, err := ocrImageByKey(key)
-		if err != nil {
-			log.Printf("[OCR] Failed for key %s: %v", key, err)
-			ocrItems = append(ocrItems, ocrDataItem{Key: img.Key, Text: ""})
-			continue
+		if text, ok := ocrGetCached(lookupKey, 30*time.Second); ok {
+			results[i] = ocrDataItem{Key: img.Key, Text: text}
+			ocrCache.Delete(lookupKey)
+		} else {
+			needProcess = append(needProcess, i)
 		}
-		ocrItems = append(ocrItems, ocrDataItem{Key: img.Key, Text: text})
-		if text != "" {
-			texts = append(texts, text)
+	}
+
+	if len(needProcess) > 0 {
+		ch := make(chan indexedResult, len(needProcess))
+		var wg sync.WaitGroup
+		for _, idx := range needProcess {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				ocrSem <- struct{}{}
+				defer func() { <-ocrSem }()
+
+				img := body.Images[i]
+				key := img.Key
+				if img.RawKey != "" {
+					key = img.RawKey
+				}
+				text, err := ocrImageByKey(key)
+				if err != nil {
+					log.Printf("[OCR] Failed for key %s: %v", key, err)
+					ch <- indexedResult{i, ocrDataItem{Key: img.Key, Text: ""}}
+					return
+				}
+				ch <- indexedResult{i, ocrDataItem{Key: img.Key, Text: text}}
+			}(idx)
+		}
+		go func() { wg.Wait(); close(ch) }()
+		for res := range ch {
+			results[res.idx] = res.item
+		}
+	}
+
+	var texts []string
+	for _, item := range results {
+		if item.Text != "" {
+			texts = append(texts, item.Text)
 		}
 	}
 
 	writeOK(w, map[string]interface{}{
 		"ocrText":    strings.Join(texts, "\n\n"),
-		"ocrData":    ocrItems,
+		"ocrData":    results,
 		"imageCount": len(body.Images),
 		"recognized": len(texts),
 	})

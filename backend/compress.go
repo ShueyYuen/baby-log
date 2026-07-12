@@ -17,6 +17,9 @@ const (
 	jpegQuality       = 85
 )
 
+// compressSem limits concurrent image compression to prevent OOM/CPU saturation.
+var compressSem = make(chan struct{}, 2)
+
 func isImageMIME(contentType string) bool {
 	return strings.HasPrefix(contentType, "image/")
 }
@@ -46,7 +49,11 @@ func mimeToExt(contentType string) string {
 
 // compressImage decodes an image, resizes if larger than maxImageDimension,
 // and re-encodes as JPEG at quality 85. Returns original data on any failure.
+// Concurrency is limited by compressSem to prevent OOM on small servers.
 func compressImage(data []byte, contentType string) (out []byte, outMIME string) {
+	compressSem <- struct{}{}
+	defer func() { <-compressSem }()
+
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return data, contentType

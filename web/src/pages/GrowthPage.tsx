@@ -37,7 +37,7 @@ interface MilestonePreview {
   visibleTo?: string[];
 }
 
-const M_CONCURRENT = 5;
+const M_CONCURRENT = 2;
 const M_STEP = 5;
 
 function MUploadRing({ progress, error }: { progress: number; error?: boolean }) {

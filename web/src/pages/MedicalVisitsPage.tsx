@@ -344,6 +344,7 @@ function VisitForm() {
     }));
     setUploads((prev) => [...prev, ...newUploads]);
 
+    const uploaded: UploadMomentResult[] = [];
     for (const up of newUploads) {
       try {
         const result = await api.medicalVisits.uploadMedia(up.file, (p) => {
@@ -356,14 +357,7 @@ function VisitForm() {
             u.id === up.id ? { ...u, progress: 100, result } : u,
           ),
         );
-        if (result.ocrText !== undefined) {
-          const item: OcrDataItem = { key: result.key, text: result.ocrText || '' };
-          setOcrData((prev) => {
-            const next = [...prev.filter((d) => d.key !== result.key), item];
-            setOcrText(next.map((d) => d.text).filter(Boolean).join('\n\n'));
-            return next;
-          });
-        }
+        uploaded.push(result);
       } catch {
         toast('图片上传失败', 'error');
         setUploads((prev) => prev.filter((u) => u.id !== up.id));
@@ -371,6 +365,28 @@ function VisitForm() {
     }
 
     e.target.value = '';
+
+    if (uploaded.length > 0 && ocrAvailable) {
+      setOcrRunning(true);
+      try {
+        const res = await api.ocr.recognize(
+          uploaded.map((r) => ({ key: r.key, rawKey: r.rawKey })),
+        );
+        const newOcrData = res.data.ocrData || [];
+        setOcrData((prev) => {
+          const merged = [
+            ...prev.filter((d) => !newOcrData.some((n) => n.key === d.key)),
+            ...newOcrData,
+          ];
+          setOcrText(merged.map((d) => d.text).filter(Boolean).join('\n\n'));
+          return merged;
+        });
+      } catch {
+        toast('OCR 自动识别失败', 'error');
+      } finally {
+        setOcrRunning(false);
+      }
+    }
   };
 
   const removeUpload = (uploadId: string) => {

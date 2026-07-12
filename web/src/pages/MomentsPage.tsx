@@ -595,7 +595,7 @@ interface MediaPreview {
   visibleTo?: string[];
 }
 
-const CONCURRENT_UPLOADS = 5;
+const CONCURRENT_UPLOADS = 2;
 const PROGRESS_STEP = 5;
 
 function UploadProgressRing({

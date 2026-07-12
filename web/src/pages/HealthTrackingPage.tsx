@@ -22,7 +22,7 @@ interface EntryPreview {
   visibleTo?: string[];
 }
 
-const CONCURRENT = 5;
+const CONCURRENT = 2;
 const STEP = 5;
 
 function UploadRing({ progress, error }: { progress: number; error?: boolean }) {
