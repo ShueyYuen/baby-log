@@ -63,11 +63,11 @@ export default function BabySetupPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">性别</label>
             <div className="flex gap-4">
-              <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-colors ${gender === 'male' ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-300' : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'}`}>
+              <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-colors ${gender === 'male' ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-300' : 'glass-toggle-btn dark:text-gray-300'}`}>
                 <input type="radio" value="male" checked={gender === 'male'} onChange={() => setGender('male')} className="hidden" />
                 <span>男孩</span>
               </label>
-              <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-colors ${gender === 'female' ? 'border-pink-400 bg-pink-50 dark:bg-pink-900/30 dark:text-pink-300' : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'}`}>
+              <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-colors ${gender === 'female' ? 'border-pink-400 bg-pink-50 dark:bg-pink-900/30 dark:text-pink-300' : 'glass-toggle-btn dark:text-gray-300'}`}>
                 <input type="radio" value="female" checked={gender === 'female'} onChange={() => setGender('female')} className="hidden" />
                 <span>女孩</span>
               </label>

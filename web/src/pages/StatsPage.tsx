@@ -282,8 +282,8 @@ export default function StatsPage() {
   const todayData = weekData[weekData.length - 1];
 
   return (
-    <div className="fixed inset-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900">
-      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+    <div className="fixed inset-0 md:left-64 z-30 flex flex-col glass-page-shell">
+      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b glass-sticky-header flex-shrink-0">
         <button onClick={() => navigate(-1)} className="p-1 -ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
           <ArrowLeft size={20} />
         </button>
@@ -292,7 +292,7 @@ export default function StatsPage() {
       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 space-y-6">
 
       <div className="space-y-3">
-        <div className="flex gap-1 p-1 rounded-lg bg-gray-100 dark:bg-gray-800">
+        <div className="flex gap-1 p-1 rounded-lg glass-preset-bar">
           {RANGE_PRESETS.map((preset) => (
             <button
               key={preset.value}
@@ -301,7 +301,7 @@ export default function StatsPage() {
               className={`flex-1 min-w-0 py-1.5 px-1 rounded-md text-xs sm:text-sm font-medium transition-colors ${
                 rangePreset === preset.value
                   ? 'bg-primary-500 text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-gray-700'
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-white/40 dark:hover:bg-white/[0.06]'
               }`}
             >
               {preset.label}
@@ -410,7 +410,7 @@ export default function StatsPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setTempDate(dayjs(tempDate).subtract(1, 'day').format('YYYY-MM-DD'))}
-                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                  className="p-1 rounded glass-icon-btn text-gray-500 dark:text-gray-400"
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -421,7 +421,7 @@ export default function StatsPage() {
                 <button
                   onClick={() => setTempDate(dayjs(tempDate).add(1, 'day').format('YYYY-MM-DD'))}
                   disabled={tempDate >= dayjs().format('YYYY-MM-DD')}
-                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 disabled:opacity-30"
+                  className="p-1 rounded glass-icon-btn text-gray-500 dark:text-gray-400 disabled:opacity-30"
                 >
                   <ChevronRight size={16} />
                 </button>

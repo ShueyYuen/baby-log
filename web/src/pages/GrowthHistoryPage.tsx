@@ -97,9 +97,9 @@ export default function GrowthHistoryPage() {
   };
 
   return (
-    <div className="fixed inset-0 md:top-0 md:bottom-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="fixed inset-0 md:top-0 md:bottom-0 md:left-64 z-30 flex flex-col glass-page-shell">
       {/* Fixed Header */}
-      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b glass-sticky-header flex-shrink-0">
         <Button variant="ghost" size="icon" onClick={() => navigate('/growth')}>
           <ArrowLeft size={20} />
         </Button>
@@ -116,7 +116,7 @@ export default function GrowthHistoryPage() {
             {records.map((r) => (
               <Card
                 key={r.id}
-                className={`transition-colors ${!isViewer ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700' : ''}`}
+                className={`transition-colors ${!isViewer ? 'cursor-pointer hover:!bg-white/60 dark:hover:!bg-white/[0.06] active:!bg-white/70 dark:active:!bg-white/[0.08]' : ''}`}
                 onClick={() => !isViewer && openEdit(r)}
               >
                 <CardContent className="flex items-center justify-between py-3">
@@ -181,13 +181,14 @@ export default function GrowthHistoryPage() {
               <Button type="button" variant="outline" className="flex-1" onClick={() => setEditingRecord(null)}>取消</Button>
               <Button type="submit" className="flex-1">保存</Button>
             </div>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              className="w-full text-red-500 hover:!text-red-600"
               onClick={() => { setEditingRecord(null); confirmDelete(editingRecord!.id); }}
-              className="w-full py-2 text-sm text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
             >
               删除此记录
-            </button>
+            </Button>
           </form>
         </DialogContent>
       </Dialog>

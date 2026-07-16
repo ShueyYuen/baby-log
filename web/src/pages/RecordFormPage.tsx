@@ -632,14 +632,14 @@ export default function RecordFormPage() {
                 <button
                   type="button"
                   onClick={() => setMilkType("formula")}
-                  className={`flex-1 py-2.5 rounded-lg border-2 text-base ${milkType === "formula" ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
+                  className={`flex-1 py-2.5 rounded-lg border-2 text-base transition-colors ${milkType === "formula" ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "glass-toggle-btn dark:text-gray-300"}`}
                 >
                   配方奶
                 </button>
                 <button
                   type="button"
                   onClick={() => setMilkType("breast_milk")}
-                  className={`flex-1 py-2.5 rounded-lg border-2 text-base ${milkType === "breast_milk" ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
+                  className={`flex-1 py-2.5 rounded-lg border-2 text-base transition-colors ${milkType === "breast_milk" ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "glass-toggle-btn dark:text-gray-300"}`}
                 >
                   母乳
                 </button>
@@ -721,7 +721,7 @@ export default function RecordFormPage() {
                   key={item.value}
                   type="button"
                   onClick={() => setDiaperType(item.value)}
-                  className={`flex-1 py-2.5 rounded-lg border-2 text-base ${diaperType === item.value ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
+                  className={`flex-1 py-2.5 rounded-lg border-2 text-base transition-colors ${diaperType === item.value ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "glass-toggle-btn dark:text-gray-300"}`}
                 >
                   {item.label}
                 </button>
@@ -758,10 +758,10 @@ export default function RecordFormPage() {
                   key={name}
                   type="button"
                   onClick={() => setSupplementName(name)}
-                  className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                  className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
                     supplementName === name
-                      ? "border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400"
-                      : "border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500"
+                      ? "glass-chip-active text-primary-600 dark:text-primary-400"
+                      : "glass-chip text-gray-500 dark:text-gray-400"
                   }`}
                 >
                   {name}
@@ -801,7 +801,7 @@ export default function RecordFormPage() {
                     key={item.value}
                     type="button"
                     onClick={() => setTempLocation(item.value)}
-                    className={`flex-1 py-2.5 rounded-lg border-2 text-base ${tempLocation === item.value ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "border-gray-200 dark:border-gray-600 dark:text-gray-300"}`}
+                    className={`flex-1 py-2.5 rounded-lg border-2 text-base transition-colors ${tempLocation === item.value ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "glass-toggle-btn dark:text-gray-300"}`}
                   >
                     {item.label}
                   </button>
@@ -861,7 +861,7 @@ export default function RecordFormPage() {
                     key={p.min}
                     type="button"
                     onClick={() => applyPreset(p.min)}
-                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300 transition-colors"
+                    className="px-3 py-1.5 text-sm rounded-lg glass-chip dark:text-gray-300 transition-colors"
                   >
                     {p.label}
                   </button>
@@ -869,7 +869,7 @@ export default function RecordFormPage() {
                 <button
                   type="button"
                   onClick={applyNight}
-                  className="px-3 py-1.5 text-sm rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-colors"
+                  className="px-3 py-1.5 text-sm rounded-lg glass-chip text-indigo-600 dark:text-indigo-400 transition-colors"
                 >
                   夜间睡眠
                 </button>
@@ -889,7 +889,7 @@ export default function RecordFormPage() {
                 className="hidden md:flex"
               />
             </div>
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg glass-info-strip">
               <span className="text-sm text-gray-500 dark:text-gray-400">时长：</span>
               <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{sleepDurLabel}</span>
               {sleepEnd.getDate() !== sleepStart.getDate() && (
@@ -929,10 +929,10 @@ export default function RecordFormPage() {
                   key={min}
                   type="button"
                   onClick={() => setBathDuration(min)}
-                  className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                  className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
                     bathDuration === min
-                      ? "border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400"
-                      : "border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400"
+                      ? "glass-chip-active text-primary-600 dark:text-primary-400"
+                      : "glass-chip text-gray-500 dark:text-gray-400"
                   }`}
                 >
                   {min}分钟
@@ -971,10 +971,10 @@ export default function RecordFormPage() {
                   key={min}
                   type="button"
                   onClick={() => setPlayDuration(min)}
-                  className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                  className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
                     playDuration === min
-                      ? "border-primary-400 bg-primary-50 text-primary-600 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-400"
-                      : "border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-600 dark:text-gray-400"
+                      ? "glass-chip-active text-primary-600 dark:text-primary-400"
+                      : "glass-chip text-gray-500 dark:text-gray-400"
                   }`}
                 >
                   {min}分钟
@@ -1013,10 +1013,10 @@ export default function RecordFormPage() {
                     key={item.value}
                     type="button"
                     onClick={() => setPumpSide(item.value)}
-                    className={`flex-1 py-2.5 rounded-lg border-2 text-base ${
+                    className={`flex-1 py-2.5 rounded-lg border-2 text-base transition-colors ${
                       pumpSide === item.value
                         ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300"
-                        : "border-gray-200 dark:border-gray-600 dark:text-gray-300"
+                        : "glass-toggle-btn dark:text-gray-300"
                     }`}
                   >
                     {item.label}
@@ -1051,10 +1051,10 @@ export default function RecordFormPage() {
                     key={item.value}
                     type="button"
                     onClick={() => setPumpStorage(item.value)}
-                    className={`flex-1 py-2.5 rounded-lg border-2 text-sm ${
+                    className={`flex-1 py-2.5 rounded-lg border-2 text-sm transition-colors ${
                       pumpStorage === item.value
                         ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300"
-                        : "border-gray-200 dark:border-gray-600 dark:text-gray-300"
+                        : "glass-toggle-btn dark:text-gray-300"
                     }`}
                   >
                     {item.label}
@@ -1084,9 +1084,9 @@ export default function RecordFormPage() {
   return (
     <div
       style={{ viewTransitionName: id ? `record-card-${id}` : undefined }}
-      className="fixed inset-0 md:top-0 md:bottom-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900 form-expand-in"
+      className="fixed inset-0 md:top-0 md:bottom-0 md:left-64 z-30 flex flex-col glass-page-shell form-expand-in"
     >
-      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b glass-sticky-header flex-shrink-0">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} />
         </Button>
@@ -1120,7 +1120,7 @@ export default function RecordFormPage() {
                   className={`flex-1 py-2 rounded-lg font-medium text-sm transition-colors ${
                     category === cat.value
                       ? "bg-primary-500 text-white"
-                      : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
+                      : "glass-toggle-btn text-gray-600 dark:text-gray-300"
                   }`}
                 >
                   {cat.label}
@@ -1136,8 +1136,8 @@ export default function RecordFormPage() {
                   onClick={() => setType(st.value)}
                   className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
                     type === st.value
-                      ? "bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-300 dark:border-primary-700"
-                      : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
+                      ? "glass-chip-active text-primary-700 dark:text-primary-300 border border-primary-300 dark:border-primary-700"
+                      : "glass-chip text-gray-600 dark:text-gray-300"
                   }`}
                 >
                   {st.label}
@@ -1204,10 +1204,10 @@ export default function RecordFormPage() {
             {previews.map((p, idx) => (
               <div
                 key={idx}
-                className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600"
+                className="relative w-20 h-20 rounded-lg overflow-hidden glass-media-thumb"
               >
                 {!p.url ? null : p.type === "video" ? (
-                  <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                  <div className="w-full h-full glass-media-thumb flex items-center justify-center">
                     <Play size={20} className="text-gray-500" />
                   </div>
                 ) : (
@@ -1254,7 +1254,7 @@ export default function RecordFormPage() {
                 )}
               </div>
             ))}
-            <label className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 dark:hover:border-primary-500 transition-colors">
+            <label className="w-20 h-20 rounded-lg glass-upload-zone flex items-center justify-center cursor-pointer transition-colors">
               <input
                 ref={fileRef}
                 type="file"

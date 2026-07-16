@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRefreshHandler } from "../hooks/usePullRefresh";
 import { useServerEvent } from "../hooks/useServerEvents";
 import { useActivated } from "../hooks/useActivated";
@@ -154,7 +155,7 @@ function MediaGrid({
         return (
           <div
             key={idx}
-            className={`relative overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-700 ${visible.length === 1 ? "aspect-[4/3] max-w-sm" : "aspect-square"}`}
+            className={`relative overflow-hidden rounded-lg glass-media-thumb ${visible.length === 1 ? "aspect-[4/3] max-w-sm" : "aspect-square"}`}
           >
             {item.mediaType === "video" ? (
               <div
@@ -387,7 +388,7 @@ function CommentSection({
   if (!isExpanded) return null;
 
   return (
-    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+    <div className="mt-3 pt-3 border-t border-white/30 dark:border-white/[0.06]">
       {comments.length > 0 && (
         <div className="space-y-2 mb-3">
           {comments.map((c) => (
@@ -425,7 +426,7 @@ function CommentSection({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && submit()}
           placeholder="写评论..."
-          className="flex-1 text-sm bg-gray-100 dark:bg-gray-700 rounded-full px-3 py-1.5 outline-none focus:ring-2 focus:ring-primary-400 dark:text-gray-200"
+          className="glass-input-ui flex-1 text-sm rounded-full px-3 py-1.5 outline-none focus:ring-0 text-gray-900 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-white/30"
         />
         <button
           onClick={submit}
@@ -472,7 +473,7 @@ function MomentCard({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+    <div className="glass-card-ui rounded-2xl border border-transparent p-4">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -490,13 +491,13 @@ function MomentCard({
           <div className="flex items-center gap-1">
             <button
               onClick={() => onEdit(moment)}
-              className="p-1.5 text-gray-400 hover:text-primary-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+              className="p-1.5 text-gray-400 hover:text-primary-500 rounded-lg glass-icon-btn"
             >
               <Edit2 size={15} />
             </button>
             <button
               onClick={() => onDelete(moment.id)}
-              className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+              className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg glass-icon-btn"
             >
               <Trash2 size={15} />
             </button>
@@ -571,13 +572,14 @@ function MomentCard({
         currentUserId={currentUserId}
       />
 
-      {/* Lightbox */}
-      {lightboxIdx !== null && (
+      {/* Lightbox — portal to body to escape backdrop-filter containing block */}
+      {lightboxIdx !== null && createPortal(
         <Lightbox
           items={moment.mediaItems}
           startIndex={lightboxIdx}
           onClose={() => setLightboxIdx(null)}
-        />
+        />,
+        document.body
       )}
     </div>
   );
@@ -657,7 +659,7 @@ const PreviewItem = React.memo(function PreviewItem({
 }) {
   const p = preview;
   return (
-    <div className="relative w-[calc(33.333%-0.375rem)] aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
+    <div className="relative w-[calc(33.333%-0.375rem)] aspect-square rounded-lg overflow-hidden glass-media-thumb">
       {!p.url ? null : p.type === "video" ? (
         <video
           src={p.url}
@@ -885,7 +887,7 @@ function MomentFormDialog({
             onChange={(e) => setContent(e.target.value)}
             placeholder="分享宝宝的精彩时刻..."
             rows={3}
-            className="w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 p-3 text-sm outline-none focus:ring-2 focus:ring-primary-400 resize-none dark:text-gray-100"
+            className="glass-input-ui w-full rounded-xl border border-transparent p-3 text-sm outline-none focus:ring-0 resize-none text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-white/30"
           />
 
           {previews.length > 0 && (
@@ -906,7 +908,7 @@ function MomentFormDialog({
               ))}
               <button
                 onClick={() => fileRef.current?.click()}
-                className="w-[calc(33.333%-0.375rem)] aspect-square rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors"
+                className="w-[calc(33.333%-0.375rem)] aspect-square rounded-lg glass-upload-zone flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-primary-400 transition-colors"
               >
                 <ImagePlus size={20} />
                 <span className="text-xs">添加</span>
@@ -917,7 +919,7 @@ function MomentFormDialog({
           {previews.length === 0 && (
             <button
               onClick={() => fileRef.current?.click()}
-              className="w-full min-h-[180px] rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors"
+              className="w-full min-h-[180px] rounded-xl glass-upload-zone flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-primary-400 transition-colors"
             >
               <ImagePlus size={36} />
               <span className="text-sm">点击添加照片 / 视频</span>
@@ -935,7 +937,7 @@ function MomentFormDialog({
         </div>
 
         {/* Fixed footer */}
-        <div className="shrink-0 flex items-center justify-between pt-3 pb-6 border-t border-gray-100 dark:border-gray-700">
+        <div className="shrink-0 flex items-center justify-between pt-3 pb-6 border-t border-white/30 dark:border-white/[0.06]">
           {uploading ? (
             <span className="text-xs text-gray-400">
               正在上传 {uploadingCount} 个文件…
@@ -1168,13 +1170,14 @@ export default function MomentsPage() {
           </h1>
           <p className="text-xs text-gray-400 mt-0.5">共 {total} 条动态</p>
         </div>
-        <button
+        <Button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-xl transition-colors shadow-sm"
+          size="sm"
+          className="gap-1.5 rounded-xl"
         >
           <ImagePlus size={16} />
           <span>发布</span>
-        </button>
+        </Button>
       </div>
 
       {/* Feed */}

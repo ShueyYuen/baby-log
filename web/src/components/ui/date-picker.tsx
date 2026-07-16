@@ -14,16 +14,16 @@ const calendarClassNames = {
   month_caption: 'flex items-center',
   caption_label: 'text-sm font-medium dark:text-gray-100',
   nav: 'hidden',
-  button_previous: 'h-7 w-7 bg-transparent p-0 hover:bg-gray-100 dark:hover:bg-gray-700 inline-flex items-center justify-center rounded-md text-gray-600 dark:text-gray-300',
-  button_next: 'h-7 w-7 bg-transparent p-0 hover:bg-gray-100 dark:hover:bg-gray-700 inline-flex items-center justify-center rounded-md text-gray-600 dark:text-gray-300',
+  button_previous: 'h-7 w-7 bg-transparent p-0 glass-icon-btn inline-flex items-center justify-center rounded-md text-gray-600 dark:text-gray-300',
+  button_next: 'h-7 w-7 bg-transparent p-0 glass-icon-btn inline-flex items-center justify-center rounded-md text-gray-600 dark:text-gray-300',
   month_grid: 'w-full border-collapse space-y-1',
   weekdays: 'flex',
   weekday: 'text-gray-500 dark:text-gray-400 rounded-md w-9 font-normal text-[0.8rem]',
   week: 'flex w-full mt-2',
   day: 'h-9 w-9 text-center text-sm p-0 relative rounded-md',
-  day_button: 'h-9 w-9 p-0 font-normal rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-200 inline-flex items-center justify-center',
+  day_button: 'h-9 w-9 p-0 font-normal rounded-md glass-icon-btn dark:text-gray-200 inline-flex items-center justify-center',
   selected: 'bg-primary-500 text-white hover:bg-primary-600 hover:text-white focus:bg-primary-600 focus:text-white dark:bg-primary-500 dark:text-white dark:hover:bg-primary-600',
-  today: 'bg-gray-100 dark:bg-gray-700 font-semibold',
+  today: 'glass-info-strip font-semibold',
   outside: 'text-gray-300 dark:text-gray-600',
   disabled: 'text-gray-300 dark:text-gray-600 opacity-50',
 };
@@ -146,7 +146,7 @@ export function DateTimePicker({ value, onChange, placeholder = '选择日期和
               orientation === 'left' ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />,
           }}
         />
-        <div className="border-t border-gray-200 dark:border-gray-700 px-3 py-3">
+        <div className="border-t border-white/30 dark:border-white/[0.06] px-3 py-3">
           <TimePicker
             value={timeValue}
             onChange={(newTime) => {

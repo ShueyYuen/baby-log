@@ -407,7 +407,7 @@ export default function HealthTrackingPage() {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/health')} className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <button onClick={() => navigate('/health')} className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 glass-icon-btn transition-colors">
             <ArrowLeft size={20} />
           </button>
           <h2 className="text-xl font-semibold dark:text-gray-100">加载中...</h2>
@@ -423,7 +423,7 @@ export default function HealthTrackingPage() {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/health')} className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <button onClick={() => navigate('/health')} className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 glass-icon-btn transition-colors">
             <ArrowLeft size={20} />
           </button>
           <h2 className="text-xl font-semibold dark:text-gray-100">未找到</h2>
@@ -439,7 +439,7 @@ export default function HealthTrackingPage() {
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate('/health')}
-          className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 glass-icon-btn transition-colors"
         >
           <ArrowLeft size={20} />
         </button>
@@ -478,7 +478,7 @@ export default function HealthTrackingPage() {
       ) : (
         <div className="relative pl-6">
           {/* Timeline vertical line */}
-          <div className="absolute left-2.5 top-2 bottom-2 w-px bg-gray-200 dark:bg-gray-700" />
+          <div className="absolute left-2.5 top-2 bottom-2 w-px glass-timeline-line" />
 
           {entries.map((entry, entryIdx) => {
             const images = (entry.images || []).filter((img) => img.mediaType !== 'video');
@@ -488,7 +488,7 @@ export default function HealthTrackingPage() {
             return (
               <div key={entry.id} className={`relative ${entryIdx < entries.length - 1 ? 'pb-6' : ''}`}>
                 {/* Timeline dot — centered on the line at left-2.5 (10px) */}
-                <div className="absolute -left-5 top-1 w-3 h-3 rounded-full border-2 border-primary-400 bg-white dark:bg-gray-900" />
+                <div className="absolute -left-5 top-1 w-3 h-3 rounded-full glass-timeline-dot" />
 
                 {/* Date + actions */}
                 <div className="flex items-center justify-between mb-2">
@@ -497,10 +497,10 @@ export default function HealthTrackingPage() {
                   </span>
                   {!isViewer && (
                     <div className="flex items-center gap-0.5">
-                      <button onClick={() => openEditEntry(entry)} className="p-1 rounded text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                      <button onClick={() => openEditEntry(entry)} className="p-1 rounded text-gray-400 hover:text-primary-500 glass-icon-btn transition-colors">
                         <Pencil size={13} />
                       </button>
-                      <button onClick={() => setDeletingEntryId(entry.id)} className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                      <button onClick={() => setDeletingEntryId(entry.id)} className="p-1 rounded text-gray-400 hover:text-red-500 glass-icon-btn transition-colors">
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -530,7 +530,7 @@ export default function HealthTrackingPage() {
                 {videos.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2">
                     {videos.map((_, vi) => (
-                      <div key={vi} className="w-20 h-20 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                      <div key={vi} className="w-20 h-20 rounded-lg glass-media-thumb flex items-center justify-center">
                         <Play size={20} className="text-gray-500" />
                       </div>
                     ))}
@@ -580,9 +580,9 @@ export default function HealthTrackingPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">照片 / 视频</label>
               <div className="flex flex-wrap gap-2">
                 {entryPreviews.map((p, idx) => (
-                  <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
+                  <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden glass-media-thumb">
                     {!p.url ? null : p.type === 'video' ? (
-                      <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
+                      <div className="w-full h-full glass-media-thumb flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
                     ) : (
                       <img src={p.url} alt="" className="w-full h-full object-cover" decoding="async" loading="lazy" />
                     )}
@@ -594,7 +594,7 @@ export default function HealthTrackingPage() {
                       <button
                         type="button"
                         onClick={() => setAnnotatingIdx(idx)}
-                        className={`absolute bottom-0.5 right-0.5 flex items-center gap-0.5 rounded-md px-1.5 py-1 text-xs transition-colors ${formAnnotations[p.result.key]?.length ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
+                        className={`absolute bottom-0.5 right-0.5 flex items-center gap-0.5 rounded-md px-1.5 py-1 text-xs transition-colors ${formAnnotations[p.result.key]?.length ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'glass-chip text-gray-500 dark:text-gray-400'}`}
                         title="标注测量"
                       >
                         <Ruler size={12} />
@@ -610,7 +610,7 @@ export default function HealthTrackingPage() {
                     )}
                   </div>
                 ))}
-                <label className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 transition-colors">
+                <label className="w-16 h-16 rounded-lg glass-upload-zone flex items-center justify-center cursor-pointer transition-colors">
                   <input type="file" accept="image/*,video/*" className="hidden" multiple disabled={entryUploading} onChange={(e) => { handleEntryUpload(e.target.files); e.target.value = ''; }} />
                   {entryUploading ? <span className="text-[10px] text-gray-400 animate-pulse">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
                 </label>

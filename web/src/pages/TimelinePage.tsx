@@ -13,7 +13,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
 import { Droplets, Moon, Baby, Pill, Bath, Apple, Milk, GlassWater, Plus, X, Gamepad2, Thermometer, Heart, Bell, BellOff, AlarmClock, Square, Play, Search, Beaker, Refrigerator, BarChart3 } from 'lucide-react';
-import { ImageViewer, useToast, type ViewerImage, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ScrollDateTimePicker, DateTimePicker } from '../components/ui';
+import { Button, ImageViewer, useToast, type ViewerImage, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ScrollDateTimePicker, DateTimePicker } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { TimelineSkeleton } from '../components/ui/skeleton';
 import { TwoPhaseTypeButton } from '../components/TwoPhaseTypeButton';
@@ -37,7 +37,7 @@ const typeConfig: Record<string, { label: string; icon: any; color: string }> = 
   temperature: { label: '体温', icon: Thermometer, color: 'text-red-500 bg-red-50 dark:bg-red-950/40' },
   sleep: { label: '睡眠', icon: Moon, color: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40' },
   play: { label: '玩耍', icon: Baby, color: 'text-orange-500 bg-orange-50 dark:bg-orange-950/40' },
-  other: { label: '其他', icon: Baby, color: 'text-gray-500 bg-gray-50 dark:bg-gray-700' },
+  other: { label: '其他', icon: Baby, color: 'text-gray-500 bg-white/40 dark:bg-white/[0.06]' },
 };
 
 const allRecordTypes = [
@@ -52,7 +52,7 @@ const allRecordTypes = [
   { type: 'temperature', category: 'nursing', label: '体温', icon: Thermometer, color: 'text-red-500 bg-red-50 dark:bg-red-950/40' },
   { type: 'sleep', category: 'activity', label: '睡眠', icon: Moon, color: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40' },
   { type: 'play', category: 'activity', label: '玩耍', icon: Gamepad2, color: 'text-orange-500 bg-orange-50 dark:bg-orange-950/40' },
-  { type: 'other', category: 'activity', label: '其他', icon: Baby, color: 'text-gray-500 bg-gray-50 dark:bg-gray-700' },
+  { type: 'other', category: 'activity', label: '其他', icon: Baby, color: 'text-gray-500 bg-white/40 dark:bg-white/[0.06]' },
 ];
 
 
@@ -164,7 +164,7 @@ function RecordCardItem({ record, isViewer, onImageClick }: RecordCardItemProps)
     <div
       key={record.id}
       style={{ viewTransitionName: `record-card-${record.id}` }}
-      className={`card flex items-center gap-3 transition-colors ${!isViewer ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700' : ''}`}
+      className={`card flex items-center gap-3 transition-all ${!isViewer ? 'cursor-pointer hover:!bg-white/50 dark:hover:!bg-white/[0.06] active:!bg-white/60 dark:active:!bg-white/[0.03]' : ''}`}
       onClick={handleClick}
     >
       <div className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
@@ -185,7 +185,7 @@ function RecordCardItem({ record, isViewer, onImageClick }: RecordCardItemProps)
         <div className="flex gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           {record.images.slice(0, 2).map((img, i) => (
             img.mediaType === 'video' ? (
-              <div key={i} className="w-11 h-11 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+              <div key={i} className="w-11 h-11 rounded-lg glass-media-thumb flex items-center justify-center">
                 <Play size={14} className="text-gray-500" />
               </div>
             ) : (
@@ -200,7 +200,7 @@ function RecordCardItem({ record, isViewer, onImageClick }: RecordCardItemProps)
           ))}
           {record.images.length > 2 && (
             <span
-              className="w-11 h-11 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500 cursor-zoom-in"
+              className="w-11 h-11 rounded-lg glass-info-strip flex items-center justify-center text-xs text-gray-500 cursor-zoom-in"
               onClick={() => onImageClick(urls, 2)}
             >
               +{record.images.length - 2}
@@ -513,7 +513,7 @@ export default function TimelinePage() {
     <div ref={containerRef} className="space-y-3">
       {/* 进行中的活动（睡眠/洗澡）— 固定在顶部 */}
       {ongoingRecords.length > 0 && (
-        <div className="sticky top-0 z-20 space-y-2 -mx-4 px-4 py-2 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm">
+        <div className="sticky top-0 z-20 space-y-2 -mx-4 px-4 py-2 bg-white/40 dark:bg-transparent backdrop-blur-md dark:backdrop-blur-xl">
           {ongoingRecords.map((record) => {
             const config = typeConfig[record.type] || typeConfig.other;
             const Icon = config.icon;
@@ -538,13 +538,14 @@ export default function TimelinePage() {
                   <p className="text-lg font-semibold tabular-nums text-indigo-600 dark:text-indigo-300">{elapsed}</p>
                 </div>
                 {!isViewer && (
-                <button
+                <Button
                   onClick={() => handleEndOngoing(record)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-indigo-500 text-white text-sm font-medium hover:bg-indigo-600 active:bg-indigo-700 transition-colors flex-shrink-0"
+                  size="sm"
+                  className="gap-1.5 rounded-full flex-shrink-0"
                 >
                   <Square size={14} fill="currentColor" />
                   结束
-                </button>
+                </Button>
                 )}
               </div>
             );
@@ -643,7 +644,7 @@ export default function TimelinePage() {
                 className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
                   pushEnabled
                     ? 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
+                    : 'glass-chip text-gray-400 dark:text-gray-500'
                 }`}
                 title={pushEnabled ? '设置提醒' : '开启推送提醒'}
               >
@@ -653,7 +654,7 @@ export default function TimelinePage() {
             {min > 0 && (
               <button
                 onClick={() => addFeedingReminderToCalendar(min)}
-                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/50 dark:hover:text-blue-400 transition-colors"
+                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 glass-chip text-gray-500 dark:text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/50 dark:hover:text-blue-400 transition-colors"
                 title="设置系统闹钟提醒"
               >
                 <AlarmClock size={14} />
@@ -674,7 +675,7 @@ export default function TimelinePage() {
         </Link>
         <Link
           to="/stats"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full glass-chip text-indigo-600 dark:text-indigo-400 text-xs font-medium transition-colors"
         >
           <BarChart3 size={14} />
           数据统计 →
@@ -688,7 +689,7 @@ export default function TimelinePage() {
           <input
             type="text"
             placeholder="搜索备注、内容..."
-            className="w-full h-10 pl-9 pr-3 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="glass-input-ui w-full h-10 pl-9 pr-3 text-sm rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
             onChange={(e) => {
               const val = e.target.value;
               if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
@@ -767,19 +768,20 @@ export default function TimelinePage() {
 
       {/* FAB */}
       {!isViewer && (
-      <button
+      <Button
         onClick={() => setShowTypePanel(true)}
-        className="fixed right-4 bottom-24 md:bottom-8 w-14 h-14 bg-primary-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-primary-600 transition-colors z-40"
+        size="icon"
+        className="glass-fab fixed right-4 bottom-24 md:bottom-8 w-14 h-14 rounded-full shadow-lg z-40"
       >
         <Plus size={24} />
-      </button>
+      </Button>
       )}
 
       {/* Type Selection Panel */}
       {showTypePanel && (
         <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowTypePanel(false)} />
-          <div className="relative w-full max-w-sm bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-2xl p-6 pb-10 animate-slide-up">
+          <div className="absolute inset-0 bg-black/40 dark:bg-black/60 dark:backdrop-blur-sm" onClick={() => setShowTypePanel(false)} />
+          <div className="glass-type-panel relative w-full max-w-sm rounded-t-2xl md:rounded-2xl p-6 pb-10 animate-slide-up">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold dark:text-gray-100">添加记录</h3>
               <button onClick={() => setShowTypePanel(false)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
@@ -808,7 +810,7 @@ export default function TimelinePage() {
                     key={item.type}
                     type="button"
                     onClick={() => handleAddType(item.type, item.category)}
-                    className="relative flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    className="relative flex flex-col items-center gap-2 p-3 rounded-xl glass-icon-btn transition-colors"
                   >
                     <div className={`w-13 h-13 rounded-full flex items-center justify-center ${item.color}`}>
                       <Icon size={24} />
@@ -857,7 +859,7 @@ export default function TimelinePage() {
               const h = Math.floor(mins / 60);
               const m = mins % 60;
               return (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg glass-info-strip">
                   <span className="text-sm text-gray-500 dark:text-gray-400">时长：</span>
                   <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                     {h > 0 ? `${h}小时${m > 0 ? `${m}分钟` : ''}` : `${m}分钟`}
@@ -866,20 +868,19 @@ export default function TimelinePage() {
               );
             })()}
             <div className="flex gap-3">
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                className="flex-1"
                 onClick={() => setEndingRecord(null)}
-                className="flex-1 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium"
               >
                 取消
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                className="flex-1"
                 onClick={confirmEndOngoing}
-                className="flex-1 py-2 rounded-lg bg-indigo-500 text-white text-sm font-medium hover:bg-indigo-600 active:bg-indigo-700 transition-colors"
               >
                 确认结束
-              </button>
+              </Button>
             </div>
           </div>
         </DialogContent>

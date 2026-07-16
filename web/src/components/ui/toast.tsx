@@ -34,11 +34,11 @@ function ToastItem({ toast: t, onRemove }: { toast: Toast; onRemove: (id: number
     <div
       ref={ref}
       className={cn(
-        'flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border text-sm backdrop-blur-sm',
+        'glass-toast flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border text-sm backdrop-blur-md',
         t.exiting ? 'toast-exit' : 'toast-enter',
-        t.variant === 'success' && 'bg-green-50/95 dark:bg-green-900/60 border-green-200 dark:border-green-800 text-green-800 dark:text-green-200',
-        t.variant === 'error' && 'bg-red-50/95 dark:bg-red-900/60 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200',
-        t.variant === 'info' && 'bg-blue-50/95 dark:bg-blue-900/60 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200',
+        t.variant === 'success' && 'bg-green-50/70 border-green-200/60 text-green-800 glass-toast-success',
+        t.variant === 'error' && 'bg-red-50/70 border-red-200/60 text-red-800 glass-toast-error',
+        t.variant === 'info' && 'bg-blue-50/70 border-blue-200/60 text-blue-800 glass-toast-info',
       )}
     >
       {t.variant === 'success' && <CheckCircle2 size={16} className="shrink-0" />}

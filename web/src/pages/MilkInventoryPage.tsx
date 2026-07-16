@@ -66,7 +66,7 @@ function MilkItemCard({
       ? 'border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20'
       : expiry === 'warning'
         ? 'border-amber-300 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20'
-        : 'border-gray-200 dark:border-gray-700';
+        : 'glass-toggle-btn';
 
   return (
     <div className={`rounded-xl border p-3 ${borderClass}`}>
@@ -102,22 +102,24 @@ function MilkItemCard({
       </div>
       {!isViewer && (item.status === 'available' || item.status === 'expired') ? (
         <div className="flex gap-2 mt-3">
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 gap-1 text-xs text-green-700 dark:text-green-400 hover:!text-green-700"
             onClick={() => onStatusChange(item.id, 'used')}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded-lg bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/30 dark:text-green-400 dark:hover:bg-green-950/50 transition-colors"
           >
             <Check size={14} />
             已使用
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="flex-1 gap-1 text-xs"
             onClick={() => onStatusChange(item.id, 'discarded')}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors"
           >
             <Trash2 size={14} />
             丢弃
-          </button>
+          </Button>
         </div>
       ) : null}
     </div>
@@ -324,7 +326,7 @@ export default function MilkInventoryPage() {
                   className={`flex-1 py-2.5 rounded-lg border-2 text-sm flex items-center justify-center gap-1.5 ${
                     addStorage === 'fridge'
                       ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                      : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'
+                      : 'glass-toggle-btn dark:text-gray-300'
                   }`}
                 >
                   <Refrigerator size={16} />
@@ -336,7 +338,7 @@ export default function MilkInventoryPage() {
                   className={`flex-1 py-2.5 rounded-lg border-2 text-sm flex items-center justify-center gap-1.5 ${
                     addStorage === 'freezer'
                       ? 'border-cyan-400 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300'
-                      : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'
+                      : 'glass-toggle-btn dark:text-gray-300'
                   }`}
                 >
                   <Snowflake size={16} />

@@ -209,9 +209,9 @@ export default function PlanFormPage() {
   return (
     <div
       style={{ viewTransitionName: id ? `plan-card-${id}` : undefined }}
-      className="fixed inset-0 md:top-0 md:bottom-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900 form-expand-in"
+      className="fixed inset-0 md:top-0 md:bottom-0 md:left-64 z-30 flex flex-col glass-page-shell form-expand-in"
     >
-      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b glass-sticky-header flex-shrink-0">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} />
         </Button>
@@ -251,7 +251,7 @@ export default function PlanFormPage() {
                   key={name}
                   type="button"
                   onClick={() => setTitle(name)}
-                  className="px-2.5 py-1 text-xs rounded-full border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                  className="px-2.5 py-1 text-xs rounded-full glass-chip text-gray-600 dark:text-gray-300 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                 >
                   {name}
                 </button>
@@ -274,11 +274,11 @@ export default function PlanFormPage() {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">图片</label>
           <div className="flex flex-wrap gap-2">
             {imagePreviews.map((p, i) => (
-              <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 flex-shrink-0">
+              <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden glass-media-thumb flex-shrink-0">
                 {p.url ? (
                   <img src={p.url} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full bg-gray-100 dark:bg-gray-800 animate-pulse" />
+                  <div className="w-full h-full glass-media-thumb animate-pulse" />
                 )}
                 {p.progress != null && !p.error && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/40">
@@ -295,7 +295,7 @@ export default function PlanFormPage() {
                 </button>
               </div>
             ))}
-            <label className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 transition-colors">
+            <label className="w-20 h-20 rounded-lg glass-upload-zone flex items-center justify-center cursor-pointer transition-colors">
               <ImagePlus size={20} className="text-gray-400" />
               <input
                 type="file"

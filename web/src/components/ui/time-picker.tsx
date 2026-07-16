@@ -71,11 +71,11 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
         <button
           type="button"
           onClick={() => setHours(hours + 1)}
-          className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+          className="p-1 rounded-md text-gray-400 hover:text-gray-600 glass-icon-btn dark:hover:text-gray-300 transition-colors"
         >
           <ChevronUp size={16} />
         </button>
-        <div className="w-12 h-10 flex items-center justify-center rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 focus-within:ring-2 focus-within:ring-primary-500 overflow-hidden">
+        <div className="w-12 h-10 flex items-center justify-center rounded-lg glass-time-input focus-within:ring-2 focus-within:ring-primary-500 overflow-hidden">
           <input
             type="text"
             value={inputH}
@@ -88,7 +88,7 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
         <button
           type="button"
           onClick={() => setHours(hours - 1)}
-          className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+          className="p-1 rounded-md text-gray-400 hover:text-gray-600 glass-icon-btn dark:hover:text-gray-300 transition-colors"
         >
           <ChevronDown size={16} />
         </button>
@@ -101,11 +101,11 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
         <button
           type="button"
           onClick={() => setMinutes(minutes + 1)}
-          className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+          className="p-1 rounded-md text-gray-400 hover:text-gray-600 glass-icon-btn dark:hover:text-gray-300 transition-colors"
         >
           <ChevronUp size={16} />
         </button>
-        <div className="w-12 h-10 flex items-center justify-center rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 focus-within:ring-2 focus-within:ring-primary-500 overflow-hidden">
+        <div className="w-12 h-10 flex items-center justify-center rounded-lg glass-time-input focus-within:ring-2 focus-within:ring-primary-500 overflow-hidden">
           <input
             type="text"
             value={inputM}
@@ -118,7 +118,7 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
         <button
           type="button"
           onClick={() => setMinutes(minutes - 1)}
-          className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-gray-700 transition-colors"
+          className="p-1 rounded-md text-gray-400 hover:text-gray-600 glass-icon-btn dark:hover:text-gray-300 transition-colors"
         >
           <ChevronDown size={16} />
         </button>

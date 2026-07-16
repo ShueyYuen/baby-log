@@ -81,7 +81,7 @@ function VisitDetail() {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 md:left-64 z-30 bg-gray-50 dark:bg-gray-900 p-4">
+      <div className="fixed inset-0 md:left-64 z-30 glass-page-shell p-4">
         <Skeleton className="h-12 mb-4" />
         <Skeleton className="h-40 mb-4" />
         <Skeleton className="h-32" />
@@ -91,7 +91,7 @@ function VisitDetail() {
 
   if (!visit) {
     return (
-      <div className="fixed inset-0 md:left-64 z-30 bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="fixed inset-0 md:left-64 z-30 glass-page-shell flex items-center justify-center">
         <p className="text-gray-400">记录不存在</p>
       </div>
     );
@@ -107,8 +107,8 @@ function VisitDetail() {
   ].filter((f) => f.value);
 
   return (
-    <div className="fixed inset-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900">
-      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+    <div className="fixed inset-0 md:left-64 z-30 flex flex-col glass-page-shell">
+      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b glass-sticky-header flex-shrink-0">
           <Button
             variant="ghost"
             size="icon"
@@ -178,7 +178,7 @@ function VisitDetail() {
                       setViewerIdx(i);
                       setViewerOpen(true);
                     }}
-                    className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700"
+                    className="aspect-square rounded-lg overflow-hidden glass-media-thumb"
                   >
                     <img
                       src={img.url}
@@ -205,7 +205,7 @@ function VisitDetail() {
                   return (
                     <Card key={item.key || idx}>
                       <CardContent className="p-0 overflow-hidden">
-                        <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+                        <div className="flex items-center gap-2 px-3 py-2 glass-info-strip border-b border-white/20 dark:border-white/[0.06]">
                           <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
                             图片 {idx + 1}
                           </span>
@@ -217,7 +217,7 @@ function VisitDetail() {
                         </div>
                         <div className="flex flex-col sm:flex-row">
                           {img?.url && (
-                            <div className="p-3 sm:w-1/2 sm:shrink-0 sm:border-r border-b sm:border-b-0 border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30">
+                            <div className="p-3 sm:w-1/2 sm:shrink-0 sm:border-r border-b sm:border-b-0 border-white/20 dark:border-white/[0.06] glass-info-strip">
                               <img
                                 src={img.rawUrl || img.url}
                                 alt={`图片 ${idx + 1}`}
@@ -525,7 +525,7 @@ function VisitForm() {
 
   if (loadingVisit) {
     return (
-      <div className="fixed inset-0 md:left-64 z-30 bg-gray-50 dark:bg-gray-900 p-4">
+      <div className="fixed inset-0 md:left-64 z-30 glass-page-shell p-4">
         <Skeleton className="h-12 mb-4" />
         <Skeleton className="h-80" />
       </div>
@@ -536,8 +536,8 @@ function VisitForm() {
     existingImages.length + uploads.filter((u) => u.result).length;
 
   return (
-    <div className="fixed inset-0 md:left-64 z-30 flex flex-col bg-gray-50 dark:bg-gray-900">
-      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+    <div className="fixed inset-0 md:left-64 z-30 flex flex-col glass-page-shell">
+      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b glass-sticky-header flex-shrink-0">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft size={20} />
           </Button>
@@ -671,7 +671,7 @@ function VisitForm() {
             ))}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="aspect-square rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex flex-col items-center justify-center text-gray-400 hover:border-primary-400 hover:text-primary-400 transition-colors"
+              className="aspect-square rounded-lg glass-upload-zone flex flex-col items-center justify-center text-gray-400 transition-colors"
             >
               <ImagePlus size={20} />
               <span className="text-[10px] mt-1">添加图片</span>
@@ -730,9 +730,9 @@ function VisitForm() {
                   return (
                     <div
                       key={item.key || idx}
-                      className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
+                      className="rounded-lg glass-media-thumb overflow-hidden"
                     >
-                      <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-2 px-3 py-2 glass-info-strip border-b border-white/20 dark:border-white/[0.06]">
                         <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
                           图片 {idx + 1}
                         </span>
@@ -744,7 +744,7 @@ function VisitForm() {
                       </div>
                       <div className="flex flex-col sm:flex-row">
                         {img?.url && (
-                          <div className="p-3 sm:w-1/2 sm:shrink-0 sm:border-r border-b sm:border-b-0 border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30">
+                          <div className="p-3 sm:w-1/2 sm:shrink-0 sm:border-r border-b sm:border-b-0 border-white/20 dark:border-white/[0.06] glass-info-strip">
                             <img
                               src={(img as MedicalVisitImage).rawUrl || img.url}
                               alt={`图片 ${idx + 1}`}

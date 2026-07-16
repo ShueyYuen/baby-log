@@ -53,7 +53,7 @@ export function VisibilityPicker({ value, onChange, className }: VisibilityPicke
             'flex items-center gap-1 rounded-md px-1.5 py-1 text-xs transition-colors',
             hasRestriction
               ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-              : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
+              : 'glass-chip text-gray-500 dark:text-gray-400',
             className
           )}
           title={hasRestriction ? `${value.length}人可见` : '所有人可见'}
@@ -85,15 +85,15 @@ export function VisibilityPicker({ value, onChange, className }: VisibilityPicke
                 onClick={() => toggleUser(m.id)}
                 className={cn(
                   'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors',
-                  selected
+                    selected
                     ? 'bg-blue-50 dark:bg-blue-900/20'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                    : 'glass-icon-btn'
                 )}
               >
                 {m.avatar ? (
                   <img src={m.avatar} className="h-6 w-6 rounded-full object-cover" alt="" />
                 ) : (
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-600 dark:bg-gray-600 dark:text-gray-300">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full glass-avatar-placeholder text-xs font-medium text-gray-600 dark:text-gray-300">
                     {m.displayName.charAt(0)}
                   </div>
                 )}

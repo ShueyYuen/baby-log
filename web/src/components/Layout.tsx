@@ -73,10 +73,18 @@ export default function Layout({ children }: LayoutProps) {
   const babyNameLabel = babyLoading ? '…' : currentBaby?.name;
 
   return (
-    <div className="h-screen overflow-hidden bg-gray-50 dark:bg-gray-900 md:pl-64">
+    <div className="h-screen overflow-hidden bg-transparent md:pl-64">
+      {/* Ambient glow orbs — visible through glass panels */}
+      <div className="glass-ambient-orbs" aria-hidden="true">
+        <div className="glass-ambient-orb glass-ambient-orb-1" />
+        <div className="glass-ambient-orb glass-ambient-orb-2" />
+        <div className="glass-ambient-orb glass-ambient-orb-3" />
+        <div className="glass-ambient-orb glass-ambient-orb-4" />
+      </div>
+
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-col z-50">
-        <div className="p-6 border-b border-gray-100 dark:border-gray-700">
+      <aside className="glass-sidebar hidden md:flex fixed left-0 top-0 h-full w-64 border-r glass-divider flex-col z-50">
+        <div className="p-6 border-b glass-divider">
           <h1 className="text-xl font-bold text-primary-600">宝宝日志</h1>
           {currentBaby ? (
               <button
@@ -101,10 +109,10 @@ export default function Layout({ children }: LayoutProps) {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                className={`glass-nav-item flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
                   active
-                    ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/30'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    ? 'bg-primary-50 text-primary-600 glass-nav-item-active'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-white/40 hover:backdrop-blur-sm'
                 }`}
               >
                 <item.icon size={20} />
@@ -115,15 +123,15 @@ export default function Layout({ children }: LayoutProps) {
         </nav>
 
         {/* Theme Toggle */}
-        <div className="p-4 border-t border-gray-100 dark:border-gray-700">
-          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+        <div className="p-4 border-t glass-divider">
+          <div className="flex items-center gap-1 glass-theme-toggle rounded-lg p-1">
             {themeOptions.map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => setTheme(opt.value)}
-                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-xs transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-xs transition-all ${
                   theme === opt.value
-                    ? 'bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm'
+                    ? 'text-gray-800 shadow-sm glass-theme-btn-active dark:text-gray-100'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
                 }`}
                 title={opt.label}
@@ -134,7 +142,7 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </div>
 
-        <div className="p-4 border-t border-gray-100 dark:border-gray-700">
+        <div className="p-4 border-t glass-divider">
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-600 dark:text-gray-300">{user?.displayName}</span>
             <button onClick={logout} className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
@@ -145,7 +153,7 @@ export default function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* Mobile Header */}
-      <header className={`md:hidden fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50 px-4 py-3.5 flex items-center justify-between ${isSecondaryPage ? 'hidden' : ''}`}>
+      <header className={`glass-topbar md:hidden fixed top-0 left-0 right-0 border-b glass-divider z-50 px-4 py-3.5 flex items-center justify-between ${isSecondaryPage ? 'hidden' : ''}`}>
         <h1 className="text-lg font-bold text-primary-600">宝宝日志</h1>
         <div className="flex items-center gap-3">
           <button
@@ -173,12 +181,12 @@ export default function Layout({ children }: LayoutProps) {
       </header>
 
       {/* Main Content */}
-      <main className="h-full overflow-hidden">
+      <main className="h-full overflow-hidden glass-main-area">
         {children}
       </main>
 
       {/* Mobile Bottom Nav */}
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-50 flex ${isSecondaryPage ? 'hidden' : ''}`}>
+      <nav className={`glass-bottomnav md:hidden fixed bottom-0 left-0 right-0 border-t glass-divider z-50 flex ${isSecondaryPage ? 'hidden' : ''}`}>
         {navItems.map((item) => {
           const active = location.pathname === item.path;
           return (

@@ -160,7 +160,7 @@ function DevelopmentChecklist({
             </div>
 
             {/* Progress bar */}
-            <div className="h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
+            <div className="h-1.5 glass-progress-track rounded-full overflow-hidden mb-3">
               <div
                 className="h-full bg-green-400 dark:bg-green-500 rounded-full transition-all duration-500"
                 style={{ width: `${totalCount > 0 ? (doneCount / totalCount) * 100 : 0}%` }}
@@ -172,13 +172,13 @@ function DevelopmentChecklist({
                 key={std.type}
                 className={`flex items-center gap-3 py-2 px-2 rounded-lg transition-colors ${
                   achieved
-                    ? 'bg-gray-50 dark:bg-gray-800/50'
+                    ? 'glass-info-strip'
                     : timing === 'not_yet' || timing === 'late'
-                    ? 'bg-yellow-50/50 dark:bg-yellow-900/10'
+                    ? 'glass-warning-tint'
                     : ''
                 }`}
               >
-                <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center border border-gray-200 dark:border-gray-600">
+                <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center glass-avatar-placeholder">
                   {timingIcon(timing)}
                 </div>
 
@@ -208,7 +208,7 @@ function DevelopmentChecklist({
                 {!achieved && !isViewer && (
                   <button
                     onClick={() => onRecord(std)}
-                    className="flex-shrink-0 text-xs text-primary-500 hover:text-primary-600 px-2 py-1 rounded hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                    className="flex-shrink-0 text-xs text-primary-500 hover:text-primary-600 px-2 py-1 rounded glass-icon-btn transition-colors"
                   >
                     记录
                   </button>
@@ -726,9 +726,9 @@ export default function GrowthPage() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">图片 / 视频</label>
                   <div className="flex flex-wrap gap-2">
                     {mPreviews.map((p, idx) => (
-                      <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
+                      <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden glass-media-thumb">
                         {!p.url ? null : p.type === 'video' ? (
-                          <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
+                          <div className="w-full h-full glass-media-thumb flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
                         ) : (
                           <img src={p.url} alt="" className="w-full h-full object-cover" decoding="async" loading="lazy" />
                         )}
@@ -746,7 +746,7 @@ export default function GrowthPage() {
                         )}
                       </div>
                     ))}
-                    <label className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 transition-colors">
+                    <label className="w-16 h-16 rounded-lg glass-upload-zone flex items-center justify-center cursor-pointer transition-colors">
                       <input type="file" accept="image/*,video/*" className="hidden" multiple disabled={mUploading} onChange={(e) => { handleMilestoneUpload(e.target.files); e.target.value = ''; }} />
                       {mUploading ? <span className="text-[10px] text-gray-400 animate-pulse">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
                     </label>
@@ -803,13 +803,13 @@ export default function GrowthPage() {
                       <div className="flex gap-1 mt-1.5">
                         {m.images.slice(0, 3).map((img, i) => (
                           img.mediaType === 'video' ? (
-                            <div key={i} className="w-10 h-10 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center"><Play size={12} className="text-gray-500" /></div>
+                            <div key={i} className="w-10 h-10 rounded glass-media-thumb flex items-center justify-center"><Play size={12} className="text-gray-500" /></div>
                           ) : (
                             <img key={i} src={img.url} alt="" className="w-10 h-10 rounded object-cover" />
                           )
                         ))}
                         {m.images.length > 3 && (
-                          <span className="w-10 h-10 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500">+{m.images.length - 3}</span>
+                          <span className="w-10 h-10 rounded glass-info-strip flex items-center justify-center text-xs text-gray-500">+{m.images.length - 3}</span>
                         )}
                       </div>
                     )}
@@ -819,13 +819,13 @@ export default function GrowthPage() {
                     <>
                     <button
                       onClick={() => openEditMilestone(m)}
-                      className="p-1.5 rounded-md text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      className="p-1.5 rounded-md text-gray-400 hover:text-primary-500 glass-icon-btn transition-colors"
                     >
                       <Pencil size={14} />
                     </button>
                     <button
                       onClick={() => setDeletingMilestoneId(m.id)}
-                      className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      className="p-1.5 rounded-md text-gray-400 hover:text-red-500 glass-icon-btn transition-colors"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -888,9 +888,9 @@ export default function GrowthPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">图片 / 视频</label>
                 <div className="flex flex-wrap gap-2">
                   {mPreviews.map((p, idx) => (
-                    <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
+                    <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden glass-media-thumb">
                       {!p.url ? null : p.type === 'video' ? (
-                        <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
+                        <div className="w-full h-full glass-media-thumb flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
                       ) : (
                         <img src={p.url} alt="" className="w-full h-full object-cover" decoding="async" loading="lazy" />
                       )}
@@ -908,7 +908,7 @@ export default function GrowthPage() {
                       )}
                     </div>
                   ))}
-                  <label className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-primary-400 transition-colors">
+                  <label className="w-16 h-16 rounded-lg glass-upload-zone flex items-center justify-center cursor-pointer transition-colors">
                     <input type="file" accept="image/*,video/*" className="hidden" multiple disabled={mUploading} onChange={(e) => { handleMilestoneUpload(e.target.files); e.target.value = ''; }} />
                     {mUploading ? <span className="text-[10px] text-gray-400 animate-pulse">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
                   </label>

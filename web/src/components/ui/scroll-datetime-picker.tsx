@@ -72,8 +72,8 @@ function ScrollColumn({ items, selected, onSelect, circular = false, className }
   return (
     <div className={cn('relative h-[144px] overflow-hidden', className)}>
       <div className="absolute top-[54px] left-1 right-1 h-[36px] rounded-md border-2 border-primary-400 dark:border-primary-500 bg-primary-100/70 dark:bg-primary-500/25 pointer-events-none z-10" />
-      <div className="absolute top-0 left-0 right-0 h-[54px] bg-gradient-to-b from-white dark:from-gray-800 to-transparent pointer-events-none z-10" />
-      <div className="absolute bottom-0 left-0 right-0 h-[54px] bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none z-10" />
+      <div className="absolute top-0 left-0 right-0 h-[54px] bg-gradient-to-b from-white/50 dark:from-gray-800/80 to-transparent pointer-events-none z-10" />
+      <div className="absolute bottom-0 left-0 right-0 h-[54px] bg-gradient-to-t from-white/50 dark:from-gray-800/80 to-transparent pointer-events-none z-10" />
 
       <div
         ref={containerRef}
@@ -119,7 +119,6 @@ interface DateScrollColumnProps {
   className?: string;
 }
 
-// 日期列：无限滚动。滚动接近顶部/底部时动态扩展日期范围，并补偿滚动位置。
 function DateScrollColumn({ selected, onSelect, className }: DateScrollColumnProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const itemHeight = 36;
@@ -194,8 +193,8 @@ function DateScrollColumn({ selected, onSelect, className }: DateScrollColumnPro
   return (
     <div className={cn('relative h-[144px] overflow-hidden', className)}>
       <div className="absolute top-[54px] left-1 right-1 h-[36px] rounded-md border-2 border-primary-400 dark:border-primary-500 bg-primary-100/70 dark:bg-primary-500/25 pointer-events-none z-10" />
-      <div className="absolute top-0 left-0 right-0 h-[54px] bg-gradient-to-b from-white dark:from-gray-800 to-transparent pointer-events-none z-10" />
-      <div className="absolute bottom-0 left-0 right-0 h-[54px] bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none z-10" />
+      <div className="absolute top-0 left-0 right-0 h-[54px] bg-gradient-to-b from-white/50 dark:from-gray-800/80 to-transparent pointer-events-none z-10" />
+      <div className="absolute bottom-0 left-0 right-0 h-[54px] bg-gradient-to-t from-white/50 dark:from-gray-800/80 to-transparent pointer-events-none z-10" />
 
       <div
         ref={containerRef}
@@ -272,18 +271,18 @@ export function ScrollDateTimePicker({ value, onChange, className }: ScrollDateT
     })), []);
 
   return (
-    <div className={cn('flex rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 overflow-hidden', className)}>
+    <div className={cn('flex rounded-lg glass-scroll-picker overflow-hidden', className)}>
       <DateScrollColumn
         selected={selectedDate}
         onSelect={handleDateChange}
-        className="flex-[2] border-r border-gray-100 dark:border-gray-700"
+        className="flex-[2] border-r border-white/20 dark:border-white/[0.06]"
       />
       <ScrollColumn
         items={hourItems}
         selected={selectedHour}
         onSelect={handleHourChange}
         circular
-        className="flex-1 border-r border-gray-100 dark:border-gray-700"
+        className="flex-1 border-r border-white/20 dark:border-white/[0.06]"
       />
       <ScrollColumn
         items={minuteItems}

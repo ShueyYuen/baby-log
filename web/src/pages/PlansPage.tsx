@@ -12,7 +12,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
 import { Calendar, CheckCircle, Clock, Plus, CalendarPlus, List, ChevronLeft, ChevronRight, Syringe } from 'lucide-react';
-import { Button, Card, CardContent, Badge, ConfirmDialog, useToast, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui';
+import { Button, Card, CardContent, Badge, ConfirmDialog, useToast, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ImageViewer, type ViewerImage } from '../components/ui';
 import { addPlanToCalendar } from '../lib/calendar';
 import { PlansSkeleton } from '../components/ui/skeleton';
 import { generateIdempotencyKey } from '../lib/api';
@@ -153,9 +153,12 @@ interface PlanCardItemProps {
 function PlanCardItem({ plan, isViewer, onComplete, onCalendar }: PlanCardItemProps) {
   const navigate = useNavigate();
   const href = `/plan/${plan.id}/edit`;
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIdx, setViewerIdx] = useState(0);
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent) => {
     if (isViewer) return;
+    if ((e.target as HTMLElement).closest('img')) return;
     const doNavigate = () => navigate(href, { state: { plan } });
     if (document.startViewTransition) {
       document.startViewTransition(() => { flushSync(doNavigate); });
@@ -164,10 +167,15 @@ function PlanCardItem({ plan, isViewer, onComplete, onCalendar }: PlanCardItemPr
     }
   };
 
+  const viewerImages: ViewerImage[] = useMemo(
+    () => (plan.images || []).map((img) => ({ url: img.url, rawUrl: img.rawUrl })),
+    [plan.images]
+  );
+
   return (
     <Card
       style={{ viewTransitionName: `plan-card-${plan.id}` }}
-      className={`transition-colors ${!isViewer ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-700' : ''}`}
+      className={`transition-all ${!isViewer ? 'cursor-pointer hover:!bg-white/50 dark:hover:!bg-white/[0.06] active:!bg-white/60 dark:active:!bg-white/[0.03]' : ''}`}
       onClick={handleClick}
     >
       <CardContent>
@@ -188,7 +196,13 @@ function PlanCardItem({ plan, isViewer, onComplete, onCalendar }: PlanCardItemPr
             {plan.images && plan.images.length > 0 && (
               <div className="flex gap-1.5 mt-2 overflow-x-auto">
                 {plan.images.map((img, i) => (
-                  <img key={i} src={img.url} alt="" className="w-14 h-14 rounded-md object-cover flex-shrink-0" />
+                  <img
+                    key={i}
+                    src={img.url}
+                    alt=""
+                    className="w-14 h-14 rounded-md object-cover flex-shrink-0 cursor-zoom-in"
+                    onClick={(e) => { e.stopPropagation(); setViewerIdx(i); setViewerOpen(true); }}
+                  />
                 ))}
               </div>
             )}
@@ -222,6 +236,9 @@ function PlanCardItem({ plan, isViewer, onComplete, onCalendar }: PlanCardItemPr
           )}
         </div>
       </CardContent>
+      {viewerImages.length > 0 && (
+        <ImageViewer images={viewerImages} initialIndex={viewerIdx} open={viewerOpen} onOpenChange={setViewerOpen} />
+      )}
     </Card>
   );
 }
@@ -306,7 +323,7 @@ function CalendarView({
       <div className="flex items-center justify-between">
         <button
           onClick={() => setViewMonth((m) => m.subtract(1, 'month'))}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          className="p-2 rounded-lg glass-icon-btn transition-colors"
         >
           <ChevronLeft size={18} className="text-gray-500" />
         </button>
@@ -315,7 +332,7 @@ function CalendarView({
         </h3>
         <button
           onClick={() => setViewMonth((m) => m.add(1, 'month'))}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          className="p-2 rounded-lg glass-icon-btn transition-colors"
         >
           <ChevronRight size={18} className="text-gray-500" />
         </button>
@@ -349,8 +366,8 @@ function CalendarView({
                       : hasPending
                       ? 'bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30'
                       : dayPlans.length > 0
-                      ? 'bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800'
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                      ? 'glass-info-strip hover:!bg-white/50 dark:hover:!bg-white/[0.06]'
+                      : 'hover:bg-white/40 dark:hover:bg-white/[0.04]'
                   }`}
                   onClick={() => setSelectedDate(dateStr)}
                 >
@@ -613,16 +630,16 @@ export default function PlansPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold dark:text-gray-100">计划安排</h2>
         <div className="flex items-center gap-2">
-          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
+          <div className="flex glass-info-strip rounded-lg p-0.5">
             <button
-              className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-white dark:bg-gray-700 shadow-sm' : 'text-gray-400'}`}
+              className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white/60 dark:bg-white/[0.1] shadow-sm backdrop-blur-sm' : 'text-gray-400'}`}
               onClick={() => setViewMode('list')}
               title="列表视图"
             >
               <List size={16} />
             </button>
             <button
-              className={`p-1.5 rounded-md transition-colors ${viewMode === 'calendar' ? 'bg-white dark:bg-gray-700 shadow-sm' : 'text-gray-400'}`}
+              className={`p-1.5 rounded-md transition-all ${viewMode === 'calendar' ? 'bg-white/60 dark:bg-white/[0.1] shadow-sm backdrop-blur-sm' : 'text-gray-400'}`}
               onClick={() => setViewMode('calendar')}
               title="日历视图"
             >

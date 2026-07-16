@@ -166,7 +166,7 @@ export function TwoPhaseTypeButton({
     <button
       ref={buttonRef}
       type="button"
-      className="relative flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors select-none"
+      className="relative flex flex-col items-center gap-2 p-3 rounded-xl glass-icon-btn active:bg-white/40 dark:active:bg-white/[0.06] transition-colors select-none"
       style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', touchAction: 'manipulation' }}
     >
       <div className={`relative w-13 h-13 rounded-full flex items-center justify-center ${color}`}>

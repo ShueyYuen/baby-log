@@ -132,7 +132,7 @@ export default function HealthPage() {
     return (
       <div className="space-y-4 py-4">
         {[1, 2, 3].map(i => (
-          <div key={i} className="h-16 rounded-xl bg-gray-100 dark:bg-gray-800 animate-pulse" />
+          <div key={i} className="h-16 rounded-xl bg-white/30 dark:bg-white/[0.06] animate-pulse backdrop-blur-sm" />
         ))}
       </div>
     );
@@ -246,7 +246,7 @@ export default function HealthPage() {
             value={visitsQuery}
             onChange={e => handleVisitSearch(e.target.value)}
             placeholder="搜索医院、诊断、处方..."
-            className="w-full h-10 pl-9 pr-9 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="glass-input-ui w-full h-10 pl-9 pr-9 text-sm rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
           />
           {visitsQuery && (
             <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -264,7 +264,7 @@ export default function HealthPage() {
         {visitsLoading && visits.length === 0 ? (
           <div className="space-y-2">
             {[1, 2, 3].map(i => (
-              <div key={i} className="h-16 rounded-xl bg-gray-100 dark:bg-gray-800 animate-pulse" />
+              <div key={i} className="h-16 rounded-xl bg-white/30 dark:bg-white/[0.06] animate-pulse backdrop-blur-sm" />
             ))}
           </div>
         ) : visits.length === 0 ? (
@@ -285,7 +285,7 @@ export default function HealthPage() {
               <button
                 key={v.id}
                 onClick={() => navigate(`/medical-visits/${v.id}`)}
-                className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3 hover:border-primary-300 dark:hover:border-primary-600 transition-colors"
+                className="w-full text-left glass-card-ui rounded-xl border border-transparent p-3 hover:!bg-white/60 dark:hover:!bg-white/[0.08] transition-colors"
               >
                 <div className="flex gap-3 items-center">
                   {v.images?.[0]?.url ? (

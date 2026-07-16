@@ -41,10 +41,10 @@ export function Slider({
         max={max}
         step={step}
       >
-        <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+        <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full glass-slider-track">
           <SliderPrimitive.Range className="absolute h-full bg-primary-500" />
         </SliderPrimitive.Track>
-        <SliderPrimitive.Thumb className="block h-6 w-6 rounded-full border-2 border-primary-500 bg-white shadow-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:bg-gray-800 dark:focus-visible:ring-offset-gray-900" />
+        <SliderPrimitive.Thumb className="block h-6 w-6 rounded-full glass-slider-thumb transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent" />
       </SliderPrimitive.Root>
       <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500">
         <span>{min}{unit}</span>

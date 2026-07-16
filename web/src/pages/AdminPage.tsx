@@ -202,7 +202,7 @@ export default function AdminPage() {
                 className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
                 onClick={() => openEditUser(u)}
               >
-                <div className="relative w-11 h-11 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-gray-700 flex items-center justify-center group">
+                <div className="relative w-11 h-11 rounded-full overflow-hidden flex-shrink-0 glass-avatar-placeholder flex items-center justify-center group">
                   {u.avatar ? (
                     <img src={u.avatar} alt="" className="w-full h-full object-cover" />
                   ) : (
@@ -223,21 +223,21 @@ export default function AdminPage() {
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button
                     onClick={() => openEditUser(u)}
-                    className="p-2 rounded-md text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    className="p-2 rounded-md text-gray-400 hover:text-primary-500 glass-icon-btn transition-colors"
                     title="编辑用户"
                   >
                     <Pencil size={16} />
                   </button>
                   <button
                     onClick={() => setConfirmAction({ type: 'reset', id: u.id, name: u.displayName })}
-                    className="p-2 rounded-md text-gray-400 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    className="p-2 rounded-md text-gray-400 hover:text-primary-500 glass-icon-btn transition-colors"
                     title="重置密码"
                   >
                     <KeyRound size={16} />
                   </button>
                   <button
                     onClick={() => setConfirmAction({ type: 'delete', id: u.id, name: u.displayName })}
-                    className="p-2 rounded-md text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    className="p-2 rounded-md text-gray-400 hover:text-red-500 glass-icon-btn transition-colors"
                     title="删除用户"
                   >
                     <Trash2 size={16} />
@@ -272,7 +272,7 @@ export default function AdminPage() {
           <div className="space-y-5 pt-2">
             {/* Avatar */}
             <div className="flex flex-col items-center gap-3">
-              <div className="relative w-20 h-20 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center group">
+              <div className="relative w-20 h-20 rounded-full overflow-hidden glass-avatar-placeholder flex items-center justify-center group">
                 {editTarget?.avatar ? (
                   <img src={editTarget.avatar} alt="" className="w-full h-full object-cover" />
                 ) : (
@@ -387,7 +387,7 @@ export default function AdminPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">头像（可选）</label>
                 <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                  <div className="w-14 h-14 rounded-full overflow-hidden glass-avatar-placeholder flex items-center justify-center flex-shrink-0">
                     {newAvatarPreview ? (
                       <img src={newAvatarPreview} alt="" className="w-full h-full object-cover" />
                     ) : (
@@ -428,10 +428,10 @@ export default function AdminPage() {
             </form>
           ) : (
             <div className="space-y-4 pt-2">
-              <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg p-4">
+              <div className="glass-success-panel rounded-lg p-4">
                 <p className="text-sm font-medium text-green-800 dark:text-green-300 mb-2">用户创建成功！请保存以下密码：</p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-white dark:bg-gray-800 px-3 py-2 rounded border text-sm font-mono select-all dark:text-gray-100">
+                  <code className="flex-1 glass-code-block px-3 py-2 rounded text-sm font-mono select-all dark:text-gray-100">
                     {generatedPassword}
                   </code>
                   <Button variant="ghost" size="icon" onClick={copyPassword}>
@@ -449,7 +449,7 @@ export default function AdminPage() {
       </Dialog>
 
       {/* Storage Cleanup */}
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mt-2">
+      <div className="border-t glass-divider pt-6 mt-2">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <HardDrive size={18} className="text-gray-500" />
@@ -504,10 +504,10 @@ export default function AdminPage() {
               <DialogTitle>密码已重置</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-2">
-              <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg p-4">
+              <div className="glass-success-panel rounded-lg p-4">
                 <p className="text-sm font-medium text-green-800 dark:text-green-300 mb-2">新密码：</p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-white dark:bg-gray-800 px-3 py-2 rounded border text-sm font-mono select-all dark:text-gray-100">
+                  <code className="flex-1 glass-code-block px-3 py-2 rounded text-sm font-mono select-all dark:text-gray-100">
                     {generatedPassword}
                   </code>
                   <Button variant="ghost" size="icon" onClick={copyPassword}>
