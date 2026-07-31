@@ -2,10 +2,10 @@ import type { UploadMomentResult } from './api';
 
 const API_BASE = '/api/v1';
 
-const DEFAULT_CHUNK_SIZE = 50 * 1024 * 1024; // 50MB
+const DEFAULT_CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
 const MIN_CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
-const MAX_CHUNK_SIZE = 200 * 1024 * 1024; // 200MB
-const LARGE_FILE_THRESHOLD = 200 * 1024 * 1024; // 200MB
+const MAX_CHUNK_SIZE = 50 * 1024 * 1024; // 50MB
+const LARGE_FILE_THRESHOLD = 100 * 1024 * 1024; // 100MB
 const MAX_CONCURRENT = 3;
 const MAX_RETRIES = 3;
 
@@ -101,12 +101,17 @@ export async function uploadLargeFile(
   const fileId = getFileId(file);
   let session = loadSession(fileId);
 
+  console.log(`[ChunkedUpload] Starting: file=${file.name} size=${(file.size / 1024 / 1024).toFixed(1)}MB prefix=${prefix}`);
+
   // Try to resume existing session
   if (session) {
     const valid = await validateSession(session);
     if (!valid) {
+      console.log('[ChunkedUpload] Previous session expired, starting fresh');
       clearSession(fileId);
       session = null;
+    } else {
+      console.log(`[ChunkedUpload] Resuming: ${session.completedParts.size}/${session.totalParts} parts done`);
     }
   }
 
@@ -114,19 +119,20 @@ export async function uploadLargeFile(
   if (!session) {
     session = await initSession(file, prefix);
     saveSession(fileId, session);
+    console.log(`[ChunkedUpload] Initialized: uploadId=${session.uploadId} totalParts=${session.totalParts} chunkSize=${(session.chunkSize / 1024 / 1024).toFixed(0)}MB`);
   }
 
   const { uploadId, key, totalParts, chunkSize } = session;
   let currentChunkSize = chunkSize;
   let uploadedBytes = 0;
 
-  // Count already-completed bytes for progress
+  // Count already-completed bytes for progress (cap at 99% until complete)
   for (const partNum of session.completedParts) {
     const start = partNum * chunkSize;
     const end = Math.min(start + chunkSize, file.size);
     uploadedBytes += (end - start);
   }
-  onProgress?.(Math.round((uploadedBytes / file.size) * 100));
+  onProgress?.(Math.min(99, Math.round((uploadedBytes / file.size) * 100)));
 
   // Build queue of remaining parts
   const remaining: number[] = [];
@@ -181,14 +187,17 @@ export async function uploadLargeFile(
       if (success) {
         const elapsed = performance.now() - t0;
         const partBytes = end - start;
+        const speed = ((partBytes / 1024 / 1024) / (elapsed / 1000)).toFixed(1);
 
         session!.completedParts.add(partIndex);
         saveSession(fileId, session!);
 
         uploadedBytes += partBytes;
-        onProgress?.(Math.round((uploadedBytes / file.size) * 100));
+        const pct = Math.min(99, Math.round((uploadedBytes / file.size) * 100));
+        onProgress?.(pct);
 
-        // Adapt chunk size (informational only - used for next upload since parts are fixed)
+        console.log(`[ChunkedUpload] Part ${partIndex + 1}/${totalParts} done (${speed} MB/s) progress=${pct}%`);
+
         currentChunkSize = adaptChunkSize(partBytes, elapsed, currentChunkSize);
       }
     }
@@ -202,10 +211,12 @@ export async function uploadLargeFile(
   await Promise.all(workers);
 
   if (errors.length > 0) {
+    console.error(`[ChunkedUpload] Failed after retries:`, errors[0].message);
     throw new Error(`Upload failed: ${errors[0].message}`);
   }
 
-  // Complete
+  // Finalize upload
+  console.log(`[ChunkedUpload] All parts uploaded, calling complete...`);
   const completeRes = await fetch(`${API_BASE}/upload/chunked/complete/${uploadId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -213,14 +224,17 @@ export async function uploadLargeFile(
   });
   if (!completeRes.ok) {
     const err = await completeRes.json().catch(() => ({}));
+    console.error(`[ChunkedUpload] Complete failed: status=${completeRes.status}`, err);
     throw new Error((err as any).error || 'Failed to complete upload');
   }
 
   clearSession(fileId);
+  onProgress?.(100);
 
   const completeData = await completeRes.json();
   const result = completeData.data?.[0] || completeData.data;
   const mediaType: 'image' | 'video' = file.type.startsWith('image/') ? 'image' : 'video';
+  console.log(`[ChunkedUpload] Complete! key=${result.key} url=${result.url}`);
   return { url: result.url, key: result.key, rawUrl: result.rawUrl, rawKey: result.rawKey, mediaType };
 }
 
@@ -268,10 +282,10 @@ async function validateSession(session: UploadSession): Promise<boolean> {
 }
 
 function selectInitialChunkSize(fileSize: number): number {
-  // For files under 500MB, use 20MB chunks (faster feedback)
-  if (fileSize < 500 * 1024 * 1024) return 20 * 1024 * 1024;
-  // For files under 2GB, use 50MB chunks
-  if (fileSize < 2 * 1024 * 1024 * 1024) return DEFAULT_CHUNK_SIZE;
-  // For files over 2GB, use 100MB chunks (reduce overhead)
-  return 100 * 1024 * 1024;
+  // For files under 500MB, use 10MB chunks (fast feedback)
+  if (fileSize < 500 * 1024 * 1024) return 10 * 1024 * 1024;
+  // For files under 2GB, use 20MB chunks
+  if (fileSize < 2 * 1024 * 1024 * 1024) return 20 * 1024 * 1024;
+  // For files over 2GB, use 50MB chunks (reduce overhead)
+  return 50 * 1024 * 1024;
 }
