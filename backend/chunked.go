@@ -46,10 +46,6 @@ func handleChunkedInit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg := getStorageConfig()
-	if cfg.typ != storageLocal {
-		writeErr(w, http.StatusBadRequest, "chunked upload is for local storage only")
-		return
-	}
 
 	var req chunkedInitRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -188,10 +184,44 @@ func handleChunkedComplete(w http.ResponseWriter, r *http.Request) {
 	result := &uploadResult{
 		Key:       state.Key,
 		MediaType: state.MediaType,
+		URL:       "/api/v1/uploads/" + state.Key,
 	}
-	displayURL, _ := toDisplayURL(state.Key, 86400)
-	result.URL = displayURL
+
+	// If S3 is configured, queue background upload (frontend doesn't wait)
+	if cfg.typ == storageS3 && cfg.s3 != nil {
+		go syncFileToS3(finalPath, state.Key, state.MediaType)
+	}
 
 	log.Printf("[Chunked] Upload completed: key=%s parts=%d", state.Key, state.Parts)
 	writeOK(w, []*uploadResult{result})
+}
+
+// syncFileToS3 uploads a local file to S3 in the background.
+// After successful upload, the local file is removed.
+func syncFileToS3(localPath, key, mediaType string) {
+	cfg := getStorageConfig()
+	if cfg.s3 == nil {
+		return
+	}
+
+	f, err := os.Open(localPath)
+	if err != nil {
+		log.Printf("[S3Sync] Failed to open local file %s: %v", localPath, err)
+		return
+	}
+	defer f.Close()
+
+	contentType := mimeFromExt(filepath.Ext(key))
+	err = putToS3(key, contentType, f)
+	if err != nil {
+		log.Printf("[S3Sync] Failed to upload %s to S3: %v", key, err)
+		return
+	}
+
+	log.Printf("[S3Sync] Successfully synced %s to S3", key)
+
+	// Remove local copy now that S3 has it
+	if err := os.Remove(localPath); err != nil {
+		log.Printf("[S3Sync] Failed to remove local file %s: %v", localPath, err)
+	}
 }

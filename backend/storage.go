@@ -69,6 +69,11 @@ func getStorageConfig() storageConfig {
 		typ = storageLocal
 	}
 
+	uploadDir := os.Getenv("UPLOAD_DIR")
+	if uploadDir == "" {
+		uploadDir = "uploads"
+	}
+
 	if typ == storageS3 {
 		region := os.Getenv("S3_REGION")
 		if region == "" {
@@ -85,13 +90,11 @@ func getStorageConfig() storageConfig {
 				publicURL:       normalizeEndpoint(os.Getenv("S3_PUBLIC_URL")),
 				forcePathStyle:  os.Getenv("S3_FORCE_PATH_STYLE") == "true",
 			},
+			uploadDir:  uploadDir,
+			publicPath: "/api/v1/uploads",
 		}
 	}
 
-	uploadDir := os.Getenv("UPLOAD_DIR")
-	if uploadDir == "" {
-		uploadDir = "uploads"
-	}
 	return storageConfig{
 		typ:        storageLocal,
 		uploadDir:  uploadDir,
@@ -533,6 +536,15 @@ func toDisplayURL(stored string, expiresInSec int64) (string, error) {
 	if stored == "" {
 		return stored, nil
 	}
+
+	// If file exists locally (pending S3 sync), serve from local storage
+	if cfg.uploadDir != "" {
+		localPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(stored))
+		if _, err := os.Stat(localPath); err == nil {
+			return "/api/v1/uploads/" + stored, nil
+		}
+	}
+
 	key := toStorageKey(stored)
 	if cfg.s3.publicURL != "" {
 		return buildPublicURL(cfg.s3, key), nil
