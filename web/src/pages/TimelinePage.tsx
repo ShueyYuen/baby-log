@@ -164,7 +164,7 @@ function RecordCardItem({ record, isViewer, onImageClick }: RecordCardItemProps)
     <div
       key={record.id}
       style={{ viewTransitionName: `record-card-${record.id}` }}
-      className={`card flex items-center gap-3 transition-all ${!isViewer ? 'cursor-pointer hover:!bg-white/50 dark:hover:!bg-white/[0.06] active:!bg-white/60 dark:active:!bg-white/[0.03]' : ''}`}
+      className={`${!isViewer ? 'card-interactive' : 'card'} flex items-center gap-3`}
       onClick={handleClick}
     >
       <div className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>

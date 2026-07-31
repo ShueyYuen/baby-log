@@ -72,8 +72,8 @@ function ScrollColumn({ items, selected, onSelect, circular = false, className }
   return (
     <div className={cn('relative h-[144px] overflow-hidden', className)}>
       <div className="absolute top-[54px] left-1 right-1 h-[36px] rounded-md border-2 border-primary-400 dark:border-primary-500 bg-primary-100/70 dark:bg-primary-500/25 pointer-events-none z-10" />
-      <div className="absolute top-0 left-0 right-0 h-[54px] bg-gradient-to-b from-white/50 dark:from-gray-800/80 to-transparent pointer-events-none z-10" />
-      <div className="absolute bottom-0 left-0 right-0 h-[54px] bg-gradient-to-t from-white/50 dark:from-gray-800/80 to-transparent pointer-events-none z-10" />
+      <div className="absolute top-0 left-0 right-0 h-[54px] glass-scroll-fade-top pointer-events-none z-10" />
+      <div className="absolute bottom-0 left-0 right-0 h-[54px] glass-scroll-fade-bottom pointer-events-none z-10" />
 
       <div
         ref={containerRef}
@@ -193,8 +193,8 @@ function DateScrollColumn({ selected, onSelect, className }: DateScrollColumnPro
   return (
     <div className={cn('relative h-[144px] overflow-hidden', className)}>
       <div className="absolute top-[54px] left-1 right-1 h-[36px] rounded-md border-2 border-primary-400 dark:border-primary-500 bg-primary-100/70 dark:bg-primary-500/25 pointer-events-none z-10" />
-      <div className="absolute top-0 left-0 right-0 h-[54px] bg-gradient-to-b from-white/50 dark:from-gray-800/80 to-transparent pointer-events-none z-10" />
-      <div className="absolute bottom-0 left-0 right-0 h-[54px] bg-gradient-to-t from-white/50 dark:from-gray-800/80 to-transparent pointer-events-none z-10" />
+      <div className="absolute top-0 left-0 right-0 h-[54px] glass-scroll-fade-top pointer-events-none z-10" />
+      <div className="absolute bottom-0 left-0 right-0 h-[54px] glass-scroll-fade-bottom pointer-events-none z-10" />
 
       <div
         ref={containerRef}
