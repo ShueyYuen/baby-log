@@ -65,9 +65,10 @@ function KeepAlivePageWrapper({
   return (
     <div
       ref={containerRef}
-      className="keepalive-page h-full overflow-y-auto custom-scrollbar pt-[72px] pb-[72px] md:pt-6 md:pb-0 px-4 md:px-8"
+      className={`keepalive-page h-full overflow-y-auto custom-scrollbar pt-[72px] pb-[72px] md:pt-6 md:pb-0 px-4 md:px-8 ${
+        active ? '' : 'invisible absolute inset-0 pointer-events-none -z-10'
+      }`}
       data-active={active}
-      style={{ display: active ? 'block' : 'none' }}
     >
       <div className="max-w-4xl mx-auto">
         <PullRefreshIndicator pullDistance={pullDistance} refreshing={refreshing} />

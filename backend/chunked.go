@@ -2,39 +2,47 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
-// chunkedUploads tracks in-progress chunked uploads (local storage mode).
 var chunkedUploads sync.Map
 
 type chunkedUploadState struct {
-	Key       string `json:"key"`
-	TempPath  string `json:"tempPath"`
-	MediaType string `json:"mediaType"`
-	Prefix    string `json:"prefix"`
-	Parts     int    `json:"parts"`
+	Key          string `json:"key"`
+	TempPath     string `json:"tempPath"`
+	MediaType    string `json:"mediaType"`
+	Prefix       string `json:"prefix"`
+	FileSize     int64  `json:"fileSize"`
+	TotalParts   int    `json:"totalParts"`
+	ChunkSize    int64  `json:"chunkSize"`
+	PartsWritten int64  // atomic counter
 }
 
 type chunkedInitRequest struct {
 	Filename    string `json:"filename"`
 	ContentType string `json:"contentType"`
 	FileSize    int64  `json:"fileSize"`
+	ChunkSize   int64  `json:"chunkSize"`
 }
 
 type chunkedInitResponse struct {
-	UploadID string `json:"uploadId"`
-	Key      string `json:"key"`
-	Mode     string `json:"mode"`
+	UploadID   string `json:"uploadId"`
+	Key        string `json:"key"`
+	Mode       string `json:"mode"`
+	TotalParts int    `json:"totalParts"`
+	ChunkSize  int64  `json:"chunkSize"`
 }
 
 // POST /upload/chunked/init/{prefix}
@@ -61,6 +69,9 @@ func handleChunkedInit(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "fileSize required")
 		return
 	}
+	if req.ChunkSize <= 0 {
+		req.ChunkSize = 50 * 1024 * 1024
+	}
 
 	uid := uuid.NewString()
 	origExt := strings.ToLower(filepath.Ext(req.Filename))
@@ -84,32 +95,51 @@ func handleChunkedInit(w http.ResponseWriter, r *http.Request) {
 	uploadID := uuid.NewString()
 	tempPath := filepath.Join(tmpDir, uploadID)
 
+	// Pre-allocate the file to the expected size for parallel pwrite
 	f, err := os.Create(tempPath)
 	if err != nil {
 		log.Printf("[Chunked] Failed to create temp file: %v", err)
 		writeErr(w, http.StatusInternalServerError, "failed to init upload")
 		return
 	}
+	if err := f.Truncate(req.FileSize); err != nil {
+		f.Close()
+		os.Remove(tempPath)
+		log.Printf("[Chunked] Failed to pre-allocate file: %v", err)
+		writeErr(w, http.StatusInternalServerError, "failed to init upload")
+		return
+	}
 	f.Close()
 
+	totalParts := int((req.FileSize + req.ChunkSize - 1) / req.ChunkSize)
+	if totalParts < 1 {
+		totalParts = 1
+	}
+
 	state := &chunkedUploadState{
-		Key:       key,
-		TempPath:  tempPath,
-		MediaType: mediaType,
-		Prefix:    prefix,
+		Key:        key,
+		TempPath:   tempPath,
+		MediaType:  mediaType,
+		Prefix:     prefix,
+		FileSize:   req.FileSize,
+		TotalParts: totalParts,
+		ChunkSize:  req.ChunkSize,
 	}
 	chunkedUploads.Store(uploadID, state)
 
 	trackUploadedFile(key, "")
 
 	writeOK(w, chunkedInitResponse{
-		UploadID: uploadID,
-		Key:      key,
-		Mode:     "chunked",
+		UploadID:   uploadID,
+		Key:        key,
+		Mode:       "chunked",
+		TotalParts: totalParts,
+		ChunkSize:  req.ChunkSize,
 	})
 }
 
 // POST /upload/chunked/part/{uploadId}
+// Query params: partNumber (1-based), offset (byte offset)
 func handleChunkedPart(w http.ResponseWriter, r *http.Request) {
 	uploadID := chi.URLParam(r, "uploadId")
 	if uploadID == "" {
@@ -124,13 +154,39 @@ func handleChunkedPart(w http.ResponseWriter, r *http.Request) {
 	}
 	state := val.(*chunkedUploadState)
 
-	f, err := os.OpenFile(state.TempPath, os.O_WRONLY|os.O_APPEND, 0644)
+	partNumberStr := r.URL.Query().Get("partNumber")
+	offsetStr := r.URL.Query().Get("offset")
+
+	var offset int64
+	if offsetStr != "" {
+		var err error
+		offset, err = strconv.ParseInt(offsetStr, 10, 64)
+		if err != nil || offset < 0 {
+			writeErr(w, http.StatusBadRequest, "invalid offset")
+			return
+		}
+	} else if partNumberStr != "" {
+		partNumber, err := strconv.Atoi(partNumberStr)
+		if err != nil || partNumber < 1 {
+			writeErr(w, http.StatusBadRequest, "invalid partNumber")
+			return
+		}
+		offset = int64(partNumber-1) * state.ChunkSize
+	}
+
+	f, err := os.OpenFile(state.TempPath, os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("[Chunked] Failed to open temp file: %v", err)
 		writeErr(w, http.StatusInternalServerError, "failed to write chunk")
 		return
 	}
 	defer f.Close()
+
+	if _, err := f.Seek(offset, io.SeekStart); err != nil {
+		log.Printf("[Chunked] Failed to seek: %v", err)
+		writeErr(w, http.StatusInternalServerError, "failed to write chunk")
+		return
+	}
 
 	written, err := io.Copy(f, r.Body)
 	if err != nil {
@@ -139,12 +195,42 @@ func handleChunkedPart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state.Parts++
-	log.Printf("[Chunked] Part %d written: uploadId=%s bytes=%d", state.Parts, uploadID, written)
+	partsNow := atomic.AddInt64(&state.PartsWritten, 1)
+	log.Printf("[Chunked] Part written: uploadId=%s offset=%d bytes=%d progress=%d/%d",
+		uploadID, offset, written, partsNow, state.TotalParts)
 
 	writeOK(w, map[string]interface{}{
-		"partNumber": state.Parts,
+		"offset":       offset,
 		"bytesWritten": written,
+		"partsWritten": partsNow,
+		"totalParts":   state.TotalParts,
+	})
+}
+
+// GET /upload/chunked/status/{uploadId}
+func handleChunkedStatus(w http.ResponseWriter, r *http.Request) {
+	uploadID := chi.URLParam(r, "uploadId")
+	if uploadID == "" {
+		writeErr(w, http.StatusBadRequest, "missing uploadId")
+		return
+	}
+
+	val, ok := chunkedUploads.Load(uploadID)
+	if !ok {
+		writeErr(w, http.StatusNotFound, "upload not found or expired")
+		return
+	}
+	state := val.(*chunkedUploadState)
+
+	partsWritten := atomic.LoadInt64(&state.PartsWritten)
+	writeOK(w, map[string]interface{}{
+		"uploadId":     uploadID,
+		"key":          state.Key,
+		"totalParts":   state.TotalParts,
+		"partsWritten": partsWritten,
+		"chunkSize":    state.ChunkSize,
+		"fileSize":     state.FileSize,
+		"complete":     int(partsWritten) >= state.TotalParts,
 	})
 }
 
@@ -163,6 +249,17 @@ func handleChunkedComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	state := val.(*chunkedUploadState)
 	chunkedUploads.Delete(uploadID)
+
+	partsWritten := atomic.LoadInt64(&state.PartsWritten)
+	if int(partsWritten) < state.TotalParts {
+		writeErr(w, http.StatusBadRequest, fmt.Sprintf("incomplete: %d/%d parts uploaded", partsWritten, state.TotalParts))
+		return
+	}
+
+	// Truncate to exact file size (last chunk may have been smaller)
+	if err := os.Truncate(state.TempPath, state.FileSize); err != nil {
+		log.Printf("[Chunked] Failed to truncate file: %v", err)
+	}
 
 	cfg := getStorageConfig()
 	finalPath := filepath.Join(cfg.uploadDir, state.Key)
@@ -187,17 +284,15 @@ func handleChunkedComplete(w http.ResponseWriter, r *http.Request) {
 		URL:       "/api/v1/uploads/" + state.Key,
 	}
 
-	// If S3 is configured, queue background upload (frontend doesn't wait)
 	if cfg.typ == storageS3 && cfg.s3 != nil {
 		go syncFileToS3(finalPath, state.Key, state.MediaType)
 	}
 
-	log.Printf("[Chunked] Upload completed: key=%s parts=%d", state.Key, state.Parts)
+	log.Printf("[Chunked] Upload completed: key=%s parts=%d", state.Key, state.TotalParts)
 	writeOK(w, []*uploadResult{result})
 }
 
 // syncFileToS3 uploads a local file to S3 in the background.
-// After successful upload, the local file is removed.
 func syncFileToS3(localPath, key, mediaType string) {
 	cfg := getStorageConfig()
 	if cfg.s3 == nil {
@@ -220,7 +315,6 @@ func syncFileToS3(localPath, key, mediaType string) {
 
 	log.Printf("[S3Sync] Successfully synced %s to S3", key)
 
-	// Remove local copy now that S3 has it
 	if err := os.Remove(localPath); err != nil {
 		log.Printf("[S3Sync] Failed to remove local file %s: %v", localPath, err)
 	}

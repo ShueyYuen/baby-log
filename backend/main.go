@@ -197,6 +197,7 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				r.Post("/multipart/abort/{prefix}", handleMultipartAbort)
 				r.Post("/chunked/init/{prefix}", handleChunkedInit)
 				r.Post("/chunked/part/{uploadId}", handleChunkedPart)
+				r.Get("/chunked/status/{uploadId}", handleChunkedStatus)
 				r.Post("/chunked/complete/{uploadId}", handleChunkedComplete)
 				r.Post("/{prefix}", handleUploadMedia)
 			})
