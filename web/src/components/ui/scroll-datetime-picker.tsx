@@ -71,7 +71,7 @@ function ScrollColumn({ items, selected, onSelect, circular = false, className }
 
   return (
     <div className={cn('relative h-[144px] overflow-hidden', className)}>
-      <div className="absolute top-[54px] left-1 right-1 h-[36px] rounded-md border-2 border-primary-400 dark:border-primary-500 bg-primary-100/70 dark:bg-primary-500/25 pointer-events-none z-10" />
+      <div className="absolute top-[54px] left-0.5 right-0.5 h-[36px] rounded-lg bg-black/[0.04] dark:bg-white/[0.08] pointer-events-none z-10" />
       <div className="absolute top-0 left-0 right-0 h-[54px] glass-scroll-fade-top pointer-events-none z-10" />
       <div className="absolute bottom-0 left-0 right-0 h-[54px] glass-scroll-fade-bottom pointer-events-none z-10" />
 
@@ -85,9 +85,9 @@ function ScrollColumn({ items, selected, onSelect, circular = false, className }
           <div
             key={item.key}
             className={cn(
-              'h-[36px] flex items-center justify-center snap-center select-none cursor-pointer transition-all',
+              'h-[36px] flex items-center justify-center snap-center select-none cursor-pointer transition-colors duration-150',
               item.value === selected
-                ? 'relative z-20 text-primary-600 dark:text-primary-300 font-semibold text-base'
+                ? 'relative z-20 text-gray-900 dark:text-white font-semibold text-base'
                 : 'text-sm text-gray-400 dark:text-gray-500'
             )}
             onClick={() => {
@@ -192,7 +192,7 @@ function DateScrollColumn({ selected, onSelect, className }: DateScrollColumnPro
 
   return (
     <div className={cn('relative h-[144px] overflow-hidden', className)}>
-      <div className="absolute top-[54px] left-1 right-1 h-[36px] rounded-md border-2 border-primary-400 dark:border-primary-500 bg-primary-100/70 dark:bg-primary-500/25 pointer-events-none z-10" />
+      <div className="absolute top-[54px] left-0.5 right-0.5 h-[36px] rounded-lg bg-black/[0.04] dark:bg-white/[0.08] pointer-events-none z-10" />
       <div className="absolute top-0 left-0 right-0 h-[54px] glass-scroll-fade-top pointer-events-none z-10" />
       <div className="absolute bottom-0 left-0 right-0 h-[54px] glass-scroll-fade-bottom pointer-events-none z-10" />
 
@@ -206,9 +206,9 @@ function DateScrollColumn({ selected, onSelect, className }: DateScrollColumnPro
           <div
             key={item.value}
             className={cn(
-              'h-[36px] flex items-center justify-center snap-center select-none cursor-pointer transition-all',
+              'h-[36px] flex items-center justify-center snap-center select-none cursor-pointer transition-colors duration-150',
               item.value === selected
-                ? 'relative z-20 text-primary-600 dark:text-primary-300 font-semibold text-base'
+                ? 'relative z-20 text-gray-900 dark:text-white font-semibold text-base'
                 : 'text-sm text-gray-400 dark:text-gray-500'
             )}
             onClick={() => {
@@ -271,18 +271,18 @@ export function ScrollDateTimePicker({ value, onChange, className }: ScrollDateT
     })), []);
 
   return (
-    <div className={cn('flex rounded-lg glass-scroll-picker overflow-hidden', className)}>
+    <div className={cn('flex rounded-lg overflow-hidden scroll-picker-container', className)}>
       <DateScrollColumn
         selected={selectedDate}
         onSelect={handleDateChange}
-        className="flex-[2] border-r border-white/20 dark:border-white/[0.06]"
+        className="flex-[2] border-r border-black/5 dark:border-white/[0.06]"
       />
       <ScrollColumn
         items={hourItems}
         selected={selectedHour}
         onSelect={handleHourChange}
         circular
-        className="flex-1 border-r border-white/20 dark:border-white/[0.06]"
+        className="flex-1 border-r border-black/5 dark:border-white/[0.06]"
       />
       <ScrollColumn
         items={minuteItems}
