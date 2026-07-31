@@ -594,6 +594,7 @@ interface MediaPreview {
   type: "image" | "video";
   progress?: number;
   error?: boolean;
+  cancelled?: boolean;
   visibleTo?: string[];
 }
 
@@ -711,6 +712,7 @@ function MomentFormDialog({
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cancelledRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     if (open) {
@@ -750,6 +752,7 @@ function MomentFormDialog({
         progress: 0,
       }));
       setPreviews((prev) => [...prev, ...placeholders]);
+      cancelledRef.current = new Set();
       setUploading(true);
 
       // Stagger blob URL creation to avoid blocking main thread
@@ -776,10 +779,18 @@ function MomentFormDialog({
         if (myIdx >= allowed.length) return;
 
         const fileIdx = startIdx + myIdx;
+
+        // Skip if this file was cancelled/removed by user
+        if (cancelledRef.current.has(fileIdx)) {
+          await uploadNext();
+          return;
+        }
+
         try {
           const result = await api.moments.uploadMediaSingle(
             allowed[myIdx],
             (percent) => {
+              if (cancelledRef.current.has(fileIdx)) return;
               const stepped =
                 Math.floor(percent / PROGRESS_STEP) * PROGRESS_STEP;
               if (stepped <= lastReported[myIdx]) return;
@@ -793,30 +804,34 @@ function MomentFormDialog({
               });
             },
           );
-          setPreviews((prev) => {
-            const next = [...prev];
-            if (next[fileIdx]) {
-              next[fileIdx] = {
-                ...next[fileIdx],
-                result,
-                progress: undefined,
-              };
-            }
-            return next;
-          });
+          if (!cancelledRef.current.has(fileIdx)) {
+            setPreviews((prev) => {
+              const next = [...prev];
+              if (next[fileIdx]) {
+                next[fileIdx] = {
+                  ...next[fileIdx],
+                  result,
+                  progress: undefined,
+                };
+              }
+              return next;
+            });
+          }
         } catch (e) {
-          console.error(`Upload failed for file ${myIdx}`, e);
-          setPreviews((prev) => {
-            const next = [...prev];
-            if (next[fileIdx]) {
-              next[fileIdx] = {
-                ...next[fileIdx],
-                error: true,
-                progress: undefined,
-              };
-            }
-            return next;
-          });
+          if (!cancelledRef.current.has(fileIdx)) {
+            console.error(`Upload failed for file ${myIdx}`, e);
+            setPreviews((prev) => {
+              const next = [...prev];
+              if (next[fileIdx]) {
+                next[fileIdx] = {
+                  ...next[fileIdx],
+                  error: true,
+                  progress: undefined,
+                };
+              }
+              return next;
+            });
+          }
         }
 
         await uploadNext();
@@ -831,10 +846,13 @@ function MomentFormDialog({
   );
 
   const removePreview = (idx: number) => {
+    cancelledRef.current.add(idx);
     setPreviews((prev) => {
       const next = [...prev];
-      const removed = next.splice(idx, 1)[0];
-      if (removed.file) URL.revokeObjectURL(removed.url);
+      if (next[idx]) {
+        if (next[idx].file) URL.revokeObjectURL(next[idx].url);
+        next[idx] = { ...next[idx], cancelled: true };
+      }
       return next;
     });
   };
@@ -842,7 +860,7 @@ function MomentFormDialog({
   const handleSave = async () => {
     if (uploading) return;
     const mediaItems: MediaItem[] = previews
-      .filter((p) => p.result)
+      .filter((p) => p.result && !p.cancelled)
       .map((p) => ({
         key: p.result!.key,
         rawKey: p.result!.rawKey,
@@ -860,8 +878,15 @@ function MomentFormDialog({
   };
 
   const uploadingCount = previews.filter(
-    (p) => p.file && !p.result && !p.error,
+    (p) => p.file && !p.result && !p.error && !p.cancelled,
   ).length;
+
+  // Auto-clear uploading state when all pending items are done or cancelled
+  useEffect(() => {
+    if (uploading && uploadingCount === 0) {
+      setUploading(false);
+    }
+  }, [uploading, uploadingCount]);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -890,9 +915,9 @@ function MomentFormDialog({
             className="glass-input-ui w-full rounded-xl border border-transparent p-3 text-sm outline-none focus:ring-0 resize-none text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-white/30"
           />
 
-          {previews.length > 0 && (
+          {previews.filter((p) => !p.cancelled).length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {previews.map((p, idx) => (
+              {previews.map((p, idx) => p.cancelled ? null : (
                 <PreviewItem
                   key={idx}
                   preview={p}
@@ -958,7 +983,7 @@ function MomentFormDialog({
               disabled={
                 saving ||
                 uploading ||
-                (!content.trim() && previews.length === 0)
+                (!content.trim() && previews.filter((p) => !p.cancelled).length === 0)
               }
             >
               {saving
