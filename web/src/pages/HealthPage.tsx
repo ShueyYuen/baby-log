@@ -179,7 +179,7 @@ export default function HealthPage() {
           <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 px-1">进行中</h3>
           <div className="space-y-2">
             {activeConditions.map(c => (
-              <Card key={c.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/health/${c.id}`)}>
+              <Card key={c.id} className="cursor-pointer hover:!bg-white/70 dark:hover:!bg-white/[0.1] active:scale-[0.98]" role="button" onClick={() => navigate(`/health/${c.id}`)}>
                 <CardContent className="flex items-center gap-3 py-3">
                   <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-orange-50 dark:bg-orange-900/30">
                     <Activity size={16} className="text-orange-500" />
@@ -201,7 +201,7 @@ export default function HealthPage() {
           <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 px-1">已康复</h3>
           <div className="space-y-2">
             {resolvedConditions.map(c => (
-              <Card key={c.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/health/${c.id}`)}>
+              <Card key={c.id} className="cursor-pointer hover:!bg-white/70 dark:hover:!bg-white/[0.1] active:scale-[0.98]" role="button" onClick={() => navigate(`/health/${c.id}`)}>
                 <CardContent className="flex items-center gap-3 py-3">
                   <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-green-50 dark:bg-green-900/30">
                     <CheckCircle2 size={16} className="text-green-500" />
@@ -285,7 +285,7 @@ export default function HealthPage() {
               <button
                 key={v.id}
                 onClick={() => navigate(`/medical-visits/${v.id}`)}
-                className="w-full text-left glass-card-ui rounded-xl border border-transparent p-3 hover:!bg-white/60 dark:hover:!bg-white/[0.08] transition-colors"
+                className="w-full text-left glass-card-ui rounded-xl border border-transparent p-3"
               >
                 <div className="flex gap-3 items-center">
                   {v.images?.[0]?.url ? (
