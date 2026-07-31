@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -27,6 +29,7 @@ func runCleanupTick() {
 	}()
 
 	cleanupIdempotencyKeys()
+	cleanupStaleTempFiles()
 
 	cutoff := int64(nowMillis()) - 24*60*60*1000
 
@@ -139,4 +142,40 @@ func handleManualCleanup(w http.ResponseWriter, r *http.Request) {
 		"deleted": deleted,
 		"errors":  errors,
 	})
+}
+
+// cleanupStaleTempFiles removes chunked upload temp files older than 24 hours.
+func cleanupStaleTempFiles() {
+	cfg := getStorageConfig()
+	if cfg.typ != storageLocal {
+		return
+	}
+
+	tmpDir := filepath.Join(cfg.uploadDir, ".tmp")
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		return
+	}
+
+	cutoff := time.Now().Add(-24 * time.Hour)
+	deleted := 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().Before(cutoff) {
+			path := filepath.Join(tmpDir, entry.Name())
+			if err := os.Remove(path); err == nil {
+				deleted++
+			}
+			chunkedUploads.Delete(entry.Name())
+		}
+	}
+	if deleted > 0 {
+		log.Printf("[Cleanup] Removed %d stale temp file(s) from .tmp/", deleted)
+	}
 }

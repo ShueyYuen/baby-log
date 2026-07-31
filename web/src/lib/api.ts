@@ -1,3 +1,5 @@
+import { isLargeFile, uploadLargeFile } from './chunked-upload';
+
 const API_BASE = '/api/v1';
 
 function getToken(): string | null {
@@ -338,8 +340,14 @@ export interface Baby {
 // ─── Upload helper ────────────────────────────────────────────────────────────
 
 function createUploader(endpoint: string) {
-  return (file: File, onProgress?: (percent: number) => void): Promise<UploadMomentResult> =>
-    new Promise((resolve, reject) => {
+  const prefix = endpoint.replace(/^\/upload\//, '');
+
+  return (file: File, onProgress?: (percent: number) => void): Promise<UploadMomentResult> => {
+    if (isLargeFile(file)) {
+      return uploadLargeFile(file, prefix, onProgress);
+    }
+
+    return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const formData = new FormData();
       formData.append('files', file);
@@ -372,6 +380,7 @@ function createUploader(endpoint: string) {
       if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       xhr.send(formData);
     });
+  };
 }
 
 // ─── API client ───────────────────────────────────────────────────────────────
