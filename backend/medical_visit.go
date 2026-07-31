@@ -253,6 +253,12 @@ func handleCreateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var usedKeys []string
+	for _, img := range body.Images {
+		usedKeys = append(usedKeys, img.Key)
+	}
+	markUploadedFilesUsed(usedKeys)
+
 	row := db.QueryRow(`SELECT `+medicalVisitCols+` FROM "MedicalVisit" WHERE id = ?`, id)
 	out, err := scanMedicalVisitRow(row)
 	if err != nil {
@@ -364,6 +370,14 @@ func handleUpdateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[MedicalVisit] update error: %v", err)
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
+	}
+
+	if body.Images != nil {
+		var usedKeys []string
+		for _, img := range *body.Images {
+			usedKeys = append(usedKeys, img.Key)
+		}
+		markUploadedFilesUsed(usedKeys)
 	}
 
 	row := db.QueryRow(`SELECT `+medicalVisitCols+` FROM "MedicalVisit" WHERE id = ?`, id)
