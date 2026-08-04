@@ -17,6 +17,7 @@ interface EntryPreview {
   result?: UploadMomentResult;
   progress?: number;
   error?: boolean;
+  cancelled?: boolean;
   type: 'image' | 'video';
   existing?: RecordImage;
   visibleTo?: string[];
@@ -122,6 +123,7 @@ export default function HealthTrackingPage() {
   const [entryNote, setEntryNote] = useState('');
   const [entryPreviews, setEntryPreviews] = useState<EntryPreview[]>([]);
   const [entryUploading, setEntryUploading] = useState(false);
+  const entryCancelledRef = useRef<Set<number>>(new Set());
   const [editingEntry, setEditingEntry] = useState<HealthEntry | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [formAnnotations, setFormAnnotations] = useState<HealthAnnotationsMap>({});
@@ -269,6 +271,7 @@ export default function HealthTrackingPage() {
       file: f, url: '', type: f.type.startsWith('video/') ? 'video' as const : 'image' as const, progress: 0,
     }));
     setEntryPreviews((prev) => [...prev, ...placeholders]);
+    entryCancelledRef.current = new Set();
     setEntryUploading(true);
 
     for (let i = 0; i < allowed.length; i++) {
@@ -286,16 +289,27 @@ export default function HealthTrackingPage() {
       const myIdx = queueIdx++;
       if (myIdx >= allowed.length) return;
       const fileIdx = startIdx + myIdx;
+
+      if (entryCancelledRef.current.has(fileIdx)) {
+        await uploadNext();
+        return;
+      }
+
       try {
         const result = await api.healthConditions.uploadMedia(allowed[myIdx], (pct) => {
+          if (entryCancelledRef.current.has(fileIdx)) return;
           const stepped = Math.floor(pct / STEP) * STEP;
           if (stepped <= lastR[myIdx]) return;
           lastR[myIdx] = stepped;
           setEntryPreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], progress: stepped }; return n; });
         });
-        setEntryPreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], result, progress: undefined }; return n; });
+        if (!entryCancelledRef.current.has(fileIdx)) {
+          setEntryPreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], result, progress: undefined }; return n; });
+        }
       } catch {
-        setEntryPreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], error: true, progress: undefined }; return n; });
+        if (!entryCancelledRef.current.has(fileIdx)) {
+          setEntryPreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], error: true, progress: undefined }; return n; });
+        }
       }
       await uploadNext();
     };
@@ -304,12 +318,26 @@ export default function HealthTrackingPage() {
   }, [entryPreviews.length]);
 
   const removeEntryPreview = useCallback((idx: number) => {
+    entryCancelledRef.current.add(idx);
     setEntryPreviews((prev) => {
-      const next = [...prev]; const removed = next.splice(idx, 1)[0];
-      if (removed.url && removed.file) URL.revokeObjectURL(removed.url);
+      const next = [...prev];
+      if (next[idx]) {
+        if (next[idx].file) URL.revokeObjectURL(next[idx].url);
+        next[idx] = { ...next[idx], cancelled: true };
+      }
       return next;
     });
   }, []);
+
+  const entryUploadingCount = entryPreviews.filter(
+    (p) => p.file && !p.result && !p.error && !p.cancelled,
+  ).length;
+
+  useEffect(() => {
+    if (entryUploading && entryUploadingCount === 0) {
+      setEntryUploading(false);
+    }
+  }, [entryUploading, entryUploadingCount]);
 
   const openNewEntry = () => {
     setEditingEntry(null);
@@ -332,7 +360,7 @@ export default function HealthTrackingPage() {
   const saveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!conditionId || entryUploading) return;
-    const completed = entryPreviews.filter((p) => p.result).map((p) => ({
+    const completed = entryPreviews.filter((p) => p.result && !p.cancelled).map((p) => ({
       key: p.result!.key,
       rawKey: p.result!.rawKey,
       mediaType: p.result!.mediaType,
@@ -579,7 +607,7 @@ export default function HealthTrackingPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">照片 / 视频</label>
               <div className="flex flex-wrap gap-2">
-                {entryPreviews.map((p, idx) => (
+                {entryPreviews.map((p, idx) => p.cancelled ? null : (
                   <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden glass-media-thumb">
                     {!p.url ? null : p.type === 'video' ? (
                       <div className="w-full h-full glass-media-thumb flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
@@ -612,7 +640,7 @@ export default function HealthTrackingPage() {
                 ))}
                 <label className="w-16 h-16 rounded-lg glass-upload-zone flex items-center justify-center cursor-pointer transition-colors">
                   <input type="file" accept="image/*,video/*" className="hidden" multiple disabled={entryUploading} onChange={(e) => { handleEntryUpload(e.target.files); e.target.value = ''; }} />
-                  {entryUploading ? <span className="text-[10px] text-gray-400 animate-pulse">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
+                  {entryUploading && entryUploadingCount > 0 ? <span className="text-[10px] text-gray-400 animate-pulse">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
                 </label>
               </div>
             </div>
@@ -626,7 +654,7 @@ export default function HealthTrackingPage() {
       </Dialog>
 
       {/* Annotation modal for form images */}
-      <Dialog open={annotatingIdx !== null && !!entryPreviews[annotatingIdx!]?.result && entryPreviews[annotatingIdx!]?.type === 'image'} onOpenChange={(open) => { if (!open) setAnnotatingIdx(null); }}>
+      <Dialog open={annotatingIdx !== null && !!entryPreviews[annotatingIdx!]?.result && !entryPreviews[annotatingIdx!]?.cancelled && entryPreviews[annotatingIdx!]?.type === 'image'} onOpenChange={(open) => { if (!open) setAnnotatingIdx(null); }}>
         <DialogContent className="max-w-lg sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>标注测量</DialogTitle>

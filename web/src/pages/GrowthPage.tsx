@@ -32,6 +32,7 @@ interface MilestonePreview {
   result?: UploadMomentResult;
   progress?: number;
   error?: boolean;
+  cancelled?: boolean;
   type: 'image' | 'video';
   existing?: RecordImage;
   visibleTo?: string[];
@@ -252,6 +253,7 @@ export default function GrowthPage() {
   const [mDesc, setMDesc] = useState('');
   const [mPreviews, setMPreviews] = useState<MilestonePreview[]>([]);
   const [mUploading, setMUploading] = useState(false);
+  const mCancelledRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     if (!currentBaby) {
@@ -365,7 +367,7 @@ export default function GrowthPage() {
   const addMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentBaby || mUploading) return;
-    const completed = mPreviews.filter((p) => p.result).map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType, visibleTo: p.visibleTo?.length ? p.visibleTo : undefined }));
+    const completed = mPreviews.filter((p) => p.result && !p.cancelled).map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType, visibleTo: p.visibleTo?.length ? p.visibleTo : undefined }));
     await api.milestonesCrud.create({
       babyId: currentBaby.id,
       type: mType,
@@ -391,7 +393,7 @@ export default function GrowthPage() {
   const saveMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMilestone || mUploading) return;
-    const completed = mPreviews.filter((p) => p.result).map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType, visibleTo: p.visibleTo?.length ? p.visibleTo : undefined }));
+    const completed = mPreviews.filter((p) => p.result && !p.cancelled).map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType, visibleTo: p.visibleTo?.length ? p.visibleTo : undefined }));
     await api.milestonesCrud.update(editingMilestone.id, {
       type: mType,
       title: mTitle || milestoneLabels[mType],
@@ -424,6 +426,7 @@ export default function GrowthPage() {
       file: f, url: '', type: f.type.startsWith('video/') ? 'video' as const : 'image' as const, progress: 0,
     }));
     setMPreviews((prev) => [...prev, ...placeholders]);
+    mCancelledRef.current = new Set();
     setMUploading(true);
 
     for (let i = 0; i < allowed.length; i++) {
@@ -441,16 +444,27 @@ export default function GrowthPage() {
       const myIdx = queueIdx++;
       if (myIdx >= allowed.length) return;
       const fileIdx = startIdx + myIdx;
+
+      if (mCancelledRef.current.has(fileIdx)) {
+        await uploadNext();
+        return;
+      }
+
       try {
         const result = await api.milestones.uploadMedia(allowed[myIdx], (pct) => {
+          if (mCancelledRef.current.has(fileIdx)) return;
           const stepped = Math.floor(pct / M_STEP) * M_STEP;
           if (stepped <= lastR[myIdx]) return;
           lastR[myIdx] = stepped;
           setMPreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], progress: stepped }; return n; });
         });
-        setMPreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], result, progress: undefined }; return n; });
+        if (!mCancelledRef.current.has(fileIdx)) {
+          setMPreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], result, progress: undefined }; return n; });
+        }
       } catch {
-        setMPreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], error: true, progress: undefined }; return n; });
+        if (!mCancelledRef.current.has(fileIdx)) {
+          setMPreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], error: true, progress: undefined }; return n; });
+        }
       }
       await uploadNext();
     };
@@ -459,12 +473,26 @@ export default function GrowthPage() {
   }, [mPreviews.length]);
 
   const removeMPreview = useCallback((idx: number) => {
+    mCancelledRef.current.add(idx);
     setMPreviews((prev) => {
-      const next = [...prev]; const removed = next.splice(idx, 1)[0];
-      if (removed.url && removed.file) URL.revokeObjectURL(removed.url);
+      const next = [...prev];
+      if (next[idx]) {
+        if (next[idx].file) URL.revokeObjectURL(next[idx].url);
+        next[idx] = { ...next[idx], cancelled: true };
+      }
       return next;
     });
   }, []);
+
+  const mUploadingCount = mPreviews.filter(
+    (p) => p.file && !p.result && !p.error && !p.cancelled,
+  ).length;
+
+  useEffect(() => {
+    if (mUploading && mUploadingCount === 0) {
+      setMUploading(false);
+    }
+  }, [mUploading, mUploadingCount]);
 
   const gender = (currentBaby?.gender === 'female' ? 'female' : 'male') as 'male' | 'female';
   const birthDate = currentBaby?.birthDate;
@@ -725,7 +753,7 @@ export default function GrowthPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">图片 / 视频</label>
                   <div className="flex flex-wrap gap-2">
-                    {mPreviews.map((p, idx) => (
+                    {mPreviews.map((p, idx) => p.cancelled ? null : (
                       <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden glass-media-thumb">
                         {!p.url ? null : p.type === 'video' ? (
                           <div className="w-full h-full glass-media-thumb flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
@@ -748,7 +776,7 @@ export default function GrowthPage() {
                     ))}
                     <label className="w-16 h-16 rounded-lg glass-upload-zone flex items-center justify-center cursor-pointer transition-colors">
                       <input type="file" accept="image/*,video/*" className="hidden" multiple disabled={mUploading} onChange={(e) => { handleMilestoneUpload(e.target.files); e.target.value = ''; }} />
-                      {mUploading ? <span className="text-[10px] text-gray-400 animate-pulse">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
+                      {mUploading && mUploadingCount > 0 ? <span className="text-[10px] text-gray-400 animate-pulse">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
                     </label>
                   </div>
                 </div>
@@ -887,7 +915,7 @@ export default function GrowthPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">图片 / 视频</label>
                 <div className="flex flex-wrap gap-2">
-                  {mPreviews.map((p, idx) => (
+                  {mPreviews.map((p, idx) => p.cancelled ? null : (
                     <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden glass-media-thumb">
                       {!p.url ? null : p.type === 'video' ? (
                         <div className="w-full h-full glass-media-thumb flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
@@ -910,7 +938,7 @@ export default function GrowthPage() {
                   ))}
                   <label className="w-16 h-16 rounded-lg glass-upload-zone flex items-center justify-center cursor-pointer transition-colors">
                     <input type="file" accept="image/*,video/*" className="hidden" multiple disabled={mUploading} onChange={(e) => { handleMilestoneUpload(e.target.files); e.target.value = ''; }} />
-                    {mUploading ? <span className="text-[10px] text-gray-400 animate-pulse">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
+                    {mUploading && mUploadingCount > 0 ? <span className="text-[10px] text-gray-400 animate-pulse">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
                   </label>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,6 +15,7 @@ interface ImagePreview {
   result?: UploadMomentResult;
   progress?: number;
   error?: boolean;
+  cancelled?: boolean;
   existing?: RecordImage;
 }
 
@@ -70,6 +71,7 @@ export default function PlanFormPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [imagePreviews, setImagePreviews] = useState<ImagePreview[]>([]);
   const [uploading, setUploading] = useState(false);
+  const imageCancelledRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     if (!isEditing || !currentBaby) return;
@@ -124,6 +126,7 @@ export default function PlanFormPage() {
       file: f, url: '', progress: 0,
     }));
     setImagePreviews((prev) => [...prev, ...placeholders]);
+    imageCancelledRef.current = new Set();
     setUploading(true);
 
     for (let i = 0; i < allowed.length; i++) {
@@ -141,16 +144,27 @@ export default function PlanFormPage() {
       const myIdx = queueIdx++;
       if (myIdx >= allowed.length) return;
       const fileIdx = startIdx + myIdx;
+
+      if (imageCancelledRef.current.has(fileIdx)) {
+        await uploadNext();
+        return;
+      }
+
       try {
         const result = await api.plans.uploadMedia(allowed[myIdx], (pct) => {
+          if (imageCancelledRef.current.has(fileIdx)) return;
           const stepped = Math.floor(pct / STEP) * STEP;
           if (stepped <= lastR[myIdx]) return;
           lastR[myIdx] = stepped;
           setImagePreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], progress: stepped }; return n; });
         });
-        setImagePreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], result, progress: undefined }; return n; });
+        if (!imageCancelledRef.current.has(fileIdx)) {
+          setImagePreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], result, progress: undefined }; return n; });
+        }
       } catch {
-        setImagePreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], error: true, progress: undefined }; return n; });
+        if (!imageCancelledRef.current.has(fileIdx)) {
+          setImagePreviews((prev) => { const n = [...prev]; if (n[fileIdx]) n[fileIdx] = { ...n[fileIdx], error: true, progress: undefined }; return n; });
+        }
       }
       await uploadNext();
     };
@@ -159,12 +173,26 @@ export default function PlanFormPage() {
   }, [imagePreviews.length]);
 
   const removeImage = useCallback((idx: number) => {
+    imageCancelledRef.current.add(idx);
     setImagePreviews((prev) => {
-      const next = [...prev]; const removed = next.splice(idx, 1)[0];
-      if (removed.url && removed.file) URL.revokeObjectURL(removed.url);
+      const next = [...prev];
+      if (next[idx]) {
+        if (next[idx].file) URL.revokeObjectURL(next[idx].url);
+        next[idx] = { ...next[idx], cancelled: true };
+      }
       return next;
     });
   }, []);
+
+  const uploadingCount = imagePreviews.filter(
+    (p) => p.file && !p.result && !p.error && !p.cancelled,
+  ).length;
+
+  useEffect(() => {
+    if (uploading && uploadingCount === 0) {
+      setUploading(false);
+    }
+  }, [uploading, uploadingCount]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,7 +200,7 @@ export default function PlanFormPage() {
     setLoading(true);
 
     const images = imagePreviews
-      .filter((p) => p.result && !p.error)
+      .filter((p) => p.result && !p.error && !p.cancelled)
       .map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType || 'image' }));
 
     try {
@@ -273,7 +301,7 @@ export default function PlanFormPage() {
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">图片</label>
           <div className="flex flex-wrap gap-2">
-            {imagePreviews.map((p, i) => (
+            {imagePreviews.map((p, i) => p.cancelled ? null : (
               <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden glass-media-thumb flex-shrink-0">
                 {p.url ? (
                   <img src={p.url} alt="" className="w-full h-full object-cover" />

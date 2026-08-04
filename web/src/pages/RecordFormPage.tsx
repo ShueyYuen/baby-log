@@ -39,6 +39,7 @@ interface MediaPreview {
   result?: UploadMomentResult;
   progress?: number;
   error?: boolean;
+  cancelled?: boolean;
   type: "image" | "video";
   existing?: RecordImage;
   visibleTo?: string[];
@@ -222,6 +223,7 @@ export default function RecordFormPage() {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cancelledRef = useRef<Set<number>>(new Set());
   const idempotencyKeyRef = useRef(generateIdempotencyKey());
 
   // Dynamic form data — initialized from state record if available
@@ -410,6 +412,7 @@ export default function RecordFormPage() {
         progress: 0,
       }));
       setPreviews((prev) => [...prev, ...placeholders]);
+      cancelledRef.current = new Set();
       setUploading(true);
 
       for (let i = 0; i < allowed.length; i++) {
@@ -430,10 +433,17 @@ export default function RecordFormPage() {
         const myIdx = queueIdx++;
         if (myIdx >= allowed.length) return;
         const fileIdx = startIdx + myIdx;
+
+        if (cancelledRef.current.has(fileIdx)) {
+          await uploadNext();
+          return;
+        }
+
         try {
           const result = await api.records.uploadMedia(
             allowed[myIdx],
             (percent) => {
+              if (cancelledRef.current.has(fileIdx)) return;
               const stepped =
                 Math.floor(percent / PROGRESS_STEP) * PROGRESS_STEP;
               if (stepped <= lastReported[myIdx]) return;
@@ -446,23 +456,27 @@ export default function RecordFormPage() {
               });
             },
           );
-          setPreviews((prev) => {
-            const next = [...prev];
-            if (next[fileIdx])
-              next[fileIdx] = { ...next[fileIdx], result, progress: undefined };
-            return next;
-          });
+          if (!cancelledRef.current.has(fileIdx)) {
+            setPreviews((prev) => {
+              const next = [...prev];
+              if (next[fileIdx])
+                next[fileIdx] = { ...next[fileIdx], result, progress: undefined };
+              return next;
+            });
+          }
         } catch {
-          setPreviews((prev) => {
-            const next = [...prev];
-            if (next[fileIdx])
-              next[fileIdx] = {
-                ...next[fileIdx],
-                error: true,
-                progress: undefined,
-              };
-            return next;
-          });
+          if (!cancelledRef.current.has(fileIdx)) {
+            setPreviews((prev) => {
+              const next = [...prev];
+              if (next[fileIdx])
+                next[fileIdx] = {
+                  ...next[fileIdx],
+                  error: true,
+                  progress: undefined,
+                };
+              return next;
+            });
+          }
         }
         await uploadNext();
       };
@@ -475,13 +489,26 @@ export default function RecordFormPage() {
   );
 
   const removePreview = useCallback((idx: number) => {
+    cancelledRef.current.add(idx);
     setPreviews((prev) => {
       const next = [...prev];
-      const removed = next.splice(idx, 1)[0];
-      if (removed.url && removed.file) URL.revokeObjectURL(removed.url);
+      if (next[idx]) {
+        if (next[idx].file) URL.revokeObjectURL(next[idx].url);
+        next[idx] = { ...next[idx], cancelled: true };
+      }
       return next;
     });
   }, []);
+
+  const uploadingCount = previews.filter(
+    (p) => p.file && !p.result && !p.error && !p.cancelled,
+  ).length;
+
+  useEffect(() => {
+    if (uploading && uploadingCount === 0) {
+      setUploading(false);
+    }
+  }, [uploading, uploadingCount]);
 
   const buildData = (): Record<string, unknown> => {
     switch (type) {
@@ -538,7 +565,7 @@ export default function RecordFormPage() {
 
     try {
       const completedImages = previews
-        .filter((p) => p.result)
+        .filter((p) => p.result && !p.cancelled)
         .map((p) => ({
           key: p.result!.key,
           rawKey: p.result!.rawKey,
@@ -1201,7 +1228,7 @@ export default function RecordFormPage() {
             图片 / 视频
           </label>
           <div className="flex flex-wrap gap-2">
-            {previews.map((p, idx) => (
+            {previews.map((p, idx) => p.cancelled ? null : (
               <div
                 key={idx}
                 className="relative w-20 h-20 rounded-lg overflow-hidden glass-media-thumb"
@@ -1219,7 +1246,11 @@ export default function RecordFormPage() {
                     loading="lazy"
                     onClick={() => {
                       if (p.result) {
-                        setViewerIndex(idx);
+                        setViewerIndex(
+                          previews
+                            .filter((x) => x.result && !x.cancelled)
+                            .findIndex((x) => x === p),
+                        );
                         setViewerOpen(true);
                       }
                     }}
@@ -1267,7 +1298,7 @@ export default function RecordFormPage() {
                   e.target.value = "";
                 }}
               />
-              {uploading ? (
+              {uploading && uploadingCount > 0 ? (
                 <span className="text-xs text-gray-400 animate-pulse">
                   上传中
                 </span>
@@ -1276,10 +1307,10 @@ export default function RecordFormPage() {
               )}
             </label>
           </div>
-          {previews.length > 0 && (
+          {previews.filter((p) => !p.cancelled).length > 0 && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              已选 {previews.length} 个文件
-              {previews.some((p) => p.error) && (
+              已选 {previews.filter((p) => !p.cancelled).length} 个文件
+              {previews.some((p) => p.error && !p.cancelled) && (
                 <span className="text-red-400 ml-1">(部分上传失败)</span>
               )}
             </p>
@@ -1335,7 +1366,7 @@ export default function RecordFormPage() {
 
       <ImageViewer
         images={previews
-          .filter((p) => p.result)
+          .filter((p) => p.result && !p.cancelled)
           .map((p) => ({
             url: p.result!.url,
             rawUrl: p.result!.rawUrl,
