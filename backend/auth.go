@@ -666,6 +666,9 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 		}
 		trackUploadedFile(localKey, "")
 
+		var oldAvatar sql.NullString
+		_ = db.QueryRow(`SELECT avatar FROM "User" WHERE id = ?`, targetID).Scan(&oldAvatar)
+
 		now := int64(nowMillis())
 		res, err := db.Exec(`UPDATE "User" SET avatar = ?, updatedAt = ? WHERE id = ?`, avatarURL, now, targetID)
 		if err != nil {
@@ -675,6 +678,10 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 		if n, _ := res.RowsAffected(); n == 0 {
 			writeErr(w, http.StatusNotFound, "User not found")
 			return
+		}
+		markUploadedFilesUsed([]string{localKey})
+		if oldAvatar.Valid && oldAvatar.String != "" && oldAvatar.String != avatarURL {
+			markFileUnused(toStorageKey(oldAvatar.String), "")
 		}
 		writeOK(w, map[string]interface{}{"id": targetID, "avatar": avatarURL})
 		return
@@ -689,6 +696,9 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var oldAvatar sql.NullString
+	_ = db.QueryRow(`SELECT avatar FROM "User" WHERE id = ?`, targetID).Scan(&oldAvatar)
+
 	now := int64(nowMillis())
 	res, err := db.Exec(`UPDATE "User" SET avatar = ?, updatedAt = ? WHERE id = ?`, body.Avatar, now, targetID)
 	if err != nil {
@@ -698,6 +708,18 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 	if n, _ := res.RowsAffected(); n == 0 {
 		writeErr(w, http.StatusNotFound, "User not found")
 		return
+	}
+	if body.Avatar != nil && *body.Avatar != "" {
+		markUploadedFilesUsed([]string{toStorageKey(*body.Avatar)})
+	}
+	if oldAvatar.Valid && oldAvatar.String != "" {
+		newVal := ""
+		if body.Avatar != nil {
+			newVal = *body.Avatar
+		}
+		if oldAvatar.String != newVal {
+			markFileUnused(toStorageKey(oldAvatar.String), "")
+		}
 	}
 	writeOK(w, map[string]interface{}{"id": targetID, "avatar": body.Avatar})
 }

@@ -1,16 +1,25 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
-// startCleanupScheduler runs once per hour; on each tick it removes moment
-// media files that were uploaded more than 24 hours ago but never attached
-// to any Moment (used = 0).
+const orphanGraceMs = 24 * 60 * 60 * 1000
+
+type orphanFile struct {
+	key    string
+	rawKey string
+}
+
+// startCleanupScheduler runs once per hour; on each tick it removes uploaded
+// files that were created more than 24 hours ago, are marked unused, and are
+// not referenced by any live record (used = 0 is not trusted alone).
 func startCleanupScheduler() {
 	ticker := time.NewTicker(1 * time.Hour)
 	go func() {
@@ -31,57 +40,14 @@ func runCleanupTick() {
 	cleanupIdempotencyKeys()
 	cleanupStaleTempFiles()
 
-	cutoff := int64(nowMillis()) - 24*60*60*1000
-
-	rows, err := db.Query(
-		`SELECT "key", "rawKey" FROM "UploadedFile" WHERE "used" = 0 AND "createdAt" < ?`,
-		cutoff,
-	)
-	if err != nil {
-		log.Printf("[Cleanup] Query error: %v", err)
+	found, deleted, errs := cleanupOrphanUploads()
+	if found == 0 && len(errs) == 0 {
 		return
 	}
-	defer rows.Close()
-
-	type orphan struct{ key, rawKey string }
-	var orphans []orphan
-	for rows.Next() {
-		var o orphan
-		var rawKey *string
-		if err := rows.Scan(&o.key, &rawKey); err != nil {
-			continue
-		}
-		if rawKey != nil {
-			o.rawKey = *rawKey
-		}
-		orphans = append(orphans, o)
+	log.Printf("[Cleanup] Cleaned up %d orphan file(s) (candidates=%d errors=%d)", deleted, found, len(errs))
+	for _, e := range errs {
+		log.Printf("[Cleanup] %s", e)
 	}
-
-	if len(orphans) == 0 {
-		return
-	}
-
-	log.Printf("[Cleanup] Found %d orphan file(s) older than 24h, deleting…", len(orphans))
-
-	deleted := 0
-	for _, o := range orphans {
-		if o.key != "" {
-			if err := deleteFile(o.key); err != nil {
-				log.Printf("[Cleanup] Failed to delete file %s: %v", o.key, err)
-			}
-		}
-		if o.rawKey != "" && o.rawKey != o.key {
-			if err := deleteFile(o.rawKey); err != nil {
-				log.Printf("[Cleanup] Failed to delete raw file %s: %v", o.rawKey, err)
-			}
-		}
-		if _, err := db.Exec(`DELETE FROM "UploadedFile" WHERE "key" = ?`, o.key); err != nil {
-			log.Printf("[Cleanup] Failed to delete DB record %s: %v", o.key, err)
-		} else {
-			deleted++
-		}
-	}
-	log.Printf("[Cleanup] Cleaned up %d orphan file(s)", deleted)
 }
 
 // POST /admin/cleanup — immediately run the orphan file cleanup.
@@ -91,22 +57,31 @@ func handleManualCleanup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cutoff := int64(nowMillis()) - 24*60*60*1000
+	found, deleted, errors := cleanupOrphanUploads()
+	log.Printf("[Cleanup] Manual cleanup: found=%d deleted=%d errors=%d", found, deleted, len(errors))
 
+	writeOK(w, map[string]interface{}{
+		"found":   found,
+		"deleted": deleted,
+		"errors":  errors,
+	})
+}
+
+func cleanupOrphanUploads() (found, deleted int, errors []string) {
+	cutoff := int64(nowMillis()) - orphanGraceMs
 	rows, err := db.Query(
 		`SELECT "key", "rawKey" FROM "UploadedFile" WHERE "used" = 0 AND "createdAt" < ?`,
 		cutoff,
 	)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "查询失败")
-		return
+		log.Printf("[Cleanup] Query error: %v", err)
+		return 0, 0, []string{"query: " + err.Error()}
 	}
 	defer rows.Close()
 
-	type orphan struct{ key, rawKey string }
-	var orphans []orphan
+	var orphans []orphanFile
 	for rows.Next() {
-		var o orphan
+		var o orphanFile
 		var rawKey *string
 		if err := rows.Scan(&o.key, &rawKey); err != nil {
 			continue
@@ -116,32 +91,110 @@ func handleManualCleanup(w http.ResponseWriter, r *http.Request) {
 		}
 		orphans = append(orphans, o)
 	}
+	found = len(orphans)
+	if found == 0 {
+		return found, 0, nil
+	}
 
-	deleted := 0
-	var errors []string
 	for _, o := range orphans {
-		if o.key != "" {
-			if err := deleteFile(o.key); err != nil {
-				errors = append(errors, o.key+": "+err.Error())
-			}
-		}
-		if o.rawKey != "" && o.rawKey != o.key {
-			if err := deleteFile(o.rawKey); err != nil {
-				errors = append(errors, o.rawKey+": "+err.Error())
-			}
-		}
-		if _, err := db.Exec(`DELETE FROM "UploadedFile" WHERE "key" = ?`, o.key); err == nil {
+		if ok, err := claimAndDeleteOrphan(o); err != nil {
+			errors = append(errors, o.key+": "+err.Error())
+		} else if ok {
 			deleted++
 		}
 	}
+	return found, deleted, errors
+}
 
-	log.Printf("[Cleanup] Manual cleanup: found=%d deleted=%d errors=%d", len(orphans), deleted, len(errors))
+// claimAndDeleteOrphan deletes storage objects only after confirming the file
+// is not referenced and atomically claiming the unused tracking row.
+// Returns (true, nil) if the tracking row was claimed and storage delete was attempted.
+func claimAndDeleteOrphan(o orphanFile) (bool, error) {
+	if o.key == "" {
+		return false, nil
+	}
 
-	writeOK(w, map[string]interface{}{
-		"found":   len(orphans),
-		"deleted": deleted,
-		"errors":  errors,
-	})
+	if fileIsReferenced(o.key, o.rawKey) {
+		log.Printf("[Cleanup] Skip %s: still referenced; repairing used=1", o.key)
+		markUploadedFilesUsed([]string{o.key})
+		return false, nil
+	}
+
+	// Claim first. If a concurrent attach flipped used=1, RowsAffected is 0 and
+	// we must not touch S3.
+	res, err := db.Exec(`DELETE FROM "UploadedFile" WHERE "key" = ? AND "used" = 0`, o.key)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		log.Printf("[Cleanup] Skip %s: tracking row already used or gone", o.key)
+		return false, nil
+	}
+
+	if err := deleteFile(o.key); err != nil {
+		log.Printf("[Cleanup] Failed to delete file %s: %v", o.key, err)
+		return true, err
+	}
+	if o.rawKey != "" && o.rawKey != o.key {
+		if err := deleteFile(o.rawKey); err != nil {
+			log.Printf("[Cleanup] Failed to delete raw file %s: %v", o.rawKey, err)
+			return true, err
+		}
+	}
+	return true, nil
+}
+
+// Columns that may contain an upload key or a URL that includes the key.
+// False positives (LIKE substring) skip deletion — that is the safe direction.
+var fileRefSources = []struct{ table, col string }{
+	{`"Record"`, `"images"`},
+	{`"Moment"`, `"mediaItems"`},
+	{`"HealthEntry"`, `"images"`},
+	{`"Milestone"`, `"images"`},
+	{`"Plan"`, `"images"`},
+	{`"MedicalVisit"`, `"images"`},
+	{`"MedicalVisit"`, `"ocrData"`},
+	{`"User"`, `"avatar"`},
+	{`"Baby"`, `"avatar"`},
+}
+
+func fileIsReferenced(keys ...string) bool {
+	seen := map[string]bool{}
+	for _, key := range keys {
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		if keyReferencedInDB(key) {
+			return true
+		}
+	}
+	return false
+}
+
+func keyReferencedInDB(key string) bool {
+	for _, src := range fileRefSources {
+		var exists int
+		err := db.QueryRow(
+			`SELECT 1 FROM `+src.table+` WHERE `+src.col+` LIKE '%' || ? || '%' LIMIT 1`,
+			key,
+		).Scan(&exists)
+		if err == sql.ErrNoRows {
+			continue
+		}
+		if err != nil {
+			// Missing column (older DBs) is skippable; any other error is treated
+			// as "in use" so we never delete when we cannot prove the file is free.
+			if strings.Contains(err.Error(), "no such column") {
+				continue
+			}
+			log.Printf("[Cleanup] Reference check failed for %s.%s key=%s: %v", src.table, src.col, key, err)
+			return true
+		}
+		return true
+	}
+	return false
 }
 
 // cleanupStaleTempFiles removes chunked upload temp files older than 24 hours.

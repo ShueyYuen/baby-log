@@ -143,6 +143,10 @@ func handleCreateBaby(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if avatarKey.Valid && avatarKey.String != "" {
+		markUploadedFilesUsed([]string{avatarKey.String})
+	}
+
 	if err := addBabyToAllUsers(id, defaultRole); err != nil {
 		logInfo("[Baby] addBabyToAllUsers failed: %v", err)
 	}
@@ -222,6 +226,11 @@ func handleUpdateBaby(w http.ResponseWriter, r *http.Request) {
 			args = append(args, int64(m))
 		}
 	}
+	var oldAvatar sql.NullString
+	if _, exists := body["avatar"]; exists {
+		_ = db.QueryRow(`SELECT avatar FROM "Baby" WHERE id = ?`, id).Scan(&oldAvatar)
+	}
+
 	if av, exists := body["avatar"]; exists {
 		if s, ok := av.(string); ok && s != "" {
 			sets = append(sets, "avatar = ?")
@@ -241,6 +250,17 @@ func handleUpdateBaby(w http.ResponseWriter, r *http.Request) {
 	if _, err := db.Exec(q, args...); err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
+	}
+
+	if av, exists := body["avatar"]; exists {
+		newKey := ""
+		if s, ok := av.(string); ok && s != "" {
+			newKey = toStorageKey(s)
+			markUploadedFilesUsed([]string{newKey})
+		}
+		if oldAvatar.Valid && oldAvatar.String != "" && toStorageKey(oldAvatar.String) != newKey {
+			markFileUnused(toStorageKey(oldAvatar.String), "")
+		}
 	}
 
 	row := db.QueryRow(`SELECT id, name, gender, birthDate, avatar, createdAt, updatedAt FROM "Baby" WHERE id = ?`, id)

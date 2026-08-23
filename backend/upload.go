@@ -449,12 +449,17 @@ func markUploadedFilesUsed(keys []string) {
 
 // markFileUnused marks a file for deferred cleanup. If no tracking record
 // exists (e.g. file uploaded before tracking was introduced), one is created.
+// Files still referenced by any live row are left (or repaired) as used=1.
 func markFileUnused(key, rawKey string) {
 	if key == "" {
 		return
 	}
+	if fileIsReferenced(key, rawKey) {
+		markUploadedFilesUsed([]string{key})
+		return
+	}
 	now := int64(nowMillis())
-	result, _ := db.Exec(`UPDATE "UploadedFile" SET "used" = 0 WHERE "key" = ?`, key)
+	result, _ := db.Exec(`UPDATE "UploadedFile" SET "used" = 0, "createdAt" = ? WHERE "key" = ?`, now, key)
 	if affected, _ := result.RowsAffected(); affected == 0 {
 		db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used") VALUES (?, ?, ?, 0)`,
 			key, rawKey, now)
