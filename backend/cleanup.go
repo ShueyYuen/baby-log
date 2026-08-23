@@ -166,17 +166,42 @@ func claimAndDeleteOrphan(o orphanFile) (bool, error) {
 		return false, nil
 	}
 
+	// Re-check after claiming. A concurrent attach may have written a live
+	// reference after the first check and before the DELETE.
+	if fileIsReferenced(o.key, o.rawKey) {
+		log.Printf("[Cleanup] Skip %s: referenced after claim; restoring used=1", o.key)
+		restoreTrackingRow(o, 1)
+		return false, nil
+	}
+
 	if err := deleteFile(o.key); err != nil {
 		log.Printf("[Cleanup] Failed to delete file %s: %v", o.key, err)
+		restoreTrackingRow(o, 0)
 		return true, err
 	}
 	if o.rawKey != "" && o.rawKey != o.key {
 		if err := deleteFile(o.rawKey); err != nil {
 			log.Printf("[Cleanup] Failed to delete raw file %s: %v", o.rawKey, err)
+			restoreTrackingRow(o, 0)
 			return true, err
 		}
 	}
 	return true, nil
+}
+
+func restoreTrackingRow(o orphanFile, used int) {
+	now := int64(nowMillis())
+	_, err := db.Exec(
+		`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used") VALUES (?, ?, ?, ?)`,
+		o.key, o.rawKey, now, used,
+	)
+	if err != nil {
+		log.Printf("[Cleanup] Failed to restore tracking row %s: %v", o.key, err)
+		return
+	}
+	if used == 1 {
+		markUploadedFilesUsed([]string{o.key})
+	}
 }
 
 // Columns that may contain an upload key or a URL that includes the key.

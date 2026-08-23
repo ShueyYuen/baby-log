@@ -277,8 +277,6 @@ func handleChunkedComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	markUploadedFilesUsed([]string{state.Key})
-
 	result := &uploadResult{
 		Key:       state.Key,
 		MediaType: state.MediaType,

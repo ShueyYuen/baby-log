@@ -31,6 +31,29 @@ func parseRecordImages(ns sql.NullString) []RecordImageStore {
 	return items
 }
 
+func unmarkImagesJSON(imagesJSON sql.NullString) {
+	for _, img := range parseRecordImages(imagesJSON) {
+		markFileUnused(img.Key, img.RawKey)
+	}
+}
+
+func unmarkRemovedImages(oldJSON sql.NullString, keepKeys []string) {
+	if !oldJSON.Valid {
+		return
+	}
+	keep := map[string]bool{}
+	for _, k := range keepKeys {
+		if k != "" {
+			keep[k] = true
+		}
+	}
+	for _, old := range parseRecordImages(oldJSON) {
+		if old.Key != "" && !keep[old.Key] {
+			markFileUnused(old.Key, old.RawKey)
+		}
+	}
+}
+
 func recordImagesToDisplay(items []RecordImageStore, currentUserID string, isAdmin bool, createdBy string) []RecordImageDisplay {
 	out := make([]RecordImageDisplay, 0, len(items))
 	for _, item := range items {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -231,8 +232,16 @@ func handleCreateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	imgsForStore := make([]mvImage, len(body.Images))
+	usedKeys := make([]string, 0, len(body.Images))
 	for i, img := range body.Images {
 		imgsForStore[i] = mvImage{Key: toStorageKey(img.Key), RawKey: toStorageKey(img.RawKey), MediaType: img.MediaType}
+		if imgsForStore[i].Key != "" {
+			usedKeys = append(usedKeys, imgsForStore[i].Key)
+		}
+	}
+	if err := validateUploadKeys(usedKeys); err != nil {
+		writeErr(w, http.StatusBadRequest, "Invalid image key")
+		return
 	}
 	imagesJSON, _ := json.Marshal(imgsForStore)
 
@@ -255,12 +264,6 @@ func handleCreateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var usedKeys []string
-	for _, img := range imgsForStore {
-		if img.Key != "" {
-			usedKeys = append(usedKeys, img.Key)
-		}
-	}
 	markUploadedFilesUsed(usedKeys)
 
 	row := db.QueryRow(`SELECT `+medicalVisitCols+` FROM "MedicalVisit" WHERE id = ?`, id)
@@ -351,19 +354,26 @@ func handleUpdateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 		args = append(args, *body.Notes)
 	}
 	var usedKeys []string
+	var oldImages sql.NullString
 	if body.Images != nil {
+		_ = db.QueryRow(`SELECT "images" FROM "MedicalVisit" WHERE id = ?`, id).Scan(&oldImages)
 		imgsForStore := make([]mvImage, len(*body.Images))
 		for i, img := range *body.Images {
 			imgsForStore[i] = mvImage{Key: toStorageKey(img.Key), RawKey: toStorageKey(img.RawKey), MediaType: img.MediaType}
 		}
-		imagesJSON, _ := json.Marshal(imgsForStore)
-		sets = append(sets, `"images" = ?`)
-		args = append(args, string(imagesJSON))
+		usedKeys = make([]string, 0, len(imgsForStore))
 		for _, img := range imgsForStore {
 			if img.Key != "" {
 				usedKeys = append(usedKeys, img.Key)
 			}
 		}
+		if err := validateUploadKeys(usedKeys); err != nil {
+			writeErr(w, http.StatusBadRequest, "Invalid image key")
+			return
+		}
+		imagesJSON, _ := json.Marshal(imgsForStore)
+		sets = append(sets, `"images" = ?`)
+		args = append(args, string(imagesJSON))
 	}
 	if body.OcrText != nil {
 		sets = append(sets, `"ocrText" = ?`)
@@ -382,8 +392,9 @@ func handleUpdateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(usedKeys) > 0 {
+	if body.Images != nil {
 		markUploadedFilesUsed(usedKeys)
+		unmarkRemovedImages(oldImages, usedKeys)
 	}
 
 	row := db.QueryRow(`SELECT `+medicalVisitCols+` FROM "MedicalVisit" WHERE id = ?`, id)
@@ -401,7 +412,8 @@ func handleDeleteMedicalVisit(w http.ResponseWriter, r *http.Request) {
 	id := chiURLParam(r, "id")
 
 	var babyID string
-	if err := db.QueryRow(`SELECT "babyId" FROM "MedicalVisit" WHERE id = ?`, id).Scan(&babyID); err != nil {
+	var imagesJSON sql.NullString
+	if err := db.QueryRow(`SELECT "babyId", "images" FROM "MedicalVisit" WHERE id = ?`, id).Scan(&babyID, &imagesJSON); err != nil {
 		if isNoRows(err) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
@@ -424,6 +436,7 @@ func handleDeleteMedicalVisit(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
 	}
+	unmarkImagesJSON(imagesJSON)
 	writeSuccess(w)
 }
 

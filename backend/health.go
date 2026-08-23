@@ -225,23 +225,24 @@ func handleDeleteHealthCondition(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Clean up images from all entries
+	var toUnmark []RecordImageStore
 	rows, err := db.Query(`SELECT images FROM "HealthEntry" WHERE conditionId = ?`, id)
 	if err == nil {
-		defer rows.Close()
 		for rows.Next() {
 			var images sql.NullString
 			if rows.Scan(&images) == nil && images.Valid {
-				for _, img := range parseRecordImages(images) {
-					markFileUnused(img.Key, img.RawKey)
-				}
+				toUnmark = append(toUnmark, parseRecordImages(images)...)
 			}
 		}
+		rows.Close()
 	}
 
 	if _, err := db.Exec(`DELETE FROM "HealthCondition" WHERE id = ?`, id); err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
+	}
+	for _, img := range toUnmark {
+		markFileUnused(img.Key, img.RawKey)
 	}
 
 	writeSuccess(w)

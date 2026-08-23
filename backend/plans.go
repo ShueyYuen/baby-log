@@ -169,14 +169,21 @@ func handleCreatePlan(w http.ResponseWriter, r *http.Request) {
 
 	var imagesJSON sql.NullString
 	if len(body.Images) > 0 {
+		for i := range body.Images {
+			body.Images[i].Key = toStorageKey(body.Images[i].Key)
+			body.Images[i].RawKey = toStorageKey(body.Images[i].RawKey)
+		}
 		b, _ := json.Marshal(body.Images)
 		imagesJSON = sql.NullString{String: string(b), Valid: true}
-		keys := make([]string, 0, len(body.Images)*2)
+		keys := make([]string, 0, len(body.Images))
 		for _, img := range body.Images {
-			keys = append(keys, img.Key)
-			if img.RawKey != "" {
-				keys = append(keys, img.RawKey)
+			if img.Key != "" {
+				keys = append(keys, img.Key)
 			}
+		}
+		if err := validateUploadKeys(keys); err != nil {
+			writeErr(w, http.StatusBadRequest, "Invalid image key")
+			return
 		}
 		markUploadedFilesUsed(keys)
 	}
@@ -306,20 +313,31 @@ func handleUpdatePlan(w http.ResponseWriter, r *http.Request) {
 			args = append(args, s)
 		}
 	}
+	var oldImages sql.NullString
+	var newImageKeys []string
+	imagesUpdated := false
 	if raw, ok := body["images"]; ok {
+		_ = db.QueryRow(`SELECT images FROM "Plan" WHERE id = ?`, id).Scan(&oldImages)
 		var newImages []RecordImageStore
 		if err := json.Unmarshal(raw, &newImages); err == nil {
+			for i := range newImages {
+				newImages[i].Key = toStorageKey(newImages[i].Key)
+				newImages[i].RawKey = toStorageKey(newImages[i].RawKey)
+			}
 			b, _ := json.Marshal(newImages)
 			sets = append(sets, "images = ?")
 			args = append(args, string(b))
-			keys := make([]string, 0, len(newImages)*2)
+			newImageKeys = make([]string, 0, len(newImages))
 			for _, img := range newImages {
-				keys = append(keys, img.Key)
-				if img.RawKey != "" {
-					keys = append(keys, img.RawKey)
+				if img.Key != "" {
+					newImageKeys = append(newImageKeys, img.Key)
 				}
 			}
-			markUploadedFilesUsed(keys)
+			if err := validateUploadKeys(newImageKeys); err != nil {
+				writeErr(w, http.StatusBadRequest, "Invalid image key")
+				return
+			}
+			imagesUpdated = true
 		}
 	}
 
@@ -330,6 +348,11 @@ func handleUpdatePlan(w http.ResponseWriter, r *http.Request) {
 	if _, err := db.Exec(`UPDATE "Plan" SET `+strings.Join(sets, ", ")+` WHERE id = ?`, args...); err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
+	}
+
+	if imagesUpdated {
+		markUploadedFilesUsed(newImageKeys)
+		unmarkRemovedImages(oldImages, newImageKeys)
 	}
 
 	if statusToCompleted {
@@ -356,7 +379,8 @@ func handleDeletePlan(w http.ResponseWriter, r *http.Request) {
 	id := chiURLParam(r, "id")
 
 	var babyID string
-	if err := db.QueryRow(`SELECT babyId FROM "Plan" WHERE id = ?`, id).Scan(&babyID); err != nil {
+	var imagesJSON sql.NullString
+	if err := db.QueryRow(`SELECT babyId, images FROM "Plan" WHERE id = ?`, id).Scan(&babyID, &imagesJSON); err != nil {
 		if isNoRows(err) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
@@ -392,6 +416,7 @@ func handleDeletePlan(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
 	}
+	unmarkImagesJSON(imagesJSON)
 	writeSuccess(w)
 	publishEvent(DataEvent{Type: EventPlanDeleted, BabyID: babyID, ID: id, UserID: userID})
 }

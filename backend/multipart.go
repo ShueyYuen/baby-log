@@ -191,13 +191,11 @@ func handleMultipartComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	markUploadedFilesUsed([]string{req.Key})
-
 	result := &uploadResult{Key: req.Key}
 	if cfg.s3.publicURL != "" {
 		result.URL = buildPublicURL(cfg.s3, req.Key)
 	} else {
-		result.URL, _ = getSignedDownloadURL(req.Key, 3600)
+		result.URL, _ = toDisplayURL(req.Key, 86400)
 	}
 	result.MediaType = "video"
 	if isImageMIME(mimeFromExt(filepath.Ext(req.Key))) {
