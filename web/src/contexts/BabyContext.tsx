@@ -1,10 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import { api, type Baby as ApiBaby } from '../lib/api';
-
-interface Baby extends ApiBaby {
-  avatar?: string;
-}
+import { api, type Baby } from '../lib/api';
 
 interface BabyContextValue {
   babies: Baby[];
