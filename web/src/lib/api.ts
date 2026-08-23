@@ -335,6 +335,7 @@ export interface Baby {
   name: string;
   gender: string;
   birthDate: string;
+  avatar?: string | null;
 }
 
 // ─── Upload helper ────────────────────────────────────────────────────────────
@@ -623,7 +624,7 @@ export const api = {
 
   babies: {
     list: () => api.get<{ success: boolean; data: Baby[] }>('/babies'),
-    create: (data: { name: string; gender: string; birthDate: string }, idempotencyKey?: string) =>
+    create: (data: { name: string; gender: string; birthDate: string; avatar?: string }, idempotencyKey?: string) =>
       api.post<{ success: boolean; data: Baby }>('/babies', data, idempotencyKey),
     update: (id: string, data: Record<string, unknown>) =>
       api.put<{ success: boolean; data: Baby }>(`/babies/${id}`, data),

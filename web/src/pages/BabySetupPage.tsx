@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Camera } from 'lucide-react';
 import { api, generateIdempotencyKey } from '../lib/api';
+import { cropAndResizeAvatar } from '../lib/avatar-crop';
 import { useBaby } from '../contexts/BabyContext';
 import { DateTimePicker } from '../components/ui';
 
@@ -10,8 +12,29 @@ export default function BabySetupPage() {
   const [birthDate, setBirthDate] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarKey, setAvatarKey] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const { refreshBabies } = useBaby();
   const navigate = useNavigate();
+
+  const handleAvatarUpload = async (file: File) => {
+    setAvatarUploading(true);
+    setError('');
+    try {
+      const cropped = await cropAndResizeAvatar(file);
+      const formData = new FormData();
+      formData.append('file', cropped);
+      const res = await api.post<{ success: boolean; data: { url: string; key: string } }>('/upload', formData);
+      setAvatarPreview(res.data.url);
+      setAvatarKey(res.data.key);
+    } catch (err: any) {
+      setError(err.message || '头像上传失败');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +48,15 @@ export default function BabySetupPage() {
     setLoading(true);
 
     try {
-      await api.babies.create({ name, gender, birthDate: new Date(birthDate).toISOString() }, generateIdempotencyKey());
+      await api.babies.create(
+        {
+          name,
+          gender,
+          birthDate: new Date(birthDate).toISOString(),
+          ...(avatarKey ? { avatar: avatarKey } : {}),
+        },
+        generateIdempotencyKey(),
+      );
       await refreshBabies();
       navigate('/');
     } catch (err: any) {
@@ -47,6 +78,43 @@ export default function BabySetupPage() {
           {error && (
             <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm p-3 rounded-lg">{error}</div>
           )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">头像（可选）</label>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarUploading}
+                className="w-16 h-16 rounded-full overflow-hidden glass-avatar-placeholder flex items-center justify-center flex-shrink-0"
+              >
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <Camera size={22} className="text-gray-400" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarUploading}
+                className="text-sm text-primary-600 dark:text-primary-400"
+              >
+                {avatarUploading ? '上传中...' : avatarPreview ? '更换头像' : '选择图片'}
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleAvatarUpload(f);
+                  e.target.value = '';
+                }}
+              />
+            </div>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">宝宝名字</label>

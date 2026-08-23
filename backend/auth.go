@@ -90,7 +90,22 @@ func authMiddleware(next http.Handler) http.Handler {
 
 		ctx := context.WithValue(r.Context(), userIDKey, id)
 		ctx = context.WithValue(ctx, userRoleKey, role)
+		setAuthCookie(w, r, token)
 		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+const authCookieMaxAge = 30 * 24 * 60 * 60
+
+func setAuthCookie(w http.ResponseWriter, r *http.Request, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
+		MaxAge:   authCookieMaxAge,
 	})
 }
 
@@ -224,16 +239,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	clearLoginFailures(*body.Username)
 
 	token := fmt.Sprintf("%s:%d", id, tokenVersion)
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     "token",
-		Value:    token,
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
-		MaxAge:   30 * 24 * 60 * 60, // 30 days
-	})
+	setAuthCookie(w, r, token)
 
 	writeOK(w, map[string]interface{}{
 		"token": token,
@@ -423,7 +429,8 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var exists string
-	if err := db.QueryRow(`SELECT id FROM "User" WHERE id = ?`, targetID).Scan(&exists); err != nil {
+	var avatar sql.NullString
+	if err := db.QueryRow(`SELECT id, avatar FROM "User" WHERE id = ?`, targetID).Scan(&exists, &avatar); err != nil {
 		writeErr(w, http.StatusNotFound, "用户不存在")
 		return
 	}
@@ -439,8 +446,14 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	}{
 		{`DELETE FROM "BabyMember" WHERE userId = ?`, []interface{}{targetID}},
 		{`DELETE FROM "PushSubscription" WHERE userId = ?`, []interface{}{targetID}},
+		{`DELETE FROM "MomentLike" WHERE userId = ?`, []interface{}{targetID}},
+		{`UPDATE "MomentComment" SET userId = ? WHERE userId = ?`, []interface{}{adminID, targetID}},
+		{`UPDATE "Moment" SET userId = ? WHERE userId = ?`, []interface{}{adminID, targetID}},
 		{`UPDATE "Record" SET createdBy = ? WHERE createdBy = ?`, []interface{}{adminID, targetID}},
 		{`UPDATE "Plan" SET createdBy = ? WHERE createdBy = ?`, []interface{}{adminID, targetID}},
+		{`UPDATE "HealthCondition" SET createdBy = ? WHERE createdBy = ?`, []interface{}{adminID, targetID}},
+		{`UPDATE "HealthEntry" SET createdBy = ? WHERE createdBy = ?`, []interface{}{adminID, targetID}},
+		{`UPDATE "MedicalVisit" SET createdBy = ? WHERE createdBy = ?`, []interface{}{adminID, targetID}},
 		{`DELETE FROM "User" WHERE id = ?`, []interface{}{targetID}},
 	}
 	for _, s := range stmts {
@@ -453,6 +466,9 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	if err := tx.Commit(); err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
+	}
+	if avatar.Valid && avatar.String != "" {
+		markFileUnused(toStorageKey(avatar.String), "")
 	}
 
 	writeSuccess(w)
@@ -700,6 +716,10 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 	var storedKey string
 	if body.Avatar != nil && *body.Avatar != "" {
 		storedKey = toStorageKey(*body.Avatar)
+		if err := validateUploadKeys([]string{storedKey}); err != nil {
+			writeErr(w, http.StatusBadRequest, "Invalid avatar key")
+			return
+		}
 		stored = storedKey
 	}
 

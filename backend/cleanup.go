@@ -73,6 +73,7 @@ func runCleanupTick() {
 
 	cleanupIdempotencyKeys()
 	cleanupStaleTempFiles()
+	reclaimUnreferencedUsedFiles()
 
 	found, deleted, errs := cleanupOrphanUploads()
 	if found == 0 && len(errs) == 0 {
@@ -92,6 +93,7 @@ func handleManualCleanup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	found, deleted, errors := cleanupOrphanUploads()
+	reclaimUnreferencedUsedFiles()
 	log.Printf("[Cleanup] Manual cleanup: found=%d deleted=%d errors=%d", found, deleted, len(errors))
 
 	writeOK(w, map[string]interface{}{
@@ -174,17 +176,17 @@ func claimAndDeleteOrphan(o orphanFile) (bool, error) {
 		return false, nil
 	}
 
-	if err := deleteFile(o.key); err != nil {
-		log.Printf("[Cleanup] Failed to delete file %s: %v", o.key, err)
-		restoreTrackingRow(o, 0)
-		return true, err
-	}
 	if o.rawKey != "" && o.rawKey != o.key {
 		if err := deleteFile(o.rawKey); err != nil {
 			log.Printf("[Cleanup] Failed to delete raw file %s: %v", o.rawKey, err)
 			restoreTrackingRow(o, 0)
 			return true, err
 		}
+	}
+	if err := deleteFile(o.key); err != nil {
+		log.Printf("[Cleanup] Failed to delete file %s: %v", o.key, err)
+		restoreTrackingRow(o, 0)
+		return true, err
 	}
 	return true, nil
 }
@@ -254,6 +256,39 @@ func keyReferencedInDB(key string) bool {
 		return true
 	}
 	return false
+}
+
+func reclaimUnreferencedUsedFiles() {
+	rows, err := db.Query(`SELECT "key", "rawKey" FROM "UploadedFile" WHERE "used" = 1`)
+	if err != nil {
+		log.Printf("[Cleanup] Reclaim query error: %v", err)
+		return
+	}
+	defer rows.Close()
+
+	var files []orphanFile
+	for rows.Next() {
+		var o orphanFile
+		var rawKey *string
+		if err := rows.Scan(&o.key, &rawKey); err != nil {
+			continue
+		}
+		if rawKey != nil {
+			o.rawKey = *rawKey
+		}
+		files = append(files, o)
+	}
+
+	reclaimed := 0
+	for _, o := range files {
+		if !fileIsReferenced(o.key, o.rawKey) {
+			markFileUnused(o.key, o.rawKey)
+			reclaimed++
+		}
+	}
+	if reclaimed > 0 {
+		log.Printf("[Cleanup] Marked used=0 for %d unreferenced used=1 file(s)", reclaimed)
+	}
 }
 
 // cleanupStaleTempFiles removes chunked upload temp files older than 24 hours.

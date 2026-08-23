@@ -113,7 +113,12 @@ func handleCreateBaby(w http.ResponseWriter, r *http.Request) {
 	var avatarKey sql.NullString
 	if body.Avatar != nil {
 		if *body.Avatar != "" {
-			avatarKey = sql.NullString{String: toStorageKey(*body.Avatar), Valid: true}
+			key := toStorageKey(*body.Avatar)
+			if err := validateUploadKeys([]string{key}); err != nil {
+				writeErr(w, http.StatusBadRequest, "Invalid avatar key")
+				return
+			}
+			avatarKey = sql.NullString{String: key, Valid: true}
 		} else {
 			avatarKey = sql.NullString{String: "", Valid: true}
 		}
@@ -233,10 +238,14 @@ func handleUpdateBaby(w http.ResponseWriter, r *http.Request) {
 
 	if av, exists := body["avatar"]; exists {
 		if s, ok := av.(string); ok && s != "" {
+			key := toStorageKey(s)
+			if err := validateUploadKeys([]string{key}); err != nil {
+				writeErr(w, http.StatusBadRequest, "Invalid avatar key")
+				return
+			}
 			sets = append(sets, "avatar = ?")
-			args = append(args, toStorageKey(s))
+			args = append(args, key)
 		} else {
-			// avatar 显式设为 null / 空
 			sets = append(sets, "avatar = ?")
 			args = append(args, nil)
 		}

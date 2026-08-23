@@ -1,11 +1,12 @@
-import { ReactNode, useState, useCallback } from 'react';
+import { ReactNode, useState, useCallback, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { hapticTap } from '../lib/haptic';
-import { Clock, Calendar, TrendingUp, Activity, Sun, Moon, Monitor, Users, Images } from 'lucide-react';
+import { Clock, Calendar, TrendingUp, Activity, Sun, Moon, Monitor, Users, Images, Camera } from 'lucide-react';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { api } from '../lib/api';
+import { cropAndResizeAvatar } from '../lib/avatar-crop';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Button, Input, DateTimePicker, useToast } from './ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui';
 import dayjs from 'dayjs';
@@ -26,24 +27,48 @@ export default function Layout({ children }: LayoutProps) {
   const [editGender, setEditGender] = useState<string>('male');
   const [editBirthDate, setEditBirthDate] = useState('');
   const [saving, setSaving] = useState(false);
+  const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null);
+  const [editAvatarKey, setEditAvatarKey] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const babyAvatarInputRef = useRef<HTMLInputElement>(null);
 
   const openBabyEdit = () => {
     if (!currentBaby) return;
     setEditName(currentBaby.name);
     setEditGender(currentBaby.gender);
     setEditBirthDate(currentBaby.birthDate ? dayjs(currentBaby.birthDate).format('YYYY-MM-DDTHH:mm') : '');
+    setEditAvatarPreview(currentBaby.avatar ?? null);
+    setEditAvatarKey(null);
     setShowBabyEdit(true);
+  };
+
+  const handleBabyAvatarUpload = async (file: File) => {
+    setAvatarUploading(true);
+    try {
+      const cropped = await cropAndResizeAvatar(file);
+      const formData = new FormData();
+      formData.append('file', cropped);
+      const res = await api.post<{ success: boolean; data: { url: string; key: string } }>('/upload', formData);
+      setEditAvatarPreview(res.data.url);
+      setEditAvatarKey(res.data.key);
+    } catch {
+      toast('头像上传失败', 'error');
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   const saveBabyEdit = async () => {
     if (!currentBaby || !editName.trim()) return;
     setSaving(true);
     try {
-      await api.babies.update(currentBaby.id, {
+      const payload: Record<string, unknown> = {
         name: editName.trim(),
         gender: editGender,
         birthDate: editBirthDate ? new Date(editBirthDate).toISOString() : undefined,
-      });
+      };
+      if (editAvatarKey) payload.avatar = editAvatarKey;
+      await api.babies.update(currentBaby.id, payload);
       await refreshBabies();
       setShowBabyEdit(false);
     } catch {
@@ -89,9 +114,16 @@ export default function Layout({ children }: LayoutProps) {
           {currentBaby ? (
               <button
                 onClick={openBabyEdit}
-                className="text-sm text-gray-500 dark:text-gray-400 mt-1 hover:text-primary-600 dark:hover:text-primary-400 transition-colors cursor-pointer"
+                className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mt-1.5 hover:text-primary-600 dark:hover:text-primary-400 transition-colors cursor-pointer"
               >
-                {babyNameLabel}
+                {currentBaby.avatar ? (
+                  <img src={currentBaby.avatar} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                ) : (
+                  <span className="w-7 h-7 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-600 text-xs font-medium flex items-center justify-center flex-shrink-0">
+                    {currentBaby.name.slice(0, 1)}
+                  </span>
+                )}
+                <span>{babyNameLabel}</span>
               </button>
           ) : babyLoading ? (
             <span className="text-sm text-gray-400 mt-1">…</span>
@@ -166,9 +198,16 @@ export default function Layout({ children }: LayoutProps) {
           {currentBaby ? (
               <button
                 onClick={openBabyEdit}
-                className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
               >
-                {babyNameLabel}
+                {currentBaby.avatar ? (
+                  <img src={currentBaby.avatar} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                ) : (
+                  <span className="w-6 h-6 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-600 text-[10px] font-medium flex items-center justify-center flex-shrink-0">
+                    {currentBaby.name.slice(0, 1)}
+                  </span>
+                )}
+                <span>{babyNameLabel}</span>
               </button>
           ) : babyLoading ? (
             <span className="text-sm text-gray-400">…</span>
@@ -212,6 +251,42 @@ export default function Layout({ children }: LayoutProps) {
             <DialogTitle>编辑宝宝信息</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">头像</label>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => babyAvatarInputRef.current?.click()}
+                  disabled={avatarUploading}
+                  className="relative w-16 h-16 rounded-full overflow-hidden glass-avatar-placeholder flex items-center justify-center flex-shrink-0"
+                >
+                  {editAvatarPreview ? (
+                    <img src={editAvatarPreview} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <Camera size={22} className="text-gray-400" />
+                  )}
+                </button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={avatarUploading}
+                  onClick={() => babyAvatarInputRef.current?.click()}
+                >
+                  {avatarUploading ? '上传中...' : editAvatarPreview ? '更换头像' : '选择图片'}
+                </Button>
+                <input
+                  ref={babyAvatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleBabyAvatarUpload(f);
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">姓名</label>
               <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="宝宝姓名" />

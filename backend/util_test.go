@@ -119,13 +119,13 @@ func TestValidPlanTypeAndRepeat(t *testing.T) {
 	if isValidPlanType("bogus") {
 		t.Errorf("bogus should be invalid")
 	}
-	for _, rp := range []string{"none", "daily", "weekly", "monthly"} {
+	for _, rp := range []string{"none", "daily", "weekly", "monthly", "yearly"} {
 		if !isValidRepeat(rp) {
 			t.Errorf("%s should be valid", rp)
 		}
 	}
-	if isValidRepeat("yearly") {
-		t.Errorf("yearly should be invalid")
+	if isValidRepeat("hourly") {
+		t.Errorf("hourly should be invalid")
 	}
 }
 

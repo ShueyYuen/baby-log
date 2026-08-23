@@ -229,3 +229,18 @@ func TestRepairReferencedUploadsMarksUsed(t *testing.T) {
 		t.Fatal("referenced avatar should be repaired to used=1")
 	}
 }
+
+func TestReclaimUnreferencedUsedFiles(t *testing.T) {
+	setupTestDB(t)
+	key := "orphan/" + uuid.NewString() + ".jpg"
+	if _, err := db.Exec(
+		`INSERT INTO "UploadedFile" ("key", "createdAt", "used") VALUES (?, ?, 1)`,
+		key, int64(nowMillis()),
+	); err != nil {
+		t.Fatal(err)
+	}
+	reclaimUnreferencedUsedFiles()
+	if usedFlag(t, key) != 0 {
+		t.Fatal("unreferenced used=1 file should be marked unused")
+	}
+}

@@ -156,6 +156,14 @@ func extractOCRText(data *string) string {
 }
 
 func ocrImageByKey(key string) (string, error) {
+	sanitized, err := sanitizeStorageKey(key)
+	if err != nil || sanitized == "" {
+		return "", fmt.Errorf("invalid key")
+	}
+	if err := validateUploadKeys([]string{sanitized}); err != nil {
+		return "", err
+	}
+	key = sanitized
 	cfg := getStorageConfig()
 
 	if cfg.typ == storageS3 && cfg.s3 != nil {
@@ -171,8 +179,16 @@ func ocrImageByKey(key string) (string, error) {
 		return ocrFromStream(out.Body)
 	}
 
-	localPath := filepath.Join(cfg.uploadDir, key)
-	f, err := os.Open(localPath)
+	localPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(key))
+	absUpload, err := filepath.Abs(cfg.uploadDir)
+	if err != nil {
+		return "", err
+	}
+	absFile, err := filepath.Abs(localPath)
+	if err != nil || (!strings.HasPrefix(absFile, absUpload+string(os.PathSeparator)) && absFile != absUpload) {
+		return "", fmt.Errorf("invalid key")
+	}
+	f, err := os.Open(absFile)
 	if err != nil {
 		return "", fmt.Errorf("open file: %w", err)
 	}

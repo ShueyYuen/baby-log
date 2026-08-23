@@ -151,18 +151,23 @@ func handlePresignComplete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg := getStorageConfig()
+	req.Key = toStorageKey(req.Key)
+	req.RawKey = toStorageKey(req.RawKey)
 	result := &uploadResult{
-		Key:    req.Key,
-		RawKey: req.RawKey,
+		Key:       req.Key,
+		RawKey:    req.RawKey,
+		MediaType: mediaTypeFromKey(req.Key),
 	}
 	if cfg.typ == storageS3 && cfg.s3 != nil && cfg.s3.publicURL != "" {
 		result.URL = buildPublicURL(cfg.s3, req.Key)
 		if req.RawKey != "" {
 			result.RawURL = buildPublicURL(cfg.s3, req.RawKey)
 		}
-	}
-	if isImageMIME("image/jpeg") {
-		result.MediaType = "image"
+	} else {
+		result.URL, _ = toDisplayURL(req.Key, 86400)
+		if req.RawKey != "" {
+			result.RawURL, _ = toDisplayURL(req.RawKey, 86400)
+		}
 	}
 
 	writeOK(w, []*uploadResult{result})

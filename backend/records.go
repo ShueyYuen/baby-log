@@ -31,6 +31,23 @@ func parseRecordImages(ns sql.NullString) []RecordImageStore {
 	return items
 }
 
+func normalizeRecordImages(imgs []RecordImageStore) {
+	for i := range imgs {
+		imgs[i].Key = toStorageKey(imgs[i].Key)
+		imgs[i].RawKey = toStorageKey(imgs[i].RawKey)
+	}
+}
+
+func recordImageKeys(imgs []RecordImageStore) []string {
+	keys := make([]string, 0, len(imgs))
+	for _, img := range imgs {
+		if img.Key != "" {
+			keys = append(keys, img.Key)
+		}
+	}
+	return keys
+}
+
 func unmarkImagesJSON(imagesJSON sql.NullString) {
 	for _, img := range parseRecordImages(imagesJSON) {
 		markFileUnused(img.Key, img.RawKey)
@@ -248,11 +265,8 @@ func handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 	var parsedImages []RecordImageStore
 	if len(body.Images) > 0 && string(body.Images) != "null" {
 		if err := json.Unmarshal(body.Images, &parsedImages); err == nil && len(parsedImages) > 0 {
-			keys := make([]string, 0, len(parsedImages))
-			for _, img := range parsedImages {
-				keys = append(keys, img.Key)
-			}
-			if err := validateUploadKeys(keys); err != nil {
+			normalizeRecordImages(parsedImages)
+			if err := validateUploadKeys(recordImageKeys(parsedImages)); err != nil {
 				writeErr(w, http.StatusBadRequest, "Invalid image key")
 				return
 			}
@@ -370,6 +384,11 @@ func handleUpdateRecord(w http.ResponseWriter, r *http.Request) {
 		json.Unmarshal(raw, &newImages)
 		if len(newImages) >= 0 {
 			hasImages = true
+			normalizeRecordImages(newImages)
+			if err := validateUploadKeys(recordImageKeys(newImages)); err != nil {
+				writeErr(w, http.StatusBadRequest, "Invalid image key")
+				return
+			}
 			// Preserve images that the current user cannot see (they weren't sent by the client)
 			if existingImages.Valid {
 				var existingCreatedBy string

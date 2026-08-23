@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -230,5 +231,62 @@ func TestResetPassword(t *testing.T) {
 	miss := s.do(http.MethodPost, "/auth/users/nope/reset-password", admin, nil)
 	if miss.status != http.StatusInternalServerError {
 		t.Fatalf("reset missing expected 500, got %d", miss.status)
+	}
+}
+
+func TestBearerRequestRefreshesAuthCookie(t *testing.T) {
+	s := newTestServer(t)
+	token := insertUser(t, "u1", "U1", "user")
+
+	req := httptest.NewRequest(http.MethodGet, apiPrefix+"/auth/me", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	s.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+	}
+
+	var cookie *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "token" {
+			cookie = c
+			break
+		}
+	}
+	if cookie == nil {
+		t.Fatal("expected token cookie to be re-issued on Bearer auth")
+	}
+	if cookie.Value != token {
+		t.Errorf("cookie value %q want %q", cookie.Value, token)
+	}
+	if cookie.MaxAge != authCookieMaxAge {
+		t.Errorf("cookie MaxAge %d want %d", cookie.MaxAge, authCookieMaxAge)
+	}
+}
+
+func TestDeleteUserReassignsMoments(t *testing.T) {
+	s := newTestServer(t)
+	admin := insertUser(t, "admin", "Admin", "admin")
+	target := insertUser(t, "target", "Target", "user")
+	adminID := tokenToUserID(admin)
+	targetID := tokenToUserID(target)
+	now := int64(nowMillis())
+	momentID := "moment-1"
+	if _, err := db.Exec(
+		`INSERT INTO "Moment" (id, userId, content, mediaItems, createdAt, updatedAt) VALUES (?, ?, 'hi', '[]', ?, ?)`,
+		momentID, targetID, now, now,
+	); err != nil {
+		t.Fatalf("insert moment: %v", err)
+	}
+
+	r := s.do(http.MethodDelete, "/auth/users/"+targetID, admin, nil)
+	mustOK(t, r)
+
+	var owner string
+	if err := db.QueryRow(`SELECT userId FROM "Moment" WHERE id = ?`, momentID).Scan(&owner); err != nil {
+		t.Fatalf("load moment: %v", err)
+	}
+	if owner != adminID {
+		t.Fatalf("moment owner %q, want admin %q", owner, adminID)
 	}
 }

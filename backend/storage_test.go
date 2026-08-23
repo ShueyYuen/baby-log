@@ -185,3 +185,41 @@ func TestServeUploadLocalFile(t *testing.T) {
 		t.Fatalf("body %q", resp.body)
 	}
 }
+
+func TestSanitizeStorageKeyRejectsTraversal(t *testing.T) {
+	if _, err := sanitizeStorageKey("../etc/passwd"); err == nil {
+		t.Fatal("expected error for .. traversal")
+	}
+	if _, err := sanitizeStorageKey("foo/../../secret"); err == nil {
+		t.Fatal("expected error for nested ..")
+	}
+	got, err := sanitizeStorageKey("avatar/x.jpg")
+	if err != nil || got != "avatar/x.jpg" {
+		t.Fatalf("got %q err %v", got, err)
+	}
+	got, err = sanitizeStorageKey("/api/v1/uploads/avatar/x.jpg")
+	if err != nil || got != "avatar/x.jpg" {
+		t.Fatalf("display url got %q err %v", got, err)
+	}
+}
+
+func TestMediaTypeFromKey(t *testing.T) {
+	if mediaTypeFromKey("clip.mp4") != "video" {
+		t.Fatal("mp4 should be video")
+	}
+	if mediaTypeFromKey("clip.MOV") != "video" {
+		t.Fatal("MOV should be video")
+	}
+	if mediaTypeFromKey("pic.jpg") != "image" {
+		t.Fatal("jpg should be image")
+	}
+}
+
+func TestValidateUploadKeysAcceptsDisplayURL(t *testing.T) {
+	setupTestDB(t)
+	key := "avatar/x.jpg"
+	registerUploadKey(t, key)
+	if err := validateUploadKeys([]string{"/api/v1/uploads/" + key}); err != nil {
+		t.Fatalf("display URL key should validate: %v", err)
+	}
+}

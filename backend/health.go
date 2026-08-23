@@ -375,11 +375,8 @@ func handleCreateHealthEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(body.Images) > 0 {
-		keys := make([]string, 0, len(body.Images))
-		for _, img := range body.Images {
-			keys = append(keys, img.Key)
-		}
-		if err := validateUploadKeys(keys); err != nil {
+		normalizeRecordImages(body.Images)
+		if err := validateUploadKeys(recordImageKeys(body.Images)); err != nil {
 			writeErr(w, http.StatusBadRequest, "Invalid image key")
 			return
 		}
@@ -513,6 +510,11 @@ func handleUpdateHealthEntry(w http.ResponseWriter, r *http.Request) {
 			args = append(args, nil)
 		} else {
 			json.Unmarshal(raw, &newImages)
+			normalizeRecordImages(newImages)
+			if err := validateUploadKeys(recordImageKeys(newImages)); err != nil {
+				writeErr(w, http.StatusBadRequest, "Invalid image key")
+				return
+			}
 			// Preserve images not visible to current user
 			if existingImages.Valid {
 				oldImgs := parseRecordImages(existingImages)

@@ -562,6 +562,32 @@ func toStorageKey(input string) string {
 	return strings.TrimLeft(input, "/")
 }
 
+// sanitizeStorageKey normalizes a client-supplied key and rejects path
+// traversal or absolute paths. Empty input returns ("", nil).
+func sanitizeStorageKey(key string) (string, error) {
+	key = toStorageKey(strings.TrimSpace(key))
+	if key == "" {
+		return "", nil
+	}
+	if strings.Contains(key, "..") || strings.HasPrefix(key, "/") || strings.Contains(key, "\\") || strings.ContainsRune(key, 0) {
+		return "", fmt.Errorf("invalid storage key")
+	}
+	cleaned := path.Clean(key)
+	if cleaned == "." || strings.HasPrefix(cleaned, "..") || strings.HasPrefix(cleaned, "/") {
+		return "", fmt.Errorf("invalid storage key")
+	}
+	return cleaned, nil
+}
+
+func mediaTypeFromKey(key string) string {
+	switch strings.ToLower(filepath.Ext(key)) {
+	case ".mp4", ".mov", ".webm", ".avi", ".m4v", ".mkv":
+		return "video"
+	default:
+		return "image"
+	}
+}
+
 func toStorageKeys(arr []string) []string {
 	out := make([]string, 0, len(arr))
 	for _, s := range arr {

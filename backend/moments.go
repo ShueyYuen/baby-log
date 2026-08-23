@@ -56,6 +56,23 @@ type momentOut struct {
 }
 
 // mediaItemsToDisplay converts stored MediaItems to display form with resolved URLs.
+func normalizeMediaItems(items []MediaItem) {
+	for i := range items {
+		items[i].Key = toStorageKey(items[i].Key)
+		items[i].RawKey = toStorageKey(items[i].RawKey)
+	}
+}
+
+func mediaItemKeys(items []MediaItem) []string {
+	keys := make([]string, 0, len(items))
+	for _, item := range items {
+		if item.Key != "" {
+			keys = append(keys, item.Key)
+		}
+	}
+	return keys
+}
+
 func mediaItemsToDisplay(items []MediaItem, currentUserID string, isAdmin bool, createdBy string) []MediaItemDisplay {
 	out := make([]MediaItemDisplay, 0, len(items))
 	for _, item := range items {
@@ -273,7 +290,7 @@ func handleCreateMoment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate referenced upload keys
+	normalizeMediaItems(body.MediaItems)
 	if len(body.MediaItems) > 0 {
 		keys := make([]string, 0, len(body.MediaItems))
 		for _, item := range body.MediaItems {
@@ -379,6 +396,11 @@ func handleUpdateMoment(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	normalizeMediaItems(body.MediaItems)
+	if err := validateUploadKeys(mediaItemKeys(body.MediaItems)); err != nil {
+		writeErr(w, http.StatusBadRequest, "Invalid media key")
 		return
 	}
 

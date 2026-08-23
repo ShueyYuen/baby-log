@@ -295,8 +295,10 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 				return
 			}
 			result.MediaType = "image"
+			rawOK := true
 			if err := putToS3(rawKey, contentType, bytes.NewReader(data)); err != nil {
 				log.Printf("[Storage] S3 %s raw upload failed (non-fatal): %v", prefix, err)
+				rawOK = false
 			}
 			compData, compMIME := compressImage(data, contentType)
 			if err := putToS3(compKey, compMIME, bytes.NewReader(compData)); err != nil {
@@ -304,14 +306,16 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 				writeErr(w, http.StatusInternalServerError, "Upload failed")
 				return
 			}
-			result.RawKey = rawKey
-			if cfg.s3.publicURL != "" {
-				result.RawURL = buildPublicURL(cfg.s3, rawKey)
-			} else {
-				result.RawURL, _ = getSignedDownloadURL(rawKey, 86400)
-			}
-			if prefix == "medical" && isOCRAvailable() {
-				ocrEnqueueBackground(rawKey, data)
+			if rawOK {
+				result.RawKey = rawKey
+				if cfg.s3.publicURL != "" {
+					result.RawURL = buildPublicURL(cfg.s3, rawKey)
+				} else {
+					result.RawURL, _ = getSignedDownloadURL(rawKey, 86400)
+				}
+				if prefix == "medical" && isOCRAvailable() {
+					ocrEnqueueBackground(rawKey, data)
+				}
 			}
 		} else {
 			_, err := saveLocalPrefixedVideoToKey(compKey, part, maxMomentUploadSize)
@@ -340,7 +344,7 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 			result.URL, _ = getSignedDownloadURL(compKey, 3600)
 		}
 
-		trackUploadedFile(compKey, rawKey)
+		trackUploadedFile(compKey, result.RawKey)
 		results = append(results, result)
 	}
 
@@ -427,11 +431,15 @@ func trackUploadedFile(key, rawKey string) {
 // Returns error with the first invalid key, or nil if all are valid.
 func validateUploadKeys(keys []string) error {
 	for _, key := range keys {
-		if key == "" {
+		normalized, err := sanitizeStorageKey(key)
+		if err != nil {
+			return fmt.Errorf("invalid file key: %s", key)
+		}
+		if normalized == "" {
 			continue
 		}
 		var exists bool
-		if err := db.QueryRow(`SELECT COUNT(*) > 0 FROM "UploadedFile" WHERE "key" = ?`, key).Scan(&exists); err != nil || !exists {
+		if err := db.QueryRow(`SELECT COUNT(*) > 0 FROM "UploadedFile" WHERE "key" = ? OR "rawKey" = ?`, normalized, normalized).Scan(&exists); err != nil || !exists {
 			return fmt.Errorf("invalid file key: %s", key)
 		}
 	}
@@ -440,10 +448,11 @@ func validateUploadKeys(keys []string) error {
 
 func markUploadedFilesUsed(keys []string) {
 	for _, key := range keys {
+		key = toStorageKey(key)
 		if key == "" {
 			continue
 		}
-		db.Exec(`UPDATE "UploadedFile" SET "used" = 1 WHERE "key" = ?`, key)
+		db.Exec(`UPDATE "UploadedFile" SET "used" = 1 WHERE "key" = ? OR "rawKey" = ?`, key, key)
 	}
 }
 

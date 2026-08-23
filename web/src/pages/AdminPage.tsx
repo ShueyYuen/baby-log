@@ -63,8 +63,8 @@ export default function AdminPage() {
         displayName: newDisplayName,
         role: newUserRole,
       });
-      if (newAvatarPreview) {
-        await api.auth.updateAvatar(res.data.id, newAvatarPreview);
+      if (newAvatarKey) {
+        await api.auth.updateAvatar(res.data.id, newAvatarKey);
       }
       setGeneratedPassword(res.data.generatedPassword);
       setNewUsername('');
