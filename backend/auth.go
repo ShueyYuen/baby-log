@@ -237,7 +237,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	writeOK(w, map[string]interface{}{
 		"token": token,
-		"user":  userPublic{ID: id, Username: username, DisplayName: displayName, Role: role, Avatar: avatar},
+		"user":  userPublic{ID: id, Username: username, DisplayName: displayName, Role: role, Avatar: resolveAvatar(avatar)},
 	})
 }
 
@@ -272,7 +272,7 @@ func handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeOK(w, userPublic{ID: userID, Username: username, DisplayName: displayName, Role: role, Avatar: avatar})
+	writeOK(w, userPublic{ID: userID, Username: username, DisplayName: displayName, Role: role, Avatar: resolveAvatar(avatar)})
 }
 
 // requireEditorRole middleware: denies write access for "viewer"-role users.
@@ -372,6 +372,7 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		it.CreatedAt = Millis(created)
+		it.Avatar = resolveAvatar(it.Avatar)
 		list = append(list, it)
 	}
 
@@ -400,6 +401,7 @@ func handleListMembers(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusInternalServerError, "Server error")
 			return
 		}
+		it.Avatar = resolveAvatar(it.Avatar)
 		list = append(list, it)
 	}
 
@@ -658,19 +660,13 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		var avatarURL string
-		if cfg.typ == storageS3 && cfg.s3 != nil && cfg.s3.publicURL != "" {
-			avatarURL = buildPublicURL(cfg.s3, localKey)
-		} else {
-			avatarURL = cfg.publicPath + "/" + localKey
-		}
 		trackUploadedFile(localKey, "")
 
 		var oldAvatar sql.NullString
 		_ = db.QueryRow(`SELECT avatar FROM "User" WHERE id = ?`, targetID).Scan(&oldAvatar)
 
 		now := int64(nowMillis())
-		res, err := db.Exec(`UPDATE "User" SET avatar = ?, updatedAt = ? WHERE id = ?`, avatarURL, now, targetID)
+		res, err := db.Exec(`UPDATE "User" SET avatar = ?, updatedAt = ? WHERE id = ?`, localKey, now, targetID)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, "Server error")
 			return
@@ -680,10 +676,11 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		markUploadedFilesUsed([]string{localKey})
-		if oldAvatar.Valid && oldAvatar.String != "" && oldAvatar.String != avatarURL {
+		if oldAvatar.Valid && oldAvatar.String != "" && toStorageKey(oldAvatar.String) != localKey {
 			markFileUnused(toStorageKey(oldAvatar.String), "")
 		}
-		writeOK(w, map[string]interface{}{"id": targetID, "avatar": avatarURL})
+		display, _ := toDisplayURL(localKey, 86400)
+		writeOK(w, map[string]interface{}{"id": targetID, "avatar": display})
 		return
 	}
 
@@ -699,8 +696,15 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 	var oldAvatar sql.NullString
 	_ = db.QueryRow(`SELECT avatar FROM "User" WHERE id = ?`, targetID).Scan(&oldAvatar)
 
+	var stored interface{}
+	var storedKey string
+	if body.Avatar != nil && *body.Avatar != "" {
+		storedKey = toStorageKey(*body.Avatar)
+		stored = storedKey
+	}
+
 	now := int64(nowMillis())
-	res, err := db.Exec(`UPDATE "User" SET avatar = ?, updatedAt = ? WHERE id = ?`, body.Avatar, now, targetID)
+	res, err := db.Exec(`UPDATE "User" SET avatar = ?, updatedAt = ? WHERE id = ?`, stored, now, targetID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
@@ -709,19 +713,18 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "User not found")
 		return
 	}
-	if body.Avatar != nil && *body.Avatar != "" {
-		markUploadedFilesUsed([]string{toStorageKey(*body.Avatar)})
+	if storedKey != "" {
+		markUploadedFilesUsed([]string{storedKey})
 	}
-	if oldAvatar.Valid && oldAvatar.String != "" {
-		newVal := ""
-		if body.Avatar != nil {
-			newVal = *body.Avatar
-		}
-		if oldAvatar.String != newVal {
-			markFileUnused(toStorageKey(oldAvatar.String), "")
-		}
+	if oldAvatar.Valid && oldAvatar.String != "" && toStorageKey(oldAvatar.String) != storedKey {
+		markFileUnused(toStorageKey(oldAvatar.String), "")
 	}
-	writeOK(w, map[string]interface{}{"id": targetID, "avatar": body.Avatar})
+	var outAvatar interface{}
+	if storedKey != "" {
+		display, _ := toDisplayURL(storedKey, 86400)
+		outAvatar = display
+	}
+	writeOK(w, map[string]interface{}{"id": targetID, "avatar": outAvatar})
 }
 
 var _ = sql.ErrNoRows

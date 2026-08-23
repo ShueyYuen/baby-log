@@ -34,16 +34,18 @@ type ocrDataItem struct {
 }
 
 type mvImage struct {
-	Key      string `json:"key"`
-	RawKey   string `json:"rawKey,omitempty"`
+	Key       string `json:"key"`
+	RawKey    string `json:"rawKey,omitempty"`
 	MediaType string `json:"mediaType,omitempty"`
-	URL      string `json:"url,omitempty"`
-	RawURL   string `json:"rawUrl,omitempty"`
+	URL       string `json:"url,omitempty"`
+	RawURL    string `json:"rawUrl,omitempty"`
 }
 
 const medicalVisitCols = `id, babyId, visitDate, hospital, department, doctor, diagnosis, prescription, notes, images, ocrText, ocrData, createdBy, createdAt, updatedAt`
 
-func scanMedicalVisitRow(row interface{ Scan(dest ...interface{}) error }) (*medicalVisitOut, error) {
+func scanMedicalVisitRow(row interface {
+	Scan(dest ...interface{}) error
+}) (*medicalVisitOut, error) {
 	var m medicalVisitOut
 	var visitDate, created, updated int64
 	var imagesJSON, ocrDataJSON string
@@ -230,7 +232,7 @@ func handleCreateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 
 	imgsForStore := make([]mvImage, len(body.Images))
 	for i, img := range body.Images {
-		imgsForStore[i] = mvImage{Key: img.Key, RawKey: img.RawKey, MediaType: img.MediaType}
+		imgsForStore[i] = mvImage{Key: toStorageKey(img.Key), RawKey: toStorageKey(img.RawKey), MediaType: img.MediaType}
 	}
 	imagesJSON, _ := json.Marshal(imgsForStore)
 
@@ -254,8 +256,10 @@ func handleCreateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var usedKeys []string
-	for _, img := range body.Images {
-		usedKeys = append(usedKeys, img.Key)
+	for _, img := range imgsForStore {
+		if img.Key != "" {
+			usedKeys = append(usedKeys, img.Key)
+		}
 	}
 	markUploadedFilesUsed(usedKeys)
 
@@ -346,14 +350,20 @@ func handleUpdateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 		sets = append(sets, `"notes" = ?`)
 		args = append(args, *body.Notes)
 	}
+	var usedKeys []string
 	if body.Images != nil {
 		imgsForStore := make([]mvImage, len(*body.Images))
 		for i, img := range *body.Images {
-			imgsForStore[i] = mvImage{Key: img.Key, RawKey: img.RawKey, MediaType: img.MediaType}
+			imgsForStore[i] = mvImage{Key: toStorageKey(img.Key), RawKey: toStorageKey(img.RawKey), MediaType: img.MediaType}
 		}
 		imagesJSON, _ := json.Marshal(imgsForStore)
 		sets = append(sets, `"images" = ?`)
 		args = append(args, string(imagesJSON))
+		for _, img := range imgsForStore {
+			if img.Key != "" {
+				usedKeys = append(usedKeys, img.Key)
+			}
+		}
 	}
 	if body.OcrText != nil {
 		sets = append(sets, `"ocrText" = ?`)
@@ -372,11 +382,7 @@ func handleUpdateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if body.Images != nil {
-		var usedKeys []string
-		for _, img := range *body.Images {
-			usedKeys = append(usedKeys, img.Key)
-		}
+	if len(usedKeys) > 0 {
 		markUploadedFilesUsed(usedKeys)
 	}
 

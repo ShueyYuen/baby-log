@@ -208,6 +208,7 @@ func handleListMoments(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				c.CreatedAt = Millis(ca)
+				c.Avatar = resolveAvatar(c.Avatar)
 				commentsByMoment[c.MomentID] = append(commentsByMoment[c.MomentID], c)
 			}
 		}
@@ -219,7 +220,7 @@ func handleListMoments(w http.ResponseWriter, r *http.Request) {
 			ID:          row.id,
 			UserID:      row.userID,
 			DisplayName: row.displayName,
-			Avatar:      row.avatar,
+			Avatar:      resolveAvatar(row.avatar),
 			CreatedAt:   Millis(row.createdAt),
 			UpdatedAt:   Millis(row.updatedAt),
 			IsOwner:     row.userID == currentUserID,
@@ -334,7 +335,7 @@ func handleCreateMoment(w http.ResponseWriter, r *http.Request) {
 		ID:           id,
 		UserID:       currentUserID,
 		DisplayName:  displayName,
-		Avatar:       avatar,
+		Avatar:       resolveAvatar(avatar),
 		Content:      body.Content,
 		MediaItems:   mediaItemsToDisplay(body.MediaItems, currentUserID, isAdminCtx(r), currentUserID),
 		Comments:     []momentCommentOut{},
@@ -590,7 +591,7 @@ func handleCreateMomentComment(w http.ResponseWriter, r *http.Request) {
 		MomentID:    momentID,
 		UserID:      currentUserID,
 		DisplayName: displayName,
-		Avatar:      commentAvatar,
+		Avatar:      resolveAvatar(commentAvatar),
 		Content:     body.Content,
 		CreatedAt:   Millis(now),
 	})

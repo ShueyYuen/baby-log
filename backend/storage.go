@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -522,32 +523,43 @@ func getSignedDownloadURL(key string, expiresInSec int64) (string, error) {
 	return cfg.publicPath + "/" + key, nil
 }
 
-// toStorageKey extracts the S3 key from a stored value or historical full URL.
+// toStorageKey extracts a relative storage key from a stored value, API path,
+// or historical full URL. Always strips /api/v1/uploads/ so keys are comparable
+// across local and S3 deployments.
 func toStorageKey(input string) string {
-	cfg := getStorageConfig()
-	if cfg.typ != storageS3 || cfg.s3 == nil {
-		return input
-	}
+	input = strings.TrimSpace(input)
 	if input == "" {
 		return input
 	}
-	if !httpSchemeRe.MatchString(input) {
-		return strings.TrimLeft(input, "/")
+	cfg := getStorageConfig()
+	public := strings.TrimSuffix(cfg.publicPath, "/")
+
+	if httpSchemeRe.MatchString(input) {
+		u, err := url.Parse(input)
+		if err != nil {
+			return input
+		}
+		p, err := url.PathUnescape(u.Path)
+		if err != nil {
+			p = u.Path
+		}
+		p = strings.TrimLeft(p, "/")
+		if cfg.s3 != nil && cfg.s3.bucket != "" {
+			bucketPrefix := cfg.s3.bucket + "/"
+			if strings.HasPrefix(p, bucketPrefix) {
+				p = strings.TrimPrefix(p, bucketPrefix)
+			}
+		}
+		input = p
 	}
-	u, err := url.Parse(input)
-	if err != nil {
-		return input
+
+	for _, prefix := range []string{public + "/", strings.TrimPrefix(public, "/") + "/"} {
+		if strings.HasPrefix(input, prefix) {
+			input = strings.TrimPrefix(input, prefix)
+			break
+		}
 	}
-	p, err := url.PathUnescape(u.Path)
-	if err != nil {
-		p = u.Path
-	}
-	p = strings.TrimLeft(p, "/")
-	bucketPrefix := cfg.s3.bucket + "/"
-	if cfg.s3.bucket != "" && strings.HasPrefix(p, bucketPrefix) {
-		p = strings.TrimPrefix(p, bucketPrefix)
-	}
-	return p
+	return strings.TrimLeft(input, "/")
 }
 
 func toStorageKeys(arr []string) []string {
@@ -559,33 +571,126 @@ func toStorageKeys(arr []string) []string {
 }
 
 func toDisplayURL(stored string, expiresInSec int64) (string, error) {
-	cfg := getStorageConfig()
-	if cfg.typ != storageS3 || cfg.s3 == nil {
-		if stored == "" {
-			return stored, nil
-		}
-		if !httpSchemeRe.MatchString(stored) && !strings.HasPrefix(stored, cfg.publicPath) {
-			return cfg.publicPath + "/" + stored, nil
-		}
-		return stored, nil
-	}
 	if stored == "" {
 		return stored, nil
 	}
+	cfg := getStorageConfig()
+	key := toStorageKey(stored)
+	if key == "" {
+		return stored, nil
+	}
 
-	// If file exists locally (pending S3 sync), serve from local storage
+	if cfg.typ != storageS3 || cfg.s3 == nil {
+		return cfg.publicPath + "/" + key, nil
+	}
+
+	// Pending S3 sync: file still on local disk.
 	if cfg.uploadDir != "" {
-		localPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(stored))
+		localPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(key))
 		if _, err := os.Stat(localPath); err == nil {
-			return "/api/v1/uploads/" + stored, nil
+			return cfg.publicPath + "/" + key, nil
 		}
 	}
 
-	key := toStorageKey(stored)
 	if cfg.s3.publicURL != "" {
 		return buildPublicURL(cfg.s3, key), nil
 	}
-	return getSignedDownloadURL(key, expiresInSec)
+	// Same-origin proxy URL — does not expire, unlike presigned S3 GET URLs.
+	// handleServeUpload streams the object from S3 when the local file is absent.
+	_ = expiresInSec
+	return cfg.publicPath + "/" + key, nil
+}
+
+func resolveAvatar(stored *string) *string {
+	if stored == nil || *stored == "" {
+		return stored
+	}
+	u, err := toDisplayURL(*stored, 86400)
+	if err != nil || u == "" {
+		return stored
+	}
+	return &u
+}
+
+// uploadFileHandler serves /api/v1/uploads/* from local disk, falling back to S3
+// so avatar and media URLs of the form /api/v1/uploads/{key} work in both modes.
+func uploadFileHandler(uploadDir string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		prefix := apiPrefix + "/uploads/"
+		rel := strings.TrimPrefix(r.URL.Path, prefix)
+		if rel == r.URL.Path || rel == "" {
+			http.NotFound(w, r)
+			return
+		}
+		if unescaped, err := url.PathUnescape(rel); err == nil {
+			rel = unescaped
+		}
+		clean := path.Clean("/" + rel)
+		if clean == "/" || strings.Contains(clean, "..") {
+			http.NotFound(w, r)
+			return
+		}
+		key := strings.TrimPrefix(clean, "/")
+
+		absUpload, err := filepath.Abs(uploadDir)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		localPath := filepath.Join(absUpload, filepath.FromSlash(key))
+		absFile, err := filepath.Abs(localPath)
+		if err != nil || !strings.HasPrefix(absFile, absUpload+string(os.PathSeparator)) {
+			http.NotFound(w, r)
+			return
+		}
+		if st, err := os.Stat(absFile); err == nil && !st.IsDir() {
+			w.Header().Set("Cache-Control", s3CacheControl)
+			http.ServeFile(w, r, absFile)
+			return
+		}
+
+		cfg := getStorageConfig()
+		if cfg.typ == storageS3 && cfg.s3 != nil {
+			serveS3Object(w, r, key)
+			return
+		}
+		http.NotFound(w, r)
+	})
+}
+
+func serveS3Object(w http.ResponseWriter, r *http.Request, key string) {
+	cfg := getStorageConfig()
+	client := getS3Client()
+	if client == nil || cfg.s3 == nil {
+		http.NotFound(w, r)
+		return
+	}
+	out, err := client.GetObject(r.Context(), &s3.GetObjectInput{
+		Bucket: aws.String(cfg.s3.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		log.Printf("[Storage] S3 get %s: %v", key, err)
+		http.NotFound(w, r)
+		return
+	}
+	defer out.Body.Close()
+	if out.ContentType != nil && *out.ContentType != "" {
+		w.Header().Set("Content-Type", *out.ContentType)
+	}
+	w.Header().Set("Cache-Control", s3CacheControl)
+	if out.ContentLength != nil && *out.ContentLength >= 0 {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", *out.ContentLength))
+	}
+	if r.Method == http.MethodHead {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	_, _ = io.Copy(w, out.Body)
 }
 
 func toDisplayURLs(arr []string) []string {

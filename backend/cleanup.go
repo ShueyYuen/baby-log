@@ -21,13 +21,47 @@ type orphanFile struct {
 // files that were created more than 24 hours ago, are marked unused, and are
 // not referenced by any live record (used = 0 is not trusted alone).
 func startCleanupScheduler() {
-	ticker := time.NewTicker(1 * time.Hour)
 	go func() {
+		repairReferencedUploads()
+		ticker := time.NewTicker(1 * time.Hour)
 		for range ticker.C {
 			runCleanupTick()
 		}
 	}()
 	log.Println("[Cleanup] Orphan file cleanup scheduler started (every 1 hour)")
+}
+
+func repairReferencedUploads() {
+	rows, err := db.Query(`SELECT "key", "rawKey" FROM "UploadedFile" WHERE "used" = 0`)
+	if err != nil {
+		log.Printf("[Cleanup] Repair query error: %v", err)
+		return
+	}
+	defer rows.Close()
+
+	var files []orphanFile
+	for rows.Next() {
+		var o orphanFile
+		var rawKey *string
+		if err := rows.Scan(&o.key, &rawKey); err != nil {
+			continue
+		}
+		if rawKey != nil {
+			o.rawKey = *rawKey
+		}
+		files = append(files, o)
+	}
+
+	repaired := 0
+	for _, o := range files {
+		if fileIsReferenced(o.key, o.rawKey) {
+			markUploadedFilesUsed([]string{o.key})
+			repaired++
+		}
+	}
+	if repaired > 0 {
+		log.Printf("[Cleanup] Repaired used=1 for %d still-referenced file(s)", repaired)
+	}
 }
 
 func runCleanupTick() {

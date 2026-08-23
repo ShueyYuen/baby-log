@@ -206,3 +206,26 @@ func TestMarkFileUnusedSkipsSharedKey(t *testing.T) {
 		t.Fatal("shared key must stay used=1")
 	}
 }
+
+func TestRepairReferencedUploadsMarksUsed(t *testing.T) {
+	setupTestDB(t)
+	token := insertUser(t, "u1", "U1", "user")
+	uid := tokenToUserID(token)
+
+	key := "avatar/" + uuid.NewString() + ".jpg"
+	if _, err := db.Exec(
+		`INSERT INTO "UploadedFile" ("key", "createdAt", "used") VALUES (?, ?, 0)`,
+		key, int64(nowMillis()),
+	); err != nil {
+		t.Fatal(err)
+	}
+	url := "/api/v1/uploads/" + key
+	if _, err := db.Exec(`UPDATE "User" SET avatar = ? WHERE id = ?`, url, uid); err != nil {
+		t.Fatalf("set avatar: %v", err)
+	}
+
+	repairReferencedUploads()
+	if usedFlag(t, key) != 1 {
+		t.Fatal("referenced avatar should be repaired to used=1")
+	}
+}

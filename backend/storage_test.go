@@ -1,6 +1,9 @@
 package main
 
 import (
+	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -49,9 +52,16 @@ func TestBuildPublicURL(t *testing.T) {
 }
 
 func TestToStorageKeyLocal(t *testing.T) {
-	// 默认本地存储：原样返回。
-	if got := toStorageKey("/api/v1/uploads/abc.jpg"); got != "/api/v1/uploads/abc.jpg" {
-		t.Errorf("local should return input, got %q", got)
+	cases := map[string]string{
+		"abc.jpg":                      "abc.jpg",
+		"/api/v1/uploads/abc.jpg":      "abc.jpg",
+		"avatar/x.jpg":                 "avatar/x.jpg",
+		"/api/v1/uploads/avatar/x.jpg": "avatar/x.jpg",
+	}
+	for in, want := range cases {
+		if got := toStorageKey(in); got != want {
+			t.Errorf("toStorageKey(%q)=%q want %q", in, got, want)
+		}
 	}
 }
 
@@ -61,8 +71,9 @@ func TestToStorageKeyS3(t *testing.T) {
 	t.Setenv("S3_REGION", "us-east-1")
 
 	cases := map[string]string{
-		"uploads/x.jpg":  "uploads/x.jpg",
-		"/uploads/x.jpg": "uploads/x.jpg",
+		"uploads/x.jpg":                "uploads/x.jpg",
+		"/uploads/x.jpg":               "uploads/x.jpg",
+		"/api/v1/uploads/avatar/x.jpg": "avatar/x.jpg",
 		"https://mybucket.s3.amazonaws.com/uploads/x.jpg": "uploads/x.jpg",
 		"https://s3.amazonaws.com/mybucket/uploads/x.jpg": "uploads/x.jpg",
 	}
@@ -78,8 +89,15 @@ func TestToDisplayURLLocal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if got != "abc.jpg" {
-		t.Errorf("local display should be unchanged, got %q", got)
+	if got != "/api/v1/uploads/abc.jpg" {
+		t.Errorf("local display should prefix public path, got %q", got)
+	}
+	got, err = toDisplayURL("/api/v1/uploads/avatar/x.jpg", 3600)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got != "/api/v1/uploads/avatar/x.jpg" {
+		t.Errorf("already-prefixed path, got %q", got)
 	}
 }
 
@@ -102,7 +120,7 @@ func TestToStorageKeysAndDisplayURLs(t *testing.T) {
 		t.Errorf("toStorageKeys unexpected: %v", keys)
 	}
 	urls := toDisplayURLs([]string{"a.jpg", "b.jpg"})
-	if len(urls) != 2 || urls[1] != "b.jpg" {
+	if len(urls) != 2 || urls[1] != "/api/v1/uploads/b.jpg" {
 		t.Errorf("toDisplayURLs unexpected: %v", urls)
 	}
 	// 空数组应返回非 nil 空切片，保持接口返回 [] 而非 null。
@@ -127,8 +145,43 @@ func TestDiffRemovedKeys(t *testing.T) {
 	}
 }
 
+func TestToDisplayURLS3NoPublicUsesProxy(t *testing.T) {
+	t.Setenv("STORAGE_TYPE", "s3")
+	t.Setenv("S3_BUCKET", "mybucket")
+	t.Setenv("S3_PUBLIC_URL", "")
+	got, err := toDisplayURL("medical/x.jpg", 3600)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got != "/api/v1/uploads/medical/x.jpg" {
+		t.Errorf("s3 without public URL should use proxy path, got %q", got)
+	}
+}
+
 func TestGetStorageTypeDefaultsLocal(t *testing.T) {
 	if getStorageType() != storageLocal {
 		t.Errorf("default storage should be local")
+	}
+}
+
+func TestServeUploadLocalFile(t *testing.T) {
+	setupTestDB(t)
+	dir := t.TempDir()
+	key := "avatar/test.jpg"
+	full := filepath.Join(dir, filepath.FromSlash(key))
+	if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(full, []byte("jpeg-bytes"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s := &testServer{t: t, handler: buildRouter(dir, "")}
+	token := insertUser(t, "u1", "U1", "user")
+	resp := s.do(http.MethodGet, "/uploads/"+key, token, nil)
+	if resp.status != 200 {
+		t.Fatalf("status %d body %s", resp.status, resp.body)
+	}
+	if string(resp.body) != "jpeg-bytes" {
+		t.Fatalf("body %q", resp.body)
 	}
 }

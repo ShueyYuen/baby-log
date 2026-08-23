@@ -65,10 +65,10 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 			r.Post("/login", handleLogin)
 			r.Post("/logout", handleLogout)
 			r.Group(func(r chi.Router) {
-			r.Use(authMiddleware)
-			r.Get("/me", handleMe)
-			r.Get("/members", handleListMembers)
-			r.Post("/users", handleCreateUser)
+				r.Use(authMiddleware)
+				r.Get("/me", handleMe)
+				r.Get("/members", handleListMembers)
+				r.Post("/users", handleCreateUser)
 				r.Get("/users", handleListUsers)
 				r.Delete("/users/{id}", handleDeleteUser)
 				r.Put("/users/{id}", handleUpdateUser)
@@ -83,18 +83,19 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 			r.Use(authMiddleware)
 			r.Use(idempotencyMiddleware)
 
-			// 静态文件（上传目录）— 需认证，cookie 自动随 <img> 请求发送
-			r.Handle("/uploads/*", http.StripPrefix(apiPrefix+"/uploads/", immutableCacheHandler(http.FileServer(http.Dir(uploadDir)))))
+			// 静态文件（上传目录）— 需认证，cookie 自动随 <img> 请求发送。
+			// 本地文件优先；S3 部署时回源对象存储，保证 /uploads/{key} 始终可访问。
+			r.Handle("/uploads/*", uploadFileHandler(uploadDir))
 
-		r.Route("/babies", func(r chi.Router) {
-			r.Get("/", handleListBabies)
-			r.Get("/{id}", handleGetBaby)
-			r.Put("/{id}", handleUpdateBaby)
-			r.Group(func(r chi.Router) {
-				r.Use(requireEditorRole)
-				r.Post("/", handleCreateBaby)
+			r.Route("/babies", func(r chi.Router) {
+				r.Get("/", handleListBabies)
+				r.Get("/{id}", handleGetBaby)
+				r.Put("/{id}", handleUpdateBaby)
+				r.Group(func(r chi.Router) {
+					r.Use(requireEditorRole)
+					r.Post("/", handleCreateBaby)
+				})
 			})
-		})
 
 			r.Route("/records", func(r chi.Router) {
 				r.Get("/", handleListRecords)
@@ -127,40 +128,40 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				})
 			})
 
-		r.Route("/milk-inventory", func(r chi.Router) {
-			r.Get("/", handleListMilkInventory)
-			r.Group(func(r chi.Router) {
-				r.Use(requireEditorRole)
-				r.Post("/", handleCreateMilkInventory)
-				r.Put("/{id}", handleUpdateMilkInventory)
-				r.Delete("/{id}", handleDeleteMilkInventory)
+			r.Route("/milk-inventory", func(r chi.Router) {
+				r.Get("/", handleListMilkInventory)
+				r.Group(func(r chi.Router) {
+					r.Use(requireEditorRole)
+					r.Post("/", handleCreateMilkInventory)
+					r.Put("/{id}", handleUpdateMilkInventory)
+					r.Delete("/{id}", handleDeleteMilkInventory)
+				})
 			})
-		})
 
-		r.Route("/medical-visits", func(r chi.Router) {
-			r.Get("/", handleListMedicalVisits)
-			r.Get("/{id}", handleGetMedicalVisit)
-			r.Group(func(r chi.Router) {
-				r.Use(requireEditorRole)
-				r.Post("/", handleCreateMedicalVisit)
-				r.Put("/{id}", handleUpdateMedicalVisit)
-				r.Delete("/{id}", handleDeleteMedicalVisit)
-				r.Post("/{id}/ocr", handleMedicalVisitOCR)
+			r.Route("/medical-visits", func(r chi.Router) {
+				r.Get("/", handleListMedicalVisits)
+				r.Get("/{id}", handleGetMedicalVisit)
+				r.Group(func(r chi.Router) {
+					r.Use(requireEditorRole)
+					r.Post("/", handleCreateMedicalVisit)
+					r.Put("/{id}", handleUpdateMedicalVisit)
+					r.Delete("/{id}", handleDeleteMedicalVisit)
+					r.Post("/{id}/ocr", handleMedicalVisitOCR)
+				})
 			})
-		})
 
-		r.Get("/ocr/status", handleOCRStatus)
-		r.Post("/ocr/recognize", handleOCRRecognize)
+			r.Get("/ocr/status", handleOCRStatus)
+			r.Post("/ocr/recognize", handleOCRRecognize)
 
-		r.Route("/milestones", func(r chi.Router) {
-			r.Get("/", handleListMilestones)
-			r.Group(func(r chi.Router) {
-				r.Use(requireEditorRole)
-				r.Post("/", handleCreateMilestone)
-				r.Put("/{id}", handleUpdateMilestone)
-				r.Delete("/{id}", handleDeleteMilestone)
+			r.Route("/milestones", func(r chi.Router) {
+				r.Get("/", handleListMilestones)
+				r.Group(func(r chi.Router) {
+					r.Use(requireEditorRole)
+					r.Post("/", handleCreateMilestone)
+					r.Put("/{id}", handleUpdateMilestone)
+					r.Delete("/{id}", handleDeleteMilestone)
+				})
 			})
-		})
 
 			r.Route("/health-conditions", func(r chi.Router) {
 				r.Get("/", handleListHealthConditions)
@@ -176,35 +177,34 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				r.Get("/{id}/entries", handleListHealthEntries)
 			})
 
-
-		r.Route("/stats", func(r chi.Router) {
-			r.Get("/summary", handleStatsSummary)
-			r.Get("/predict", handleStatsPredict)
-			r.Get("/daily", handleStatsDaily)
-			r.Get("/range", handleStatsRange)
-		})
-
-		r.Get("/timeline", handleTimeline)
-
-		r.Route("/upload", func(r chi.Router) {
-			r.Post("/", handleUploadSingle)
-			r.Group(func(r chi.Router) {
-				r.Use(requireEditorRole)
-				r.Post("/presign/{prefix}", handlePresignUpload)
-				r.Post("/presign-complete/{prefix}", handlePresignComplete)
-				r.Post("/multipart/init/{prefix}", handleMultipartInit)
-				r.Post("/multipart/complete/{prefix}", handleMultipartComplete)
-				r.Post("/multipart/abort/{prefix}", handleMultipartAbort)
-				r.Post("/chunked/init/{prefix}", handleChunkedInit)
-				r.Post("/chunked/part/{uploadId}", handleChunkedPart)
-				r.Get("/chunked/status/{uploadId}", handleChunkedStatus)
-				r.Post("/chunked/complete/{uploadId}", handleChunkedComplete)
-				r.Post("/{prefix}", handleUploadMedia)
+			r.Route("/stats", func(r chi.Router) {
+				r.Get("/summary", handleStatsSummary)
+				r.Get("/predict", handleStatsPredict)
+				r.Get("/daily", handleStatsDaily)
+				r.Get("/range", handleStatsRange)
 			})
-		})
 
-		r.Route("/moments", func(r chi.Router) {
-			r.Get("/", handleListMoments)
+			r.Get("/timeline", handleTimeline)
+
+			r.Route("/upload", func(r chi.Router) {
+				r.Post("/", handleUploadSingle)
+				r.Group(func(r chi.Router) {
+					r.Use(requireEditorRole)
+					r.Post("/presign/{prefix}", handlePresignUpload)
+					r.Post("/presign-complete/{prefix}", handlePresignComplete)
+					r.Post("/multipart/init/{prefix}", handleMultipartInit)
+					r.Post("/multipart/complete/{prefix}", handleMultipartComplete)
+					r.Post("/multipart/abort/{prefix}", handleMultipartAbort)
+					r.Post("/chunked/init/{prefix}", handleChunkedInit)
+					r.Post("/chunked/part/{uploadId}", handleChunkedPart)
+					r.Get("/chunked/status/{uploadId}", handleChunkedStatus)
+					r.Post("/chunked/complete/{uploadId}", handleChunkedComplete)
+					r.Post("/{prefix}", handleUploadMedia)
+				})
+			})
+
+			r.Route("/moments", func(r chi.Router) {
+				r.Get("/", handleListMoments)
 				r.Post("/", handleCreateMoment)
 				r.Put("/{id}", handleUpdateMoment)
 				r.Delete("/{id}", handleDeleteMoment)
