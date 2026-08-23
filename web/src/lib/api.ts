@@ -354,7 +354,7 @@ function createUploader(endpoint: string) {
 
       if (onProgress) {
         xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+          if (e.lengthComputable) onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)));
         });
       }
 

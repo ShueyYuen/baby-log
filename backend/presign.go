@@ -52,6 +52,7 @@ func handlePresignUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.ContentType = normalizeMomentMIME(req.Filename, req.ContentType)
 	if !momentAllowedMimeTypes[req.ContentType] {
 		writeErr(w, http.StatusBadRequest, "不支持的文件类型")
 		return

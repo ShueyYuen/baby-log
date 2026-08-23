@@ -148,20 +148,57 @@ func getS3Client() *s3.Client {
 }
 
 // putToS3 uploads data from a reader to an S3 key.
+// ContentLength is always set: S3-compatible stores (Aliyun OSS, MinIO, etc.)
+// hang or reject PutObject when the body is a non-seekable stream without a size
+// (the AWS SDK then uses chunked transfer encoding).
 func putToS3(key, contentType string, body io.Reader) error {
 	cfg := getStorageConfig()
 	if cfg.s3 == nil {
 		return fmt.Errorf("S3 not configured")
 	}
+	reader, size, err := bodyWithLength(body)
+	if err != nil {
+		return err
+	}
 	client := getS3Client()
-	_, err := client.PutObject(context.Background(), &s3.PutObjectInput{
-		Bucket:       aws.String(cfg.s3.bucket),
-		Key:          aws.String(key),
-		Body:         body,
-		ContentType:  aws.String(contentType),
-		CacheControl: aws.String(s3CacheControl),
+	_, err = client.PutObject(context.Background(), &s3.PutObjectInput{
+		Bucket:        aws.String(cfg.s3.bucket),
+		Key:           aws.String(key),
+		Body:          reader,
+		ContentType:   aws.String(contentType),
+		CacheControl:  aws.String(s3CacheControl),
+		ContentLength: aws.Int64(size),
 	})
 	return err
+}
+
+func bodyWithLength(body io.Reader) (io.Reader, int64, error) {
+	switch r := body.(type) {
+	case *os.File:
+		st, err := r.Stat()
+		if err != nil {
+			return nil, 0, err
+		}
+		if _, err := r.Seek(0, io.SeekStart); err != nil {
+			return nil, 0, err
+		}
+		return r, st.Size(), nil
+	case io.ReadSeeker:
+		n, err := r.Seek(0, io.SeekEnd)
+		if err != nil {
+			return nil, 0, err
+		}
+		if _, err := r.Seek(0, io.SeekStart); err != nil {
+			return nil, 0, err
+		}
+		return r, n, nil
+	default:
+		data, err := io.ReadAll(body)
+		if err != nil {
+			return nil, 0, err
+		}
+		return bytes.NewReader(data), int64(len(data)), nil
+	}
 }
 
 // uploadResult holds the display URL, storage key, and optional raw file info.
@@ -446,7 +483,6 @@ func uploadPrefixedFile(prefix, filename, contentType string, data []byte) (*upl
 	}
 	return result, nil
 }
-
 
 func deleteFile(key string) error {
 	cfg := getStorageConfig()
