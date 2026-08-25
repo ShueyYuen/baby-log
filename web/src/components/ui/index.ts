@@ -21,6 +21,7 @@ export { TimePicker } from './time-picker';
 export { ScrollDateTimePicker } from './scroll-datetime-picker';
 export { ImageViewer, type ViewerImage } from './image-viewer';
 export { MediaThumbs, toViewerImages } from './media-thumbs';
+export { MediaCover } from './media-cover';
 export { ConfirmDialog } from './confirm-dialog';
 export { ToastProvider, useToast } from './toast';
 export { Slider } from './slider';

@@ -82,14 +82,18 @@ func normalizeRecordImages(imgs []RecordImageStore) {
 	for i := range imgs {
 		imgs[i].Key = toStorageKey(imgs[i].Key)
 		imgs[i].RawKey = toStorageKey(imgs[i].RawKey)
+		imgs[i].PosterKey = toStorageKey(imgs[i].PosterKey)
 	}
 }
 
 func recordImageKeys(imgs []RecordImageStore) []string {
-	keys := make([]string, 0, len(imgs))
+	keys := make([]string, 0, len(imgs)*2)
 	for _, img := range imgs {
 		if img.Key != "" {
 			keys = append(keys, img.Key)
+		}
+		if img.PosterKey != "" {
+			keys = append(keys, img.PosterKey)
 		}
 	}
 	return keys
@@ -98,6 +102,9 @@ func recordImageKeys(imgs []RecordImageStore) []string {
 func unmarkImagesJSON(imagesJSON sql.NullString) {
 	for _, img := range parseRecordImages(imagesJSON) {
 		markFileUnused(img.Key, img.RawKey)
+		if img.PosterKey != "" {
+			markFileUnused(img.PosterKey, "")
+		}
 	}
 }
 
@@ -114,6 +121,9 @@ func unmarkRemovedImages(oldJSON sql.NullString, keepKeys []string) {
 	for _, old := range parseRecordImages(oldJSON) {
 		if old.Key != "" && !keep[old.Key] {
 			markFileUnused(old.Key, old.RawKey)
+			if old.PosterKey != "" {
+				markFileUnused(old.PosterKey, "")
+			}
 		}
 	}
 }
@@ -124,13 +134,14 @@ func recordImagesToDisplay(items []RecordImageStore, currentUserID string, isAdm
 		if !isImageVisibleTo(item.VisibleTo, currentUserID, isAdmin, createdBy) {
 			continue
 		}
-		d := RecordImageDisplay{Key: item.Key, RawKey: item.RawKey, MediaType: item.MediaType, VisibleTo: item.VisibleTo}
+		d := RecordImageDisplay{Key: item.Key, RawKey: item.RawKey, PosterKey: item.PosterKey, MediaType: item.MediaType, VisibleTo: item.VisibleTo}
 		if item.Key != "" {
 			d.URL, _ = toDisplayURL(item.Key, 86400)
 		}
 		if item.RawKey != "" {
 			d.RawURL, _ = toDisplayURL(item.RawKey, 86400)
 		}
+		d.PosterURL = resolvePosterURL(item.MediaType, item.PosterKey)
 		out = append(out, d)
 	}
 	return out

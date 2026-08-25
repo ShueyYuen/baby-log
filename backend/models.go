@@ -38,6 +38,7 @@ type babyOut struct {
 type RecordImageStore struct {
 	Key       string   `json:"key"`
 	RawKey    string   `json:"rawKey,omitempty"`
+	PosterKey string   `json:"posterKey,omitempty"`
 	MediaType string   `json:"mediaType,omitempty"`
 	VisibleTo []string `json:"visibleTo,omitempty"`
 }
@@ -46,9 +47,11 @@ type RecordImageStore struct {
 type RecordImageDisplay struct {
 	Key       string   `json:"key"`
 	RawKey    string   `json:"rawKey,omitempty"`
+	PosterKey string   `json:"posterKey,omitempty"`
 	MediaType string   `json:"mediaType,omitempty"`
 	URL       string   `json:"url"`
 	RawURL    string   `json:"rawUrl,omitempty"`
+	PosterURL string   `json:"posterUrl,omitempty"`
 	VisibleTo []string `json:"visibleTo,omitempty"`
 }
 

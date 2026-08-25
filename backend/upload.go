@@ -472,6 +472,9 @@ func markUploadedFilesUsed(keys []string) {
 			continue
 		}
 		db.Exec(`UPDATE "UploadedFile" SET "used" = 1 WHERE "key" = ? OR "rawKey" = ?`, key, key)
+		if pk := posterKeyFromVideoKey(key); pk != "" {
+			db.Exec(`UPDATE "UploadedFile" SET "used" = 1 WHERE "key" = ?`, pk)
+		}
 	}
 }
 
@@ -479,6 +482,20 @@ func markUploadedFilesUsed(keys []string) {
 // exists (e.g. file uploaded before tracking was introduced), one is created.
 // Files still referenced by any live row are left (or repaired) as used=1.
 func markFileUnused(key, rawKey string) {
+	if key == "" {
+		return
+	}
+	if fileIsReferenced(key, rawKey) {
+		markUploadedFilesUsed([]string{key})
+		return
+	}
+	markFileUnusedOne(key, rawKey)
+	if pk := posterKeyFromVideoKey(key); pk != "" {
+		markFileUnusedOne(pk, "")
+	}
+}
+
+func markFileUnusedOne(key, rawKey string) {
 	if key == "" {
 		return
 	}

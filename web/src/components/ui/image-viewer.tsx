@@ -7,6 +7,7 @@ export interface ViewerImage {
   url: string;
   rawUrl?: string;
   mediaType?: string;
+  posterUrl?: string;
 }
 
 function resolveImage(img: string | ViewerImage): ViewerImage {

@@ -15,6 +15,7 @@ import (
 type MediaItem struct {
 	Key       string   `json:"key"`
 	RawKey    string   `json:"rawKey,omitempty"`
+	PosterKey string   `json:"posterKey,omitempty"`
 	MediaType string   `json:"mediaType"` // "image" or "video"
 	VisibleTo []string `json:"visibleTo,omitempty"`
 }
@@ -23,9 +24,11 @@ type MediaItem struct {
 type MediaItemDisplay struct {
 	Key       string   `json:"key"`
 	RawKey    string   `json:"rawKey,omitempty"`
+	PosterKey string   `json:"posterKey,omitempty"`
 	MediaType string   `json:"mediaType"`
 	URL       string   `json:"url"`
 	RawURL    string   `json:"rawUrl,omitempty"`
+	PosterURL string   `json:"posterUrl,omitempty"`
 	VisibleTo []string `json:"visibleTo,omitempty"`
 }
 
@@ -60,14 +63,18 @@ func normalizeMediaItems(items []MediaItem) {
 	for i := range items {
 		items[i].Key = toStorageKey(items[i].Key)
 		items[i].RawKey = toStorageKey(items[i].RawKey)
+		items[i].PosterKey = toStorageKey(items[i].PosterKey)
 	}
 }
 
 func mediaItemKeys(items []MediaItem) []string {
-	keys := make([]string, 0, len(items))
+	keys := make([]string, 0, len(items)*2)
 	for _, item := range items {
 		if item.Key != "" {
 			keys = append(keys, item.Key)
+		}
+		if item.PosterKey != "" {
+			keys = append(keys, item.PosterKey)
 		}
 	}
 	return keys
@@ -82,6 +89,7 @@ func mediaItemsToDisplay(items []MediaItem, currentUserID string, isAdmin bool, 
 		d := MediaItemDisplay{
 			Key:       item.Key,
 			RawKey:    item.RawKey,
+			PosterKey: item.PosterKey,
 			MediaType: item.MediaType,
 			VisibleTo: item.VisibleTo,
 		}
@@ -91,6 +99,7 @@ func mediaItemsToDisplay(items []MediaItem, currentUserID string, isAdmin bool, 
 		if item.RawKey != "" {
 			d.RawURL, _ = toDisplayURL(item.RawKey, 86400)
 		}
+		d.PosterURL = resolvePosterURL(item.MediaType, item.PosterKey)
 		out = append(out, d)
 	}
 	return out

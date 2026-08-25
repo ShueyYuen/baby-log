@@ -7,11 +7,11 @@ describe('toViewerImages', () => {
     expect(
       toViewerImages([
         { url: '/a.jpg', rawUrl: '/a-raw.jpg', mediaType: 'image' },
-        { url: '/b.mp4', mediaType: 'video' },
+        { url: '/b.mp4', mediaType: 'video', posterUrl: '/b.poster.jpg' },
       ]),
     ).toEqual([
-      { url: '/a.jpg', rawUrl: '/a-raw.jpg', mediaType: 'image' },
-      { url: '/b.mp4', rawUrl: undefined, mediaType: 'video' },
+      { url: '/a.jpg', rawUrl: '/a-raw.jpg', mediaType: 'image', posterUrl: undefined },
+      { url: '/b.mp4', rawUrl: undefined, mediaType: 'video', posterUrl: '/b.poster.jpg' },
     ]);
   });
 });

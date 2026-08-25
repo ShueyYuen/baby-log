@@ -581,7 +581,7 @@ func sanitizeStorageKey(key string) (string, error) {
 
 func mediaTypeFromKey(key string) string {
 	switch strings.ToLower(filepath.Ext(key)) {
-	case ".mp4", ".mov", ".webm", ".avi", ".m4v", ".mkv":
+	case ".mp4", ".mov", ".webm", ".avi", ".m4v", ".mkv", ".3gp", ".3gpp":
 		return "video"
 	default:
 		return "image"

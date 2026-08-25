@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import { AlertCircle, ArrowLeft, ImagePlus, Play, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ImagePlus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useLocation,
@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
   ImageViewer,
+  MediaCover,
   ScrollDateTimePicker,
   Slider,
   Textarea,
@@ -28,6 +29,7 @@ import { useBaby } from "../contexts/BabyContext";
 import {
   api,
   generateIdempotencyKey,
+  toStoredMedia,
   type RecordImage,
   type UploadMomentResult,
 } from "../lib/api";
@@ -170,6 +172,8 @@ function recordImagesToPreviews(images: RecordImage[]): MediaPreview[] {
       key: img.key,
       rawUrl: img.rawUrl,
       rawKey: img.rawKey,
+      posterKey: img.posterKey,
+      posterUrl: img.posterUrl,
       mediaType: img.mediaType || "image",
     },
   }));
@@ -219,6 +223,8 @@ export default function RecordFormPage() {
         key: img.key,
         rawUrl: img.rawUrl,
         rawKey: img.rawKey,
+        posterKey: img.posterKey,
+        posterUrl: img.posterUrl,
         mediaType: img.mediaType || "image",
       },
     })),
@@ -573,12 +579,7 @@ export default function RecordFormPage() {
     try {
       const completedImages = previews
         .filter((p) => p.result && !p.cancelled)
-        .map((p) => ({
-          key: p.result!.key,
-          rawKey: p.result!.rawKey,
-          mediaType: p.result!.mediaType,
-          visibleTo: p.visibleTo?.length ? p.visibleTo : undefined,
-        }));
+        .map((p) => toStoredMedia(p.result!, { visibleTo: p.visibleTo }));
       const payload = {
         babyId: currentBaby.id,
         category,
@@ -1264,17 +1265,13 @@ export default function RecordFormPage() {
                 key={idx}
                 className="relative w-20 h-20 rounded-lg overflow-hidden glass-media-thumb"
               >
-                {!p.url ? null : p.type === "video" ? (
-                  <div className="w-full h-full glass-media-thumb flex items-center justify-center">
-                    <Play size={20} className="text-gray-500" />
-                  </div>
-                ) : (
-                  <img
+                {!p.url ? null : (
+                  <MediaCover
                     src={p.url}
-                    alt=""
-                    className="w-full h-full object-cover cursor-zoom-in"
-                    decoding="async"
-                    loading="lazy"
+                    mediaType={p.type}
+                    posterSrc={p.result?.posterUrl}
+                    className="w-full h-full"
+                    playSize={16}
                     onClick={() => {
                       if (p.result) {
                         setViewerIndex(
@@ -1401,6 +1398,7 @@ export default function RecordFormPage() {
           .map((p) => ({
             url: p.result!.url,
             rawUrl: p.result!.rawUrl,
+            mediaType: p.type,
           }))}
         initialIndex={viewerIndex}
         open={viewerOpen}

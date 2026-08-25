@@ -1,4 +1,5 @@
 import { isLargeFile, toUploadableFile, uploadLargeFile } from './chunked-upload';
+import { attachVideoPoster } from './video-poster';
 
 const API_BASE = '/api/v1';
 
@@ -47,9 +48,11 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 export interface RecordImage {
   key: string;
   rawKey?: string;
+  posterKey?: string;
   mediaType?: 'image' | 'video';
   url: string;
   rawUrl?: string;
+  posterUrl?: string;
   visibleTo?: string[];
 }
 
@@ -58,6 +61,7 @@ export interface RecordImage {
 export interface MediaItem {
   key: string;
   rawKey?: string;
+  posterKey?: string;
   mediaType: 'image' | 'video';
   visibleTo?: string[];
 }
@@ -65,6 +69,7 @@ export interface MediaItem {
 export interface MediaItemDisplay extends MediaItem {
   url: string;
   rawUrl?: string;
+  posterUrl?: string;
 }
 
 export interface MomentComment {
@@ -105,7 +110,22 @@ export interface UploadMomentResult {
   key: string;
   rawUrl?: string;
   rawKey?: string;
+  posterKey?: string;
+  posterUrl?: string;
   mediaType: 'image' | 'video';
+}
+
+export function toStoredMedia(
+  result: Pick<UploadMomentResult, 'key' | 'rawKey' | 'mediaType' | 'posterKey'>,
+  extra?: { visibleTo?: string[] },
+) {
+  return {
+    key: result.key,
+    rawKey: result.rawKey,
+    mediaType: result.mediaType,
+    posterKey: result.posterKey,
+    visibleTo: extra?.visibleTo?.length ? extra.visibleTo : undefined,
+  };
 }
 
 // ─── Timeline types ──────────────────────────────────────────────────────────
@@ -352,48 +372,55 @@ export interface Baby {
 
 // ─── Upload helper ────────────────────────────────────────────────────────────
 
+function uploadSmallFile(
+  file: File,
+  endpoint: string,
+  onProgress?: (percent: number) => void,
+): Promise<UploadMomentResult> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append('files', file);
+
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)));
+      });
+    }
+
+    xhr.addEventListener('load', () => {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300 && data.data?.length) {
+          resolve(data.data[0]);
+        } else {
+          reject(new Error(data.error || 'Upload failed'));
+        }
+      } catch {
+        reject(new Error('Upload failed'));
+      }
+    });
+
+    xhr.addEventListener('error', () => reject(new Error('Network error')));
+    xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
+
+    xhr.open('POST', `${API_BASE}${endpoint}`);
+    xhr.withCredentials = true;
+    const token = getToken();
+    if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+    xhr.send(formData);
+  });
+}
+
 function createUploader(endpoint: string) {
   const prefix = endpoint.replace(/^\/upload\//, '');
 
   return async (file: File, onProgress?: (percent: number) => void): Promise<UploadMomentResult> => {
     const prepared = await toUploadableFile(file);
-    if (isLargeFile(prepared)) {
-      return uploadLargeFile(prepared, prefix, onProgress);
-    }
-
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      const formData = new FormData();
-      formData.append('files', prepared);
-
-      if (onProgress) {
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)));
-        });
-      }
-
-      xhr.addEventListener('load', () => {
-        try {
-          const data = JSON.parse(xhr.responseText);
-          if (xhr.status >= 200 && xhr.status < 300 && data.data?.length) {
-            resolve(data.data[0]);
-          } else {
-            reject(new Error(data.error || 'Upload failed'));
-          }
-        } catch {
-          reject(new Error('Upload failed'));
-        }
-      });
-
-      xhr.addEventListener('error', () => reject(new Error('Network error')));
-      xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
-
-      xhr.open('POST', `${API_BASE}${endpoint}`);
-      xhr.withCredentials = true;
-      const token = getToken();
-      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      xhr.send(formData);
-    });
+    const result = isLargeFile(prepared)
+      ? await uploadLargeFile(prepared, prefix, onProgress)
+      : await uploadSmallFile(prepared, endpoint, onProgress);
+    return attachVideoPoster(prepared, result);
   };
 }
 
@@ -471,10 +498,10 @@ export const api = {
         `/health-conditions/${conditionId}/entries?page=${page}&pageSize=${pageSize}`
       ),
 
-    createEntry: (conditionId: string, data: { date: string; note?: string; images?: Array<{ key: string; rawKey?: string; mediaType?: string; visibleTo?: string[] }> }, idempotencyKey?: string) =>
+    createEntry: (conditionId: string, data: { date: string; note?: string; images?: Array<{ key: string; rawKey?: string; mediaType?: string; posterKey?: string; visibleTo?: string[] }> }, idempotencyKey?: string) =>
       api.post<{ success: boolean; data: HealthEntry }>(`/health-conditions/${conditionId}/entries`, data, idempotencyKey),
 
-    updateEntry: (conditionId: string, entryId: string, data: { date?: string; note?: string | null; images?: Array<{ key: string; rawKey?: string; mediaType?: string; visibleTo?: string[] }> }) =>
+    updateEntry: (conditionId: string, entryId: string, data: { date?: string; note?: string | null; images?: Array<{ key: string; rawKey?: string; mediaType?: string; posterKey?: string; visibleTo?: string[] }> }) =>
       api.put<{ success: boolean; data: HealthEntry }>(`/health-conditions/${conditionId}/entries/${entryId}`, data),
 
     deleteEntry: (conditionId: string, entryId: string) =>

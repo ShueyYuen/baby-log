@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { api, generateIdempotencyKey, type HealthCondition, type HealthEntry, type HealthAnnotationsMap, type RecordImage, type UploadMomentResult } from '../lib/api';
+import { api, generateIdempotencyKey, toStoredMedia, type HealthCondition, type HealthEntry, type HealthAnnotationsMap, type RecordImage, type UploadMomentResult } from '../lib/api';
 import { useServerEvent } from '../hooks/useServerEvents';
 import dayjs from 'dayjs';
-import { ArrowLeft, Plus, Pencil, Trash2, ImagePlus, Play, X, AlertCircle, CheckCircle2, Ruler } from 'lucide-react';
-import { Button, Input, Card, CardContent, Dialog, DialogContent, DialogHeader, DialogTitle, Badge, DatePicker, ConfirmDialog, useToast } from '../components/ui';
+import { ArrowLeft, Plus, Pencil, Trash2, ImagePlus, X, AlertCircle, CheckCircle2, Ruler } from 'lucide-react';
+import { Button, Input, Card, CardContent, Dialog, DialogContent, DialogHeader, DialogTitle, Badge, DatePicker, ConfirmDialog, ImageViewer, MediaCover, toViewerImages, useToast } from '../components/ui';
 import { Textarea } from '../components/ui';
 import { VisibilityPicker } from '../components/ui/visibility-picker';
 import { ImageAnnotator, type Annotation } from '../components/ImageAnnotator';
@@ -53,7 +53,7 @@ function recordImageToPreview(img: RecordImage): EntryPreview {
     type: (img.mediaType === 'video' ? 'video' : 'image') as 'image' | 'video',
     existing: img,
     visibleTo: img.visibleTo,
-    result: { url: img.url, key: img.key, rawUrl: img.rawUrl, rawKey: img.rawKey, mediaType: img.mediaType || 'image' },
+    result: { url: img.url, key: img.key, rawUrl: img.rawUrl, rawKey: img.rawKey, posterKey: img.posterKey, posterUrl: img.posterUrl, mediaType: img.mediaType || 'image' },
   };
 }
 
@@ -134,6 +134,9 @@ export default function HealthTrackingPage() {
   // Annotation dialog for viewing existing entries
   const [viewAnnotationEntry, setViewAnnotationEntry] = useState<HealthEntry | null>(null);
   const [viewAnnotationImgIdx, setViewAnnotationImgIdx] = useState(0);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const [viewerImages, setViewerImages] = useState<ReturnType<typeof toViewerImages>>([]);
 
   // Edit condition state
   const [showEditCondition, setShowEditCondition] = useState(false);
@@ -360,12 +363,7 @@ export default function HealthTrackingPage() {
   const saveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!conditionId || entryUploading) return;
-    const completed = entryPreviews.filter((p) => p.result && !p.cancelled).map((p) => ({
-      key: p.result!.key,
-      rawKey: p.result!.rawKey,
-      mediaType: p.result!.mediaType,
-      visibleTo: p.visibleTo?.length ? p.visibleTo : undefined,
-    }));
+    const completed = entryPreviews.filter((p) => p.result && !p.cancelled).map((p) => toStoredMedia(p.result!, { visibleTo: p.visibleTo }));
 
     const hasAnnotations = Object.keys(formAnnotations).some((k) => formAnnotations[k].length > 0);
 
@@ -557,10 +555,20 @@ export default function HealthTrackingPage() {
                 {/* Videos */}
                 {videos.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2">
-                    {videos.map((_, vi) => (
-                      <div key={vi} className="w-20 h-20 rounded-lg glass-media-thumb flex items-center justify-center">
-                        <Play size={20} className="text-gray-500" />
-                      </div>
+                    {videos.map((vid, vi) => (
+                      <button
+                        key={vi}
+                        type="button"
+                        className="w-20 h-20 rounded-lg overflow-hidden glass-media-thumb p-0 border-0 cursor-zoom-in"
+                        onClick={() => {
+                          const all = toViewerImages(entry.images || []);
+                          setViewerImages(all);
+                          setViewerIndex(Math.max(0, (entry.images || []).indexOf(vid)));
+                          setViewerOpen(true);
+                        }}
+                      >
+                        <MediaCover src={vid.url} mediaType="video" posterSrc={vid.posterUrl} playSize={16} />
+                      </button>
                     ))}
                   </div>
                 )}
@@ -609,10 +617,8 @@ export default function HealthTrackingPage() {
               <div className="flex flex-wrap gap-2">
                 {entryPreviews.map((p, idx) => p.cancelled ? null : (
                   <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden glass-media-thumb">
-                    {!p.url ? null : p.type === 'video' ? (
-                      <div className="w-full h-full glass-media-thumb flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
-                    ) : (
-                      <img src={p.url} alt="" className="w-full h-full object-cover" decoding="async" loading="lazy" />
+                    {!p.url ? null : (
+                      <MediaCover src={p.url} mediaType={p.type} posterSrc={p.result?.posterUrl} playSize={14} />
                     )}
                     {p.file && !p.result && <UploadRing progress={p.progress ?? 0} error={p.error} />}
                     <button type="button" onClick={() => removeEntryPreview(idx)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center">
@@ -738,6 +744,12 @@ export default function HealthTrackingPage() {
           )}
         </DialogContent>
       </Dialog>
+      <ImageViewer
+        images={viewerImages}
+        initialIndex={viewerIndex}
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+      />
     </div>
   );
 }

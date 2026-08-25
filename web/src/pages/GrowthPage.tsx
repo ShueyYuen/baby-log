@@ -2,15 +2,15 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { api, generateIdempotencyKey, type RecordImage, type UploadMomentResult, type GrowthItem, type MilestoneItem } from '../lib/api';
+import { api, generateIdempotencyKey, toStoredMedia, type RecordImage, type UploadMomentResult, type GrowthItem, type MilestoneItem } from '../lib/api';
 import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import { useRefreshHandler } from '../hooks/usePullRefresh';
 import { useServerEvent } from '../hooks/useServerEvents';
 import { useActivated } from '../hooks/useActivated';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Plus, Star, Pencil, Trash2, ImagePlus, Play, X, AlertCircle, Check, Clock, ChevronDown, ChevronUp, Info } from 'lucide-react';
-import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DatePicker, ConfirmDialog, MediaThumbs, ImageViewer, toViewerImages, useToast } from '../components/ui';
+import { Plus, Star, Pencil, Trash2, ImagePlus, X, AlertCircle, Check, Clock, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DatePicker, ConfirmDialog, MediaThumbs, ImageViewer, MediaCover, toViewerImages, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { Textarea } from '../components/ui';
 import { GrowthSkeleton } from '../components/ui/skeleton';
@@ -68,7 +68,7 @@ function recordImageToPreview(img: RecordImage): MilestonePreview {
     type: (img.mediaType === 'video' ? 'video' : 'image') as 'image' | 'video',
     existing: img,
     visibleTo: img.visibleTo,
-    result: { url: img.url, key: img.key, rawUrl: img.rawUrl, rawKey: img.rawKey, mediaType: img.mediaType || 'image' },
+    result: { url: img.url, key: img.key, rawUrl: img.rawUrl, rawKey: img.rawKey, posterKey: img.posterKey, posterUrl: img.posterUrl, mediaType: img.mediaType || 'image' },
   };
 }
 
@@ -369,7 +369,7 @@ export default function GrowthPage() {
   const addMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentBaby || mUploading) return;
-    const completed = mPreviews.filter((p) => p.result && !p.cancelled).map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType, visibleTo: p.visibleTo?.length ? p.visibleTo : undefined }));
+    const completed = mPreviews.filter((p) => p.result && !p.cancelled).map((p) => toStoredMedia(p.result!, { visibleTo: p.visibleTo }));
     await api.milestonesCrud.create({
       babyId: currentBaby.id,
       type: mType,
@@ -395,7 +395,7 @@ export default function GrowthPage() {
   const saveMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMilestone || mUploading) return;
-    const completed = mPreviews.filter((p) => p.result && !p.cancelled).map((p) => ({ key: p.result!.key, rawKey: p.result!.rawKey, mediaType: p.result!.mediaType, visibleTo: p.visibleTo?.length ? p.visibleTo : undefined }));
+    const completed = mPreviews.filter((p) => p.result && !p.cancelled).map((p) => toStoredMedia(p.result!, { visibleTo: p.visibleTo }));
     await api.milestonesCrud.update(editingMilestone.id, {
       type: mType,
       title: mTitle || milestoneLabels[mType],
@@ -766,10 +766,8 @@ export default function GrowthPage() {
                   <div className="flex flex-wrap gap-2">
                     {mPreviews.map((p, idx) => p.cancelled ? null : (
                       <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden glass-media-thumb">
-                        {!p.url ? null : p.type === 'video' ? (
-                          <div className="w-full h-full glass-media-thumb flex items-center justify-center cursor-zoom-in" onClick={() => openMPreview(p)}><Play size={16} className="text-gray-500" /></div>
-                        ) : (
-                          <img src={p.url} alt="" className="w-full h-full object-cover cursor-zoom-in" decoding="async" loading="lazy" onClick={() => openMPreview(p)} />
+                        {!p.url ? null : (
+                          <MediaCover src={p.url} mediaType={p.type} posterSrc={p.result?.posterUrl} className="w-full h-full" playSize={14} onClick={() => openMPreview(p)} />
                         )}
                         {p.file && !p.result && <MUploadRing progress={p.progress ?? 0} error={p.error} />}
                         <button type="button" onClick={() => removeMPreview(idx)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center">
@@ -922,10 +920,8 @@ export default function GrowthPage() {
                 <div className="flex flex-wrap gap-2">
                   {mPreviews.map((p, idx) => p.cancelled ? null : (
                     <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden glass-media-thumb">
-                      {!p.url ? null : p.type === 'video' ? (
-                        <div className="w-full h-full glass-media-thumb flex items-center justify-center cursor-zoom-in" onClick={() => openMPreview(p)}><Play size={16} className="text-gray-500" /></div>
-                      ) : (
-                        <img src={p.url} alt="" className="w-full h-full object-cover cursor-zoom-in" decoding="async" loading="lazy" onClick={() => openMPreview(p)} />
+                      {!p.url ? null : (
+                        <MediaCover src={p.url} mediaType={p.type} posterSrc={p.result?.posterUrl} className="w-full h-full" playSize={14} onClick={() => openMPreview(p)} />
                       )}
                       {p.file && !p.result && <MUploadRing progress={p.progress ?? 0} error={p.error} />}
                       <button type="button" onClick={() => removeMPreview(idx)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center">

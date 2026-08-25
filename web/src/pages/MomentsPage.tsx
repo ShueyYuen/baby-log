@@ -8,7 +8,6 @@ import {
   ImagePlus,
   Lock,
   MessageCircle,
-  Play,
   Send,
   Trash2,
   X,
@@ -25,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
   ImageViewer,
+  MediaCover,
   toViewerImages,
 } from "../components/ui";
 import { MomentsSkeleton } from "../components/ui/skeleton";
@@ -33,6 +33,7 @@ import { useAuth } from "../contexts/AuthContext";
 import {
   api,
   generateIdempotencyKey,
+  toStoredMedia,
   type MediaItem,
   type MediaItemDisplay,
   type Moment,
@@ -155,34 +156,14 @@ function MediaGrid({
             key={idx}
             className={`relative overflow-hidden rounded-lg glass-media-thumb ${visible.length === 1 ? "aspect-[4/3] max-w-sm" : "aspect-square"}`}
           >
-            {item.mediaType === "video" ? (
-              <div
-                className="w-full h-full relative cursor-pointer"
-                onClick={() => onClickImage(idx)}
-              >
-                <video
-                  src={item.url}
-                  className="w-full h-full object-cover"
-                  muted
-                  playsInline
-                  preload="metadata"
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                  <div className="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center">
-                    <Play size={18} className="text-gray-800 ml-0.5" />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <img
-                src={item.url}
-                alt=""
-                className="w-full h-full object-cover cursor-pointer"
-                onClick={() => onClickImage(idx)}
-                loading="lazy"
-                decoding="async"
-              />
-            )}
+            <MediaCover
+              src={item.url}
+              mediaType={item.mediaType}
+              posterSrc={item.posterUrl}
+              className="w-full h-full cursor-pointer"
+              playSize={visible.length === 1 ? 22 : 18}
+              onClick={() => onClickImage(idx)}
+            />
             <VisibilityBadge visibleTo={item.visibleTo} />
             {isLastWithMore && (
               <div
@@ -512,22 +493,13 @@ const PreviewItem = React.memo(function PreviewItem({
   const p = preview;
   return (
     <div className="relative w-[calc(33.333%-0.375rem)] aspect-square rounded-lg overflow-hidden glass-media-thumb">
-      {!p.url ? null : p.type === "video" ? (
-        <video
+      {!p.url ? null : (
+        <MediaCover
           src={p.url}
-          className="w-full h-full object-cover cursor-zoom-in"
-          muted
-          playsInline
-          preload="metadata"
-          onClick={onPreview}
-        />
-      ) : (
-        <img
-          src={p.url}
-          alt=""
-          className="w-full h-full object-cover cursor-zoom-in"
-          decoding="async"
-          loading="lazy"
+          mediaType={p.type}
+          posterSrc={p.result?.posterUrl}
+          className="w-full h-full cursor-zoom-in"
+          playSize={16}
           onClick={onPreview}
         />
       )}
@@ -582,6 +554,8 @@ function MomentFormDialog({
               key: item.key,
               rawUrl: item.rawUrl,
               rawKey: item.rawKey,
+              posterKey: item.posterKey,
+              posterUrl: item.posterUrl,
               mediaType: item.mediaType,
             },
             type: item.mediaType,
@@ -717,12 +691,7 @@ function MomentFormDialog({
     if (uploading) return;
     const mediaItems: MediaItem[] = previews
       .filter((p) => p.result && !p.cancelled)
-      .map((p) => ({
-        key: p.result!.key,
-        rawKey: p.result!.rawKey,
-        mediaType: p.result!.mediaType,
-        visibleTo: p.visibleTo?.length ? p.visibleTo : undefined,
-      }));
+      .map((p) => toStoredMedia(p.result!, { visibleTo: p.visibleTo }));
 
     setSaving(true);
     try {

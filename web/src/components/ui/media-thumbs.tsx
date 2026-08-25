@@ -1,12 +1,17 @@
-import { Play } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../../lib/utils';
 import { ImageViewer, type ViewerImage } from './image-viewer';
+import { MediaCover } from './media-cover';
 
 export function toViewerImages(
-  items: Array<{ url: string; rawUrl?: string; mediaType?: string }>,
+  items: Array<{ url: string; rawUrl?: string; mediaType?: string; posterUrl?: string }>,
 ): ViewerImage[] {
-  return items.map((img) => ({ url: img.url, rawUrl: img.rawUrl, mediaType: img.mediaType }));
+  return items.map((img) => ({
+    url: img.url,
+    rawUrl: img.rawUrl,
+    mediaType: img.mediaType,
+    posterUrl: img.posterUrl,
+  }));
 }
 
 interface MediaThumbsProps {
@@ -43,29 +48,24 @@ export function MediaThumbs({
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        {visible.map((img, i) =>
-          img.mediaType === 'video' ? (
-            <button
-              key={i}
-              type="button"
-              className={cn(
-                'relative flex-shrink-0 overflow-hidden glass-media-thumb flex items-center justify-center cursor-zoom-in',
-                thumbClassName,
-              )}
-              onClick={() => openAt(i)}
-            >
-              <Play size={14} className="text-gray-500" />
-            </button>
-          ) : (
-            <img
-              key={i}
+        {visible.map((img, i) => (
+          <button
+            key={i}
+            type="button"
+            className={cn(
+              'relative flex-shrink-0 overflow-hidden glass-media-thumb cursor-zoom-in p-0 border-0',
+              thumbClassName,
+            )}
+            onClick={() => openAt(i)}
+          >
+            <MediaCover
               src={img.url}
-              alt=""
-              className={cn('object-cover flex-shrink-0 cursor-zoom-in', thumbClassName)}
-              onClick={() => openAt(i)}
+              mediaType={img.mediaType}
+              posterSrc={img.posterUrl}
+              playSize={14}
             />
-          ),
-        )}
+          </button>
+        ))}
         {overflow > 0 && (
           <button
             type="button"

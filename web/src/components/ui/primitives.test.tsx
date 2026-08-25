@@ -83,7 +83,7 @@ describe('MediaThumbs', () => {
       <MediaThumbs
         images={[
           { url: '/a.jpg' },
-          { url: '/b.mp4', mediaType: 'video' },
+          { url: '/b.mp4', mediaType: 'video', posterUrl: '/b.jpg' },
           { url: '/c.jpg' },
         ]}
         max={2}

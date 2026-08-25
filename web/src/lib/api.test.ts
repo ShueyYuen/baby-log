@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api, generateIdempotencyKey } from './api';
+import { api, generateIdempotencyKey, toStoredMedia } from './api';
 
 describe('generateIdempotencyKey', () => {
   it('prefers crypto.randomUUID when available', () => {
@@ -76,5 +76,22 @@ describe('api client', () => {
     expect(url).toContain('type=bottle');
     expect(url).toContain('search=%E5%A4%9C%E5%A5%B6');
     expect(url).toContain('hasImages=true');
+  });
+});
+
+describe('toStoredMedia', () => {
+  it('keeps posterKey and omits empty visibility', () => {
+    expect(
+      toStoredMedia(
+        { key: 'v.mp4', rawKey: undefined, mediaType: 'video', posterKey: 'v.poster.jpg' },
+        { visibleTo: [] },
+      ),
+    ).toEqual({
+      key: 'v.mp4',
+      rawKey: undefined,
+      mediaType: 'video',
+      posterKey: 'v.poster.jpg',
+      visibleTo: undefined,
+    });
   });
 });
