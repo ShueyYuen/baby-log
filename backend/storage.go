@@ -208,6 +208,8 @@ type uploadResult struct {
 	Key       string `json:"key"`
 	RawURL    string `json:"rawUrl,omitempty"`
 	RawKey    string `json:"rawKey,omitempty"`
+	PosterURL string `json:"posterUrl,omitempty"`
+	PosterKey string `json:"posterKey,omitempty"`
 	MediaType string `json:"mediaType,omitempty"`
 }
 

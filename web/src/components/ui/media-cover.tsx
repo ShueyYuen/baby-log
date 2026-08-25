@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Play } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { captureVideoPoster, isVideoMedia } from '../../lib/video-poster';
+import { captureVideoPoster, isVideoMedia, posterUrlFromVideoSrc } from '../../lib/video-poster';
 
 const blobPosterCache = new Map<string, Promise<string | null>>();
 
@@ -53,7 +53,8 @@ export function MediaCover({
   onClick,
 }: MediaCoverProps) {
   const video = isVideoMedia(mediaType, src);
-  const cover = useBlobPoster(src, video, posterSrc);
+  const inferredPoster = posterSrc || (video ? posterUrlFromVideoSrc(src) : '');
+  const cover = useBlobPoster(src, video, inferredPoster || undefined);
   const [posterFailed, setPosterFailed] = React.useState(false);
 
   React.useEffect(() => {

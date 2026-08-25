@@ -11,6 +11,8 @@ import (
 
 const maxPosterUploadSize = 1 * 1024 * 1024 // 1MB JPEG cover
 
+const posterSuffix = ".poster.jpg"
+
 // posterKeyFromVideoKey maps moments/uuid.mp4 → moments/uuid.poster.jpg.
 // Non-video keys return an empty string.
 func posterKeyFromVideoKey(key string) string {
@@ -19,19 +21,41 @@ func posterKeyFromVideoKey(key string) string {
 		return ""
 	}
 	ext := filepath.Ext(key)
-	return strings.TrimSuffix(key, ext) + ".poster.jpg"
+	return strings.TrimSuffix(key, ext) + posterSuffix
 }
 
-func resolvePosterURL(mediaType, posterKey string) string {
-	if mediaType != "video" || posterKey == "" {
+func resolvePosterURL(mediaType, videoKey, posterKey string) string {
+	if mediaType != "video" {
 		return ""
 	}
-	url, _ := toDisplayURL(posterKey, 86400)
+	pk := posterKey
+	if pk == "" {
+		pk = posterKeyFromVideoKey(videoKey)
+	}
+	if pk == "" {
+		return ""
+	}
+	url, _ := toDisplayURL(pk, 86400)
 	return url
 }
 
+// attachPosterToResult fills the poster key/URL the client will upload to.
+// The server does not generate covers (ffmpeg is too heavy for this host).
+func attachPosterToResult(result *uploadResult) {
+	if result == nil || result.MediaType != "video" || result.Key == "" {
+		return
+	}
+	pk := posterKeyFromVideoKey(result.Key)
+	if pk == "" {
+		return
+	}
+	result.PosterKey = pk
+	url, _ := toDisplayURL(pk, 86400)
+	result.PosterURL = url
+}
+
 // POST /upload/poster
-// form-data: videoKey, file (JPEG cover captured from the video)
+// form-data: videoKey, file (JPEG cover captured in the browser)
 func handleUploadPoster(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(maxPosterUploadSize + 1<<20); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid upload")

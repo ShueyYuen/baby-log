@@ -508,6 +508,7 @@ const PreviewItem = React.memo(function PreviewItem({
       )}
       <button
         type="button"
+        aria-label="删除"
         onClick={onRemove}
         className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black/80"
       >
@@ -522,7 +523,7 @@ const PreviewItem = React.memo(function PreviewItem({
   );
 });
 
-function MomentFormDialog({
+export function MomentFormDialog({
   open,
   onClose,
   onSave,
@@ -702,6 +703,7 @@ function MomentFormDialog({
     }
   };
 
+  const activeCount = previews.filter((p) => !p.cancelled).length;
   const uploadingCount = previews.filter(
     (p) => p.file && !p.result && !p.error && !p.cancelled,
   ).length;
@@ -741,7 +743,7 @@ function MomentFormDialog({
             className="glass-input-ui w-full rounded-xl border border-transparent p-3 text-sm outline-none focus:ring-0 resize-none text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-white/30"
           />
 
-          {previews.filter((p) => !p.cancelled).length > 0 && (
+          {activeCount > 0 && (
             <div className="flex flex-wrap gap-2">
               {previews.map((p, idx) => p.cancelled ? null : (
                 <PreviewItem
@@ -775,7 +777,7 @@ function MomentFormDialog({
             </div>
           )}
 
-          {previews.length === 0 && (
+          {activeCount === 0 && (
             <button
               onClick={() => fileRef.current?.click()}
               className="w-full min-h-[180px] rounded-xl glass-upload-zone flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-primary-400 transition-colors"
@@ -791,7 +793,10 @@ function MomentFormDialog({
             accept="image/*,video/*"
             multiple
             className="hidden"
-            onChange={(e) => handleFiles(e.target.files)}
+            onChange={(e) => {
+              handleFiles(e.target.files);
+              e.target.value = "";
+            }}
           />
         </div>
 
@@ -802,9 +807,9 @@ function MomentFormDialog({
               正在上传 {uploadingCount} 个文件…
             </span>
           ) : (
-            previews.length > 0 && (
+            activeCount > 0 && (
               <span className="text-xs text-gray-400">
-                已选择 {previews.length} 个文件
+                已选择 {activeCount} 个文件
               </span>
             )
           )}
@@ -817,7 +822,7 @@ function MomentFormDialog({
               disabled={
                 saving ||
                 uploading ||
-                (!content.trim() && previews.filter((p) => !p.cancelled).length === 0)
+                (!content.trim() && activeCount === 0)
               }
             >
               {saving

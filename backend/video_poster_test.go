@@ -95,16 +95,36 @@ func TestUploadPosterRejectsNonVideo(t *testing.T) {
 func TestMediaItemsToDisplayIncludesPosterURL(t *testing.T) {
 	items := []MediaItem{
 		{Key: "moments/a.mp4", MediaType: "video", PosterKey: "moments/a.poster.jpg"},
+		{Key: "moments/old.mp4", MediaType: "video"},
 		{Key: "moments/b.jpg", MediaType: "image"},
 	}
 	out := mediaItemsToDisplay(items, "u1", true, "u1")
-	if len(out) != 2 {
+	if len(out) != 3 {
 		t.Fatalf("len=%d", len(out))
 	}
 	if out[0].PosterURL == "" || out[0].PosterKey != "moments/a.poster.jpg" {
 		t.Fatalf("video poster missing: %+v", out[0])
 	}
-	if out[1].PosterURL != "" {
-		t.Fatalf("image should not have poster: %+v", out[1])
+	if out[1].PosterURL == "" {
+		t.Fatalf("video without posterKey should still get a derived poster URL: %+v", out[1])
+	}
+	if out[2].PosterURL != "" {
+		t.Fatalf("image should not have poster: %+v", out[2])
+	}
+}
+
+func TestAttachPosterToResultDoesNotWriteFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("UPLOAD_DIR", dir)
+	result := &uploadResult{Key: "moments/clip.mp4", MediaType: "video"}
+	attachPosterToResult(result)
+	if result.PosterKey != "moments/clip.poster.jpg" {
+		t.Fatalf("posterKey=%q", result.PosterKey)
+	}
+	if result.PosterURL == "" {
+		t.Fatal("expected derived poster URL")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "moments", "clip.poster.jpg")); !os.IsNotExist(err) {
+		t.Fatalf("server must not generate poster files: %v", err)
 	}
 }

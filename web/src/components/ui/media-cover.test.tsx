@@ -22,9 +22,10 @@ describe('MediaCover', () => {
     expect(container.querySelector('svg')).toBeTruthy();
   });
 
-  it('falls back to a play badge when a video has no poster', () => {
+  it('falls back to a derived poster URL when none is provided', () => {
     const { container } = render(<MediaCover src="/c.mp4" mediaType="video" />);
-    expect(container.querySelector('img')).toBeNull();
+    const img = container.querySelector('img');
+    expect(img?.getAttribute('src')).toBe('/c.poster.jpg');
     expect(container.querySelector('video')).toBeNull();
     expect(container.querySelector('svg')).toBeTruthy();
   });

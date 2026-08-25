@@ -99,7 +99,7 @@ func mediaItemsToDisplay(items []MediaItem, currentUserID string, isAdmin bool, 
 		if item.RawKey != "" {
 			d.RawURL, _ = toDisplayURL(item.RawKey, 86400)
 		}
-		d.PosterURL = resolvePosterURL(item.MediaType, item.PosterKey)
+		d.PosterURL = resolvePosterURL(item.MediaType, item.Key, item.PosterKey)
 		out = append(out, d)
 	}
 	return out

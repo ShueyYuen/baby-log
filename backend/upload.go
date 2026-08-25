@@ -349,6 +349,7 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 			}
 			result.MediaType = "video"
 			localPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(compKey))
+			attachPosterToResult(result)
 			go syncFileToS3(localPath, compKey, "video")
 		}
 
@@ -377,21 +378,13 @@ func writeLocalBytes(key string, data []byte) error {
 }
 
 func saveLocalPrefixedVideo(prefix, filename, contentType string, src io.Reader, maxSize int64) (*uploadResult, error) {
-	cfg := getStorageConfig()
 	uid := uuid.NewString()
 	origExt := strings.ToLower(filepath.Ext(filename))
 	if origExt == "" {
 		origExt = mimeToExt(contentType)
 	}
 	key := prefix + "/" + uid + origExt
-	if _, err := saveLocalPrefixedVideoToKey(key, src, maxSize); err != nil {
-		return nil, err
-	}
-	return &uploadResult{
-		URL:       cfg.publicPath + "/" + key,
-		Key:       key,
-		MediaType: "video",
-	}, nil
+	return saveLocalPrefixedVideoToKey(key, src, maxSize)
 }
 
 func saveLocalPrefixedVideoToKey(key string, src io.Reader, maxSize int64) (*uploadResult, error) {
@@ -430,11 +423,13 @@ func saveLocalPrefixedVideoToKey(key string, src io.Reader, maxSize int64) (*upl
 		return nil, errMediaTooLarge
 	}
 
-	return &uploadResult{
+	result := &uploadResult{
 		URL:       cfg.publicPath + "/" + key,
 		Key:       key,
 		MediaType: "video",
-	}, nil
+	}
+	attachPosterToResult(result)
+	return result, nil
 }
 
 func trackUploadedFile(key, rawKey string) {

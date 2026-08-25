@@ -141,7 +141,7 @@ func recordImagesToDisplay(items []RecordImageStore, currentUserID string, isAdm
 		if item.RawKey != "" {
 			d.RawURL, _ = toDisplayURL(item.RawKey, 86400)
 		}
-		d.PosterURL = resolvePosterURL(item.MediaType, item.PosterKey)
+		d.PosterURL = resolvePosterURL(item.MediaType, item.Key, item.PosterKey)
 		out = append(out, d)
 	}
 	return out

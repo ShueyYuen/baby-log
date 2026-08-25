@@ -1,5 +1,5 @@
 import { isLargeFile, toUploadableFile, uploadLargeFile } from './chunked-upload';
-import { attachVideoPoster } from './video-poster';
+import { attachVideoPoster, capturePosterInBackground } from './video-poster';
 
 const API_BASE = '/api/v1';
 
@@ -417,10 +417,11 @@ function createUploader(endpoint: string) {
 
   return async (file: File, onProgress?: (percent: number) => void): Promise<UploadMomentResult> => {
     const prepared = await toUploadableFile(file);
+    const posterTask = capturePosterInBackground(prepared);
     const result = isLargeFile(prepared)
       ? await uploadLargeFile(prepared, prefix, onProgress)
       : await uploadSmallFile(prepared, endpoint, onProgress);
-    return attachVideoPoster(prepared, result);
+    return attachVideoPoster(prepared, result, await posterTask);
   };
 }
 

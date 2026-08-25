@@ -1,6 +1,6 @@
 const MAX_POSTER_WIDTH = 480;
 const POSTER_QUALITY = 0.82;
-const CAPTURE_TIMEOUT_MS = 8000;
+const CAPTURE_TIMEOUT_MS = 12000;
 
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v|ogg|avi|mkv|3gp)$/i;
 
@@ -20,6 +20,17 @@ export function posterKeyFromVideoKey(videoKey: string): string {
   return `${cleaned.slice(0, lastDot)}.poster.jpg`;
 }
 
+export function posterUrlFromVideoSrc(src: string): string {
+  if (!src || src.startsWith('blob:') || src.startsWith('data:')) return '';
+  const q = src.indexOf('?');
+  const path = q >= 0 ? src.slice(0, q) : src;
+  const query = q >= 0 ? src.slice(q) : '';
+  const lastSlash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+  const lastDot = path.lastIndexOf('.');
+  const stem = lastDot > lastSlash ? path.slice(0, lastDot) : path;
+  return `${stem}.poster.jpg${query}`;
+}
+
 export function posterDimensions(width: number, height: number, maxWidth = MAX_POSTER_WIDTH) {
   if (width <= 0 || height <= 0) return { width: 1, height: 1 };
   const scale = Math.min(1, maxWidth / width);
@@ -36,11 +47,14 @@ export function captureVideoPoster(source: File | string): Promise<Blob> {
     video.defaultMuted = true;
     video.playsInline = true;
     video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
     video.preload = 'auto';
-    video.crossOrigin = 'anonymous';
 
     const createdUrl = typeof source === 'string' ? null : URL.createObjectURL(source);
     const url = createdUrl ?? (source as string);
+    if (/^https?:\/\//i.test(url) && !url.startsWith(window.location.origin)) {
+      video.crossOrigin = 'anonymous';
+    }
 
     const cleanup = () => {
       video.pause();
@@ -60,13 +74,15 @@ export function captureVideoPoster(source: File | string): Promise<Blob> {
       reject(err);
     };
 
+    let settled = false;
     const snap = () => {
+      if (settled) return;
       try {
-        const { width, height } = posterDimensions(video.videoWidth, video.videoHeight);
         if ((video.videoWidth || 0) < 2 || (video.videoHeight || 0) < 2) {
           fail(new Error('empty video frame'));
           return;
         }
+        const { width, height } = posterDimensions(video.videoWidth, video.videoHeight);
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
@@ -78,6 +94,8 @@ export function captureVideoPoster(source: File | string): Promise<Blob> {
         ctx.drawImage(video, 0, 0, width, height);
         canvas.toBlob(
           (blob) => {
+            if (settled) return;
+            settled = true;
             window.clearTimeout(timer);
             cleanup();
             if (!blob) fail(new Error('poster encode failed'));
@@ -91,25 +109,30 @@ export function captureVideoPoster(source: File | string): Promise<Blob> {
       }
     };
 
-    video.addEventListener('error', () => fail(new Error('video load failed')));
-    video.addEventListener('seeked', snap, { once: true });
-    video.addEventListener(
-      'loadeddata',
-      () => {
-        const t =
-          Number.isFinite(video.duration) && video.duration > 0
-            ? Math.min(0.5, video.duration * 0.05)
-            : 0.1;
+    const ready = () => {
+      const t =
+        Number.isFinite(video.duration) && video.duration > 0
+          ? Math.min(0.5, video.duration * 0.05)
+          : 0.1;
+      video.addEventListener('seeked', snap, { once: true });
+      const seek = () => {
         try {
-          if (video.currentTime === t) snap();
-          else video.currentTime = t;
+          video.currentTime = t;
         } catch {
           snap();
         }
-      },
-      { once: true },
-    );
+      };
+      void video
+        .play()
+        .then(() => {
+          video.pause();
+          seek();
+        })
+        .catch(seek);
+    };
 
+    video.addEventListener('error', () => fail(new Error('video load failed')));
+    video.addEventListener('loadeddata', ready, { once: true });
     video.src = url;
     video.load();
   });
@@ -138,18 +161,40 @@ export async function uploadVideoPoster(
   return result;
 }
 
-export async function attachVideoPoster<T extends { key: string; mediaType?: string; posterKey?: string; posterUrl?: string }>(
-  file: File,
-  result: T,
-): Promise<T> {
-  const isVideo = result.mediaType === 'video' || file.type.startsWith('video/');
+export async function attachVideoPoster<
+  T extends { key: string; mediaType?: string; posterKey?: string; posterUrl?: string },
+>(file: File, result: T, captured?: Blob | null): Promise<T> {
+  const isVideo = result.mediaType === 'video' || file.type.startsWith('video/') || isVideoMedia(undefined, file.name);
   if (!isVideo || !result.key) return result;
+
+  let blob = captured;
+  if (blob === undefined) {
+    try {
+      blob = await captureVideoPoster(file);
+    } catch (e) {
+      console.warn('[Upload] video poster capture failed', e);
+      blob = null;
+    }
+  }
+  if (!blob) {
+    return { ...result, mediaType: result.mediaType || 'video' };
+  }
+
   try {
-    const blob = await captureVideoPoster(file);
     const poster = await uploadVideoPoster(result.key, blob);
     return { ...result, mediaType: 'video', posterKey: poster.key, posterUrl: poster.url };
   } catch (e) {
-    console.warn('[Upload] video poster failed', e);
+    console.warn('[Upload] video poster upload failed', e);
     return { ...result, mediaType: result.mediaType || 'video' };
   }
+}
+
+export function capturePosterInBackground(file: File): Promise<Blob | null> {
+  if (!file.type.startsWith('video/') && !isVideoMedia(undefined, file.name)) {
+    return Promise.resolve(null);
+  }
+  return captureVideoPoster(file).catch((e) => {
+    console.warn('[Upload] video poster capture failed', e);
+    return null;
+  });
 }
