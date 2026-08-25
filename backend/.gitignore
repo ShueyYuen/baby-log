@@ -1,3 +1,4 @@
 baby-log-server
 dev.db*
 uploads/
+__debug_bin*

@@ -70,8 +70,9 @@
 
   .card {
     @apply rounded-xl p-4;
+    --card-border: rgba(255, 255, 255, 0.6);
     background: rgba(255, 255, 255, 0.55);
-    border: 1px solid rgba(255, 255, 255, 0.6);
+    border: 1px solid var(--card-border);
     backdrop-filter: blur(20px) saturate(1.6);
     -webkit-backdrop-filter: blur(20px) saturate(1.6);
     transition: background 200ms ease, border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
@@ -82,7 +83,7 @@
   }
   .dark .card {
     background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.12);
+    --card-border: rgba(255, 255, 255, 0.12);
     backdrop-filter: blur(20px) saturate(1.4);
     -webkit-backdrop-filter: blur(20px) saturate(1.4);
     box-shadow:
@@ -97,7 +98,7 @@
   }
   .card-interactive:hover {
     background: rgba(255, 255, 255, 0.7);
-    border-color: rgba(238, 119, 17, 0.2);
+    --card-border: rgba(238, 119, 17, 0.2);
     box-shadow:
       0 6px 28px rgba(238, 119, 17, 0.12),
       0 2px 8px rgba(0, 0, 0, 0.05),
@@ -105,7 +106,7 @@
   }
   .dark .card-interactive:hover {
     background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.18);
+    --card-border: rgba(255, 255, 255, 0.18);
     box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.35),
       0 0 20px rgba(238, 119, 17, 0.06),
@@ -1710,7 +1711,7 @@ html.night .glass-ambient-orbs {
 html.night .card,
 html.night .card-interactive {
   background: #161616 !important;
-  border-color: #2a2a2a !important;
+  --card-border: #2a2a2a;
   backdrop-filter: none !important;
   box-shadow: none !important;
 }
