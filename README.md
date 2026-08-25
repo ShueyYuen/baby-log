@@ -137,6 +137,20 @@ docker cp baby-log:/app/data ./backup-data
 docker cp baby-log:/app/uploads ./backup-uploads
 ```
 
+## 测试
+
+后端使用 Go 标准库 `testing` + `httptest`（每个用例独立 SQLite）。前端使用 Vitest + Testing Library。
+
+```bash
+# 后端
+cd backend && go test ./...
+
+# 前端
+cd web && pnpm test
+```
+
+IDE 中可运行任务 `Backend: Test` / `Frontend: Test`。推送与 PR 会由 `.github/workflows/test.yml` 自动跑两边测试。
+
 ## 开发说明
 
 - 后端: `cd backend && go run .`（修改后重启；也可用 `air` 等工具热重载）

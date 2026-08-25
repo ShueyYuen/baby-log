@@ -50,7 +50,6 @@ import {
   cacheWrite,
 } from "../lib/queryCache";
 import { quickDiaper, startOngoing } from "../lib/quick-record";
-import { rememberRecentType, sortTypesByRecent } from "../lib/record-defaults";
 import { allRecordTypes, twoPhaseTypes, typeConfig } from "../lib/record-types";
 
 export default function TimelinePage() {
@@ -83,7 +82,6 @@ export default function TimelinePage() {
   const now = useNowTicker(hasOngoing);
 
   const handleAddType = (type: string, category: string) => {
-    rememberRecentType(type);
     setShowTypePanel(false);
     navigate(`/record/new?type=${type}&category=${category}`);
   };
@@ -350,7 +348,6 @@ export default function TimelinePage() {
   const subtypeOptions = allRecordTypes.filter(
     (t) => filter === "all" || t.category === filter,
   );
-  const sortedTypes = sortTypesByRecent(allRecordTypes);
   const extraFilterActive = hasImages || mineOnly || !!startDate || !!endDate;
   const chipClass = (active: boolean) =>
     `px-3 py-1 rounded-full text-xs font-medium transition-colors ${
@@ -655,7 +652,7 @@ export default function TimelinePage() {
                 短按填写详情 · 按住睡眠/洗澡/玩耍约 0.5 秒可直接开始
               </p>
               <div className="grid grid-cols-4 gap-3">
-                {sortedTypes.map((item) => {
+                {allRecordTypes.map((item) => {
                   const Icon = item.icon;
                   if (twoPhaseTypes.includes(item.type)) {
                     return (

@@ -55,6 +55,7 @@ func newTestServer(t *testing.T) *testServer {
 type resp struct {
 	status int
 	body   []byte
+	header http.Header
 }
 
 func (r resp) decode(t *testing.T, v interface{}) {
@@ -108,7 +109,7 @@ func (s *testServer) do(method, path, token string, body interface{}) resp {
 	res := rec.Result()
 	defer res.Body.Close()
 	data, _ := io.ReadAll(res.Body)
-	return resp{status: res.StatusCode, body: data}
+	return resp{status: res.StatusCode, body: data, header: res.Header}
 }
 
 // rawRequest 直接使用给定 *http.Request（用于 multipart 上传等）。
@@ -119,7 +120,7 @@ func (s *testServer) rawRequest(req *http.Request) resp {
 	res := rec.Result()
 	defer res.Body.Close()
 	data, _ := io.ReadAll(res.Body)
-	return resp{status: res.StatusCode, body: data}
+	return resp{status: res.StatusCode, body: data, header: res.Header}
 }
 
 // ---- 测试数据构造助手 ----

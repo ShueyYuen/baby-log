@@ -59,7 +59,7 @@
     {
       "label": "Backend: Test",
       "type": "shell",
-      "command": "go test ./... -v",
+      "command": "go test ./...",
       "options": {
         "cwd": "${workspaceFolder}/backend"
       },
@@ -101,6 +101,19 @@
           "beginsPattern": "VITE",
           "endsPattern": "ready in"
         }
+      }
+    },
+    {
+      "label": "Frontend: Test",
+      "type": "shell",
+      "command": "pnpm test",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
       }
     },
     {

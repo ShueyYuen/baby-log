@@ -135,3 +135,25 @@ func TestUploadNoFile(t *testing.T) {
 		t.Fatalf("no file expected 400, got %d", r.status)
 	}
 }
+
+func TestPresignFallsBackWhenNotS3(t *testing.T) {
+	s := newTestServer(t)
+	uid := insertUser(t, "u", "U", "user")
+
+	ps := s.do(http.MethodPost, "/upload/presign/moments", uid, map[string]string{
+		"filename": "a.jpg", "contentType": "image/jpeg",
+	})
+	e := mustOK(t, ps)
+	var data map[string]interface{}
+	jsonUnmarshal(e.Data, &data)
+	if data["directUpload"] != false {
+		t.Fatalf("local storage should disable direct upload: %v", data)
+	}
+
+	mp := s.do(http.MethodPost, "/upload/multipart/init/moments", uid, map[string]interface{}{
+		"filename": "a.mp4", "contentType": "video/mp4", "fileSize": 100,
+	})
+	if mp.status != http.StatusBadRequest {
+		t.Fatalf("multipart without S3 expected 400, got %d %s", mp.status, string(mp.body))
+	}
+}

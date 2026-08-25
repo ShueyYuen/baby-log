@@ -324,3 +324,73 @@ func TestChangePassword(t *testing.T) {
 	}))
 }
 
+func TestLoginRateLimit(t *testing.T) {
+	s := newTestServer(t)
+	insertUser(t, "ratelimit", "RL", "user")
+	for i := 0; i < maxLoginFailures; i++ {
+		r := s.do(http.MethodPost, "/auth/login", "", map[string]string{"username": "ratelimit", "password": "wrong"})
+		if r.status != http.StatusUnauthorized {
+			t.Fatalf("attempt %d expected 401, got %d", i, r.status)
+		}
+	}
+	locked := s.do(http.MethodPost, "/auth/login", "", map[string]string{"username": "ratelimit", "password": "password123"})
+	if locked.status != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 after lockout, got %d", locked.status)
+	}
+	clearLoginFailures("ratelimit")
+}
+
+func TestCookieAuth(t *testing.T) {
+	s := newTestServer(t)
+	uid := insertUser(t, "cookieuser", "Cookie", "user")
+
+	req := httptest.NewRequest(http.MethodGet, apiPrefix+"/auth/me", nil)
+	req.AddCookie(&http.Cookie{Name: "token", Value: uid})
+	r := s.rawRequest(req)
+	mustOK(t, r)
+}
+
+func TestLogout(t *testing.T) {
+	s := newTestServer(t)
+	uid := insertUser(t, "out", "Out", "user")
+	mustOK(t, s.do(http.MethodPost, "/auth/logout", uid, map[string]interface{}{}))
+}
+
+func TestUpdateUserRole(t *testing.T) {
+	s := newTestServer(t)
+	admin := insertUser(t, "admin", "Admin", "admin")
+	user := insertUser(t, "member", "Member", "user")
+	target := tokenToUserID(user)
+
+	mustOK(t, s.do(http.MethodPut, "/auth/users/"+target+"/role", admin, map[string]string{"role": "viewer"}))
+
+	if s.do(http.MethodPut, "/auth/users/"+tokenToUserID(admin)+"/role", admin, map[string]string{"role": "user"}).status != http.StatusBadRequest {
+		t.Fatal("admin should not be able to change their own role")
+	}
+	if s.do(http.MethodPut, "/auth/users/"+target+"/role", admin, map[string]string{"role": "nope"}).status != http.StatusBadRequest {
+		t.Fatal("invalid role should be rejected")
+	}
+	if s.do(http.MethodPut, "/auth/users/missing/role", admin, map[string]string{"role": "user"}).status != http.StatusNotFound {
+		t.Fatal("missing user should be 404")
+	}
+}
+
+func TestEnsureAdminCreatesFromEnv(t *testing.T) {
+	setupTestDB(t)
+	t.Setenv("ADMIN_USERNAME", "rootadmin")
+	t.Setenv("ADMIN_PASSWORD", "Abcdef2!")
+	if err := ensureAdmin(); err != nil {
+		t.Fatal(err)
+	}
+	var role string
+	if err := db.QueryRow(`SELECT role FROM "User" WHERE username = 'rootadmin'`).Scan(&role); err != nil {
+		t.Fatal(err)
+	}
+	if role != "admin" {
+		t.Fatalf("role %s, want admin", role)
+	}
+	if err := ensureAdmin(); err != nil {
+		t.Fatal(err)
+	}
+}
+

@@ -37,7 +37,6 @@ import {
   getRecentNames,
   patchRecordDefaults,
   rememberName,
-  rememberRecentType,
 } from "../lib/record-defaults";
 
 interface MediaPreview {
@@ -593,7 +592,6 @@ export default function RecordFormPage() {
       if (isEditing) {
         await api.recordsCrud.update(id!, payload);
       } else {
-        rememberRecentType(type);
         if (type === "bottle") patchRecordDefaults({ bottle: { milkType, amountMl } });
         if (type === "breastfeed") patchRecordDefaults({ breastfeed: { leftMinutes, rightMinutes } });
         if (type === "water") patchRecordDefaults({ water: { amountMl: waterMl } });

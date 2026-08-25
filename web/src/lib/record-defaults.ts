@@ -1,5 +1,4 @@
 const DEFAULTS_KEY = 'recordDefaults';
-const RECENT_TYPES_KEY = 'recordRecentTypes';
 const RECENT_NAMES_KEY = 'recordRecentNames';
 
 export interface RecordDefaults {
@@ -30,16 +29,6 @@ export function patchRecordDefaults(patch: Partial<RecordDefaults>) {
   localStorage.setItem(DEFAULTS_KEY, JSON.stringify(next));
 }
 
-export function rememberRecentType(type: string) {
-  const prev = readJson<string[]>(RECENT_TYPES_KEY, []);
-  const next = [type, ...prev.filter((t) => t !== type)].slice(0, 12);
-  localStorage.setItem(RECENT_TYPES_KEY, JSON.stringify(next));
-}
-
-export function getRecentTypes(): string[] {
-  return readJson<string[]>(RECENT_TYPES_KEY, []);
-}
-
 export function rememberName(kind: 'solid' | 'supplement', name: string) {
   const trimmed = name.trim();
   if (!trimmed) return;
@@ -51,17 +40,4 @@ export function rememberName(kind: 'solid' | 'supplement', name: string) {
 
 export function getRecentNames(kind: 'solid' | 'supplement'): string[] {
   return readJson<Record<string, string[]>>(RECENT_NAMES_KEY, {})[kind] || [];
-}
-
-export function sortTypesByRecent<T extends { type: string }>(types: T[]): T[] {
-  const recent = getRecentTypes();
-  if (recent.length === 0) return types;
-  return [...types].sort((a, b) => {
-    const ia = recent.indexOf(a.type);
-    const ib = recent.indexOf(b.type);
-    if (ia === -1 && ib === -1) return 0;
-    if (ia === -1) return 1;
-    if (ib === -1) return -1;
-    return ia - ib;
-  });
 }

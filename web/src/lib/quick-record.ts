@@ -1,5 +1,5 @@
 import { generateIdempotencyKey, api, type TimelineRecord } from './api';
-import { getRecordDefaults, getRecentNames, patchRecordDefaults, rememberName, rememberRecentType } from './record-defaults';
+import { getRecordDefaults, getRecentNames, patchRecordDefaults, rememberName } from './record-defaults';
 import { cacheInvalidate } from './queryCache';
 
 export type DiaperKind = 'wet' | 'dirty' | 'both';
@@ -26,7 +26,6 @@ export async function createQuickRecord(input: {
     },
     generateIdempotencyKey(),
   );
-  rememberRecentType(input.type);
   invalidateRecordCaches();
   return res.data;
 }
