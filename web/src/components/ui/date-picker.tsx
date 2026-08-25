@@ -2,7 +2,8 @@ import dayjs from 'dayjs';
 import { CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import * as React from 'react';
 import { DayPicker } from 'react-day-picker';
-import { zhCN } from 'react-day-picker/locale';
+import { enUS, zhCN } from 'react-day-picker/locale';
+import { useI18n } from '../../contexts/I18nContext';
 import { cn } from '../../lib/utils';
 import { Button } from './button';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
@@ -49,7 +50,8 @@ interface DatePickerProps {
   className?: string;
 }
 
-export function DatePicker({ value, onChange, placeholder = '选择日期', className }: DatePickerProps) {
+export function DatePicker({ value, onChange, placeholder, className }: DatePickerProps) {
+  const { t, locale } = useI18n();
   const [open, setOpen] = React.useState(false);
   const selected = value ? new Date(value) : undefined;
 
@@ -72,7 +74,7 @@ export function DatePicker({ value, onChange, placeholder = '选择日期', clas
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {value ? dayjs(value).format('YYYY年MM月DD日') : placeholder}
+          {value ? dayjs(value).format(t('dateFmt.ymdPad')) : (placeholder ?? t('datePicker.pickDate'))}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -81,7 +83,7 @@ export function DatePicker({ value, onChange, placeholder = '选择日期', clas
           navLayout="around"
           selected={selected}
           onSelect={handleSelect}
-          locale={zhCN}
+          locale={locale === 'zh' ? zhCN : enUS}
           className="p-3"
           classNames={calendarClassNames}
           components={{
@@ -102,7 +104,8 @@ interface DateTimePickerProps {
   className?: string;
 }
 
-export function DateTimePicker({ value, onChange, placeholder = '选择日期和时间', className }: DateTimePickerProps) {
+export function DateTimePicker({ value, onChange, placeholder, className }: DateTimePickerProps) {
+  const { t, locale } = useI18n();
   const [open, setOpen] = React.useState(false);
   const dateValue = value ? value.slice(0, 10) : '';
   const timeValue = value ? value.slice(11, 16) : dayjs().format('HH:mm');
@@ -128,7 +131,7 @@ export function DateTimePicker({ value, onChange, placeholder = '选择日期和
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {value ? dayjs(value).format('YYYY年MM月DD日 HH:mm') : placeholder}
+          {value ? dayjs(value).format(t('dateFmt.ymdhm')) : (placeholder ?? t('datePicker.pickDateTime'))}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -137,7 +140,7 @@ export function DateTimePicker({ value, onChange, placeholder = '选择日期和
           navLayout="around"
           selected={selected}
           onSelect={handleDateSelect}
-          locale={zhCN}
+          locale={locale === 'zh' ? zhCN : enUS}
           className="p-3"
           classNames={calendarClassNames}
           components={{

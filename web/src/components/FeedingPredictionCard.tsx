@@ -1,4 +1,6 @@
 import { AlarmClock, Bell, BellOff, Milk } from 'lucide-react';
+import { useI18n } from '../contexts/I18nContext';
+import { tZh, type TranslateFn } from '../i18n';
 import type { FeedingPrediction } from '../lib/api';
 import { isPushSupported } from '../lib/push';
 import { addFeedingReminderToCalendar } from '../lib/calendar';
@@ -12,6 +14,7 @@ export function FeedingPredictionCard({
   pushEnabled: boolean;
   onPush: () => void;
 }) {
+  const { t } = useI18n();
   if (prediction.minutesUntilNext == null || prediction.avgIntervalMinutes == null) return null;
   const min = prediction.minutesUntilNext;
   const interval = prediction.avgIntervalMinutes;
@@ -32,11 +35,15 @@ export function FeedingPredictionCard({
   let timeText: string;
   if (min <= 0) {
     const overdue = Math.abs(min);
-    timeText = overdue < 60 ? `已超时 ${overdue} 分钟，建议尽快喂奶` : `已超时 ${Math.floor(overdue / 60)}小时，建议尽快喂奶`;
+    timeText = overdue < 60
+      ? t('feeding.overdueMinutes', { n: overdue })
+      : t('feeding.overdueHours', { n: Math.floor(overdue / 60) });
   } else if (min < 60) {
-    timeText = `约 ${min} 分钟后`;
+    timeText = t('time.minutesLater', { n: min });
   } else {
-    timeText = `约 ${Math.floor(min / 60)}小时${min % 60 > 0 ? `${min % 60}分钟` : ''}后`;
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    timeText = m > 0 ? t('time.hoursMinutesLater', { h, m }) : t('time.hoursLater', { h });
   }
 
   return (
@@ -46,22 +53,22 @@ export function FeedingPredictionCard({
       </div>
       <div className="flex-1 min-w-0">
         <p className={`text-xs font-medium ${labelColor}`}>
-          预计下次喂奶
-          {prediction.method === 'bottle' && ' (基于奶量)'}
-          {prediction.method === 'breastfeed' && ' (基于哺乳时长)'}
+          {t('feeding.nextFeed')}
+          {prediction.method === 'bottle' && t('feeding.basedOnVolume')}
+          {prediction.method === 'breastfeed' && t('feeding.basedOnDuration')}
         </p>
         <p className="text-sm font-semibold dark:text-gray-100">{timeText}</p>
       </div>
       {isPushSupported() && (
-        <button onClick={onPush} className="w-8 h-8 rounded-full flex items-center justify-center glass-chip" title={pushEnabled ? '设置提醒' : '开启推送'}>
+        <button onClick={onPush} className="w-8 h-8 rounded-full flex items-center justify-center glass-chip" title={pushEnabled ? t('feeding.setReminder') : t('feeding.enablePush')}>
           {pushEnabled ? <Bell size={14} /> : <BellOff size={14} />}
         </button>
       )}
       {min > 0 && (
         <button
-          onClick={() => addFeedingReminderToCalendar(min)}
+          onClick={() => addFeedingReminderToCalendar(min, t)}
           className="w-8 h-8 rounded-full flex items-center justify-center glass-chip"
-          title="系统闹钟"
+          title={t('feeding.systemAlarm')}
         >
           <AlarmClock size={14} />
         </button>
@@ -70,12 +77,15 @@ export function FeedingPredictionCard({
   );
 }
 
-export function formatTimeAgo(minutes: number): string {
-  if (minutes < 1) return '刚刚';
-  if (minutes < 60) return `${minutes}分钟前`;
+export function formatTimeAgo(minutes: number, t: TranslateFn = tZh): string {
+  if (minutes < 1) return t('time.justNow');
+  if (minutes < 60) return t('time.minutesAgo', { n: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}小时${minutes % 60 > 0 ? `${minutes % 60}分钟` : ''}前`;
-  return `${Math.floor(hours / 24)}天前`;
+  if (hours < 24) {
+    const m = minutes % 60;
+    return m > 0 ? t('time.hoursMinutesAgo', { h: hours, m }) : t('time.hoursAgo', { n: hours });
+  }
+  return t('time.daysAgo', { n: Math.floor(hours / 24) });
 }
 
 export function minutesSince(time: string, now: number): number {

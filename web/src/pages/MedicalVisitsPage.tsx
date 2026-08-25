@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useI18n } from '../contexts/I18nContext';
 import {
   api,
   generateIdempotencyKey,
@@ -45,6 +46,7 @@ function VisitDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isViewer } = useAuth();
+  const { t } = useI18n();
   const [visit, setVisit] = useState<MedicalVisit | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDelete, setShowDelete] = useState(false);
@@ -58,7 +60,7 @@ function VisitDetail() {
     api.medicalVisits
       .get(id)
       .then((res) => setVisit(res.data))
-      .catch(() => toast('加载失败', 'error'))
+      .catch(() => toast(t('visits.loadFailed'), 'error'))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -67,10 +69,10 @@ function VisitDetail() {
     try {
       await api.medicalVisits.delete(visit.id);
       cacheInvalidate(CACHE_KEY);
-      toast('已删除', 'success');
+      toast(t('visits.deleted'), 'success');
       navigate('/health', { replace: true });
     } catch {
-      toast('删除失败', 'error');
+      toast(t('visits.deleteFailed'), 'error');
     }
   };
 
@@ -92,18 +94,18 @@ function VisitDetail() {
   if (!visit) {
     return (
       <div className="absolute inset-0 glass-page-shell flex items-center justify-center">
-        <p className="text-gray-400">记录不存在</p>
+        <p className="text-gray-400">{t('visits.notFound')}</p>
       </div>
     );
   }
 
   const fields = [
-    { label: '医院', value: visit.hospital },
-    { label: '科室', value: visit.department },
-    { label: '医生', value: visit.doctor },
-    { label: '诊断', value: visit.diagnosis },
-    { label: '处方/用药', value: visit.prescription },
-    { label: '备注', value: visit.notes },
+    { label: t('visits.hospital'), value: visit.hospital },
+    { label: t('visits.department'), value: visit.department },
+    { label: t('visits.doctor'), value: visit.doctor },
+    { label: t('visits.diagnosis'), value: visit.diagnosis },
+    { label: t('visits.prescription'), value: visit.prescription },
+    { label: t('visits.notes'), value: visit.notes },
   ].filter((f) => f.value);
 
   return (
@@ -117,7 +119,7 @@ function VisitDetail() {
             <ArrowLeft size={20} />
           </Button>
           <h2 className="flex-1 text-xl font-semibold dark:text-gray-100 truncate">
-            {visit.hospital || '就诊记录'}
+            {visit.hospital || t('visits.fallbackTitle')}
           </h2>
           {!isViewer && (
             <div className="flex gap-2">
@@ -144,7 +146,7 @@ function VisitDetail() {
       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 space-y-4">
         <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
           <Stethoscope size={16} />
-          <span>{dayjs(visit.visitDate).format('YYYY年M月D日')}</span>
+          <span>{dayjs(visit.visitDate).format(t('dateFmt.ymd'))}</span>
         </div>
 
         {fields.length > 0 && (
@@ -168,7 +170,7 @@ function VisitDetail() {
           <Card>
             <CardContent className="p-4">
               <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-                图片 ({visit.images.length})
+                {t('visits.images', { n: visit.images.length })}
               </p>
               <div className="grid grid-cols-3 gap-2">
                 {visit.images.map((img, i) => (
@@ -196,7 +198,7 @@ function VisitDetail() {
           <div>
             <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 flex items-center gap-1 px-1">
               <FileText size={14} />
-              OCR 识别文本
+              {t('visits.ocrText')}
             </p>
             {visit.ocrData?.length > 0 ? (
               <div className="space-y-4">
@@ -207,11 +209,11 @@ function VisitDetail() {
                       <CardContent className="p-0 overflow-hidden">
                         <div className="flex items-center gap-2 px-3 py-2 glass-info-strip border-b border-white/20 dark:border-white/[0.06]">
                           <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                            图片 {idx + 1}
+                            {t('visits.imageN', { n: idx + 1 })}
                           </span>
                           {!item.text && (
                             <Badge variant="secondary" className="text-[10px] ml-auto">
-                              未识别到文字
+                              {t('visits.noText')}
                             </Badge>
                           )}
                         </div>
@@ -220,7 +222,7 @@ function VisitDetail() {
                             <div className="p-3 sm:w-1/2 sm:shrink-0 sm:border-r border-b sm:border-b-0 border-white/20 dark:border-white/[0.06] glass-info-strip">
                               <img
                                 src={img.rawUrl || img.url}
-                                alt={`图片 ${idx + 1}`}
+                                alt={t('visits.altImage', { n: idx + 1 })}
                                 className="w-full object-contain rounded-lg cursor-pointer max-h-[60vh]"
                                 onClick={() => {
                                   const imgIdx = visit.images.findIndex((i) => i.key === item.key);
@@ -261,9 +263,9 @@ function VisitDetail() {
       <ConfirmDialog
         open={showDelete}
         onOpenChange={setShowDelete}
-        title="确认删除"
-        description="删除后无法恢复，确定要删除这条就诊记录吗？"
-        confirmLabel="删除"
+        title={t('visits.confirmDelete')}
+        description={t('visits.confirmDeleteDesc')}
+        confirmLabel={t('common.delete')}
         variant="danger"
         onConfirm={handleDelete}
       />
@@ -293,6 +295,7 @@ function VisitForm() {
   const isEdit = !!id;
   const navigate = useNavigate();
   const { currentBaby } = useBaby();
+  const { t } = useI18n();
   const { toast } = useToast();
 
   const [visitDate, setVisitDate] = useState(dayjs().format('YYYY-MM-DD'));
@@ -330,7 +333,7 @@ function VisitForm() {
         setOcrText(v.ocrText);
         setOcrData(v.ocrData || []);
       })
-      .catch(() => toast('加载失败', 'error'))
+      .catch(() => toast(t('visits.loadFailed'), 'error'))
       .finally(() => setLoadingVisit(false));
   }, [id]);
 
@@ -361,7 +364,7 @@ function VisitForm() {
         );
         uploaded.push(result);
       } catch {
-        toast('图片上传失败', 'error');
+        toast(t('visits.uploadFailed'), 'error');
         setUploads((prev) => prev.filter((u) => u.id !== up.id));
       }
     }
@@ -384,7 +387,7 @@ function VisitForm() {
           return merged;
         });
       } catch {
-        toast('OCR 自动识别失败', 'error');
+        toast(t('visits.ocrAutoFailed'), 'error');
       } finally {
         setOcrRunning(false);
       }
@@ -454,13 +457,13 @@ function VisitForm() {
   const runOcr = async () => {
     const pendingUploads = uploads.some((u) => !u.result);
     if (pendingUploads) {
-      toast('请等待图片上传完成');
+      toast(t('visits.waitUpload'));
       return;
     }
 
     const allImages = buildAllImages();
     if (allImages.length === 0) {
-      toast('没有可识别的图片');
+      toast(t('visits.noRecognizable'));
       return;
     }
 
@@ -470,7 +473,7 @@ function VisitForm() {
     const newImages = allImages.filter((img) => !recognizedKeys.has(img.key));
 
     if (newImages.length === 0) {
-      toast('所有图片已识别，无需重复处理');
+      toast(t('visits.alreadyRecognized'));
       return;
     }
 
@@ -495,11 +498,11 @@ function VisitForm() {
           .join('\n\n'),
       );
       toast(
-        `OCR 完成，新识别了 ${res.data.recognized} 张图片（共 ${allImages.length} 张）`,
+        t('visits.ocrDone', { n: res.data.recognized, total: allImages.length }),
         'success',
       );
     } catch {
-      toast('OCR 识别失败', 'error');
+      toast(t('visits.ocrFailed'), 'error');
     } finally {
       setOcrRunning(false);
     }
@@ -509,18 +512,18 @@ function VisitForm() {
     if (!currentBaby) return;
     const pendingUploads = uploads.some((u) => !u.result);
     if (pendingUploads) {
-      toast('请等待图片上传完成');
+      toast(t('visits.waitUpload'));
       return;
     }
 
     setSaving(true);
     const visitId = await saveVisit();
     if (visitId) {
-      toast(isEdit ? '已更新' : '已创建', 'success');
+      toast(isEdit ? t('visits.updated') : t('visits.created'), 'success');
       cacheInvalidate(CACHE_KEY);
       navigate('/health', { replace: true });
     } else {
-      toast('保存失败', 'error');
+      toast(t('visits.saveFailed'), 'error');
     }
     setSaving(false);
   };
@@ -544,86 +547,86 @@ function VisitForm() {
             <ArrowLeft size={20} />
           </Button>
           <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">
-            {isEdit ? '编辑就诊记录' : '新建就诊记录'}
+            {isEdit ? t('visits.edit') : t('visits.create')}
           </h2>
           <Button size="sm" onClick={handleSubmit} disabled={saving}>
-            {saving ? '保存中...' : '保存'}
+            {saving ? t('common.saving') : t('common.save')}
           </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 space-y-4 pb-20">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            就诊日期
+            {t('visits.visitDate')}
           </label>
           <DatePicker value={visitDate} onChange={setVisitDate} />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            医院
+            {t('visits.hospital')}
           </label>
           <Input
             value={hospital}
             onChange={(e) => setHospital(e.target.value)}
-            placeholder="医院名称"
+            placeholder={t('visits.hospitalPlaceholder')}
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            科室
+            {t('visits.department')}
           </label>
           <Input
             value={department}
             onChange={(e) => setDepartment(e.target.value)}
-            placeholder="如：儿科、耳鼻喉科"
+            placeholder={t('visits.departmentPlaceholder')}
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            医生
+            {t('visits.doctor')}
           </label>
           <Input
             value={doctor}
             onChange={(e) => setDoctor(e.target.value)}
-            placeholder="医生姓名"
+            placeholder={t('visits.doctorPlaceholder')}
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            诊断
+            {t('visits.diagnosis')}
           </label>
           <Textarea
             value={diagnosis}
             onChange={(e) => setDiagnosis(e.target.value)}
-            placeholder="诊断内容"
+            placeholder={t('visits.diagnosisPlaceholder')}
             rows={2}
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            处方/用药
+            {t('visits.prescription')}
           </label>
           <Textarea
             value={prescription}
             onChange={(e) => setPrescription(e.target.value)}
-            placeholder="药品名称、用量、频率等"
+            placeholder={t('visits.prescriptionPlaceholder')}
             rows={3}
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            备注
+            {t('visits.notes')}
           </label>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="其他补充说明"
+            placeholder={t('visits.notesPlaceholder')}
             rows={2}
           />
         </div>
@@ -631,7 +634,7 @@ function VisitForm() {
         {/* Images */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            图片（处方、化验单等）
+            {t('visits.imagesLabel')}
           </label>
           <div className="grid grid-cols-4 gap-2">
             {existingImages.map((img, i) => (
@@ -679,7 +682,7 @@ function VisitForm() {
               className="aspect-square rounded-lg glass-upload-zone flex flex-col items-center justify-center text-gray-400 transition-colors"
             >
               <ImagePlus size={20} />
-              <span className="text-[10px] mt-1">添加图片</span>
+              <span className="text-[10px] mt-1">{t('visits.addImage')}</span>
             </button>
           </div>
           <input
@@ -696,7 +699,7 @@ function VisitForm() {
         {ocrRunning && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-sm text-blue-700 dark:text-blue-300">
             <Loader2 size={16} className="animate-spin" />
-            正在识别图片文字...
+            {t('visits.recognizing')}
           </div>
         )}
         {allImageCount > 0 && ocrAvailable && !ocrRunning && ocrData.length > 0 && (
@@ -707,7 +710,7 @@ function VisitForm() {
             disabled={saving}
           >
             <FileText size={14} className="mr-1" />
-            重新识别未处理的图片
+            {t('visits.rerecognize')}
           </Button>
         )}
 
@@ -716,9 +719,9 @@ function VisitForm() {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1">
               <FileText size={14} />
-              OCR 识别文本
+              {t('visits.ocrText')}
               <span className="text-xs text-gray-400 font-normal">
-                （可手动编辑，修改后点保存生效）
+                {t('visits.ocrHint')}
               </span>
             </label>
             {ocrData.length > 0 ? (
@@ -739,11 +742,11 @@ function VisitForm() {
                     >
                       <div className="flex items-center gap-2 px-3 py-2 glass-info-strip border-b border-white/20 dark:border-white/[0.06]">
                         <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                          图片 {idx + 1}
+                          {t('visits.imageN', { n: idx + 1 })}
                         </span>
                         {!item.text && (
                           <Badge variant="secondary" className="text-[10px] ml-auto">
-                            未识别到文字
+                            {t('visits.noText')}
                           </Badge>
                         )}
                       </div>
@@ -752,7 +755,7 @@ function VisitForm() {
                           <div className="p-3 sm:w-1/2 sm:shrink-0 sm:border-r border-b sm:border-b-0 border-white/20 dark:border-white/[0.06] glass-info-strip">
                             <img
                               src={(img as MedicalVisitImage).rawUrl || img.url}
-                              alt={`图片 ${idx + 1}`}
+                              alt={t('visits.altImage', { n: idx + 1 })}
                               className="w-full object-contain rounded-lg max-h-[60vh]"
                             />
                           </div>
@@ -771,7 +774,7 @@ function VisitForm() {
                                   .join('\n\n'),
                               );
                             }}
-                            placeholder="未识别到文字"
+                            placeholder={t('visits.noText')}
                             rows={6}
                             className="border-0 rounded-none focus:ring-0 bg-transparent h-full min-h-[150px]"
                           />
@@ -785,7 +788,7 @@ function VisitForm() {
               <Textarea
                 value={ocrText}
                 onChange={(e) => setOcrText(e.target.value)}
-                placeholder="识别到的文字会显示在这里..."
+                placeholder={t('visits.ocrPlaceholder')}
                 rows={6}
               />
             )}

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import dayjs from 'dayjs';
+import { useI18n } from '../contexts/I18nContext';
 import type { TimelineRecord } from '../lib/api';
 
 interface SleepStripProps {
@@ -8,6 +9,7 @@ interface SleepStripProps {
 }
 
 export function SleepStrip({ records, hours = 24 }: SleepStripProps) {
+  const { t } = useI18n();
   const now = Date.now();
   const windowStart = now - hours * 3600 * 1000;
 
@@ -39,8 +41,8 @@ export function SleepStrip({ records, hours = 24 }: SleepStripProps) {
   if (segments.length === 0) {
     return (
       <div className="card py-3">
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">近 {hours} 小时睡眠</p>
-        <p className="text-sm text-gray-400">还没有睡眠记录</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t('sleepStrip.recent', { hours })}</p>
+        <p className="text-sm text-gray-400">{t('sleepStrip.empty')}</p>
       </div>
     );
   }
@@ -48,8 +50,8 @@ export function SleepStrip({ records, hours = 24 }: SleepStripProps) {
   return (
     <div className="card py-3">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs text-gray-500 dark:text-gray-400">近 {hours} 小时睡眠</p>
-        <p className="text-sm font-semibold dark:text-gray-100">{h > 0 ? `${h}小时${m}分` : `${m}分钟`}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">{t('sleepStrip.recent', { hours })}</p>
+        <p className="text-sm font-semibold dark:text-gray-100">{h > 0 ? t('time.hoursMins', { h, m }) : t('duration.minutes', { n: m })}</p>
       </div>
       <div className="relative h-5 rounded-full bg-gray-200/70 dark:bg-white/10 overflow-hidden">
         {segments.map((s, i) => {
@@ -67,7 +69,7 @@ export function SleepStrip({ records, hours = 24 }: SleepStripProps) {
       </div>
       <div className="flex justify-between text-[10px] text-gray-400 mt-1">
         <span>{dayjs(windowStart).format('HH:mm')}</span>
-        <span>现在</span>
+        <span>{t('sleepStrip.now')}</span>
       </div>
     </div>
   );

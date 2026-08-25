@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { Square } from 'lucide-react';
+import { useI18n } from '../contexts/I18nContext';
 import type { TimelineRecord } from '../lib/api';
 import { api } from '../lib/api';
-import { formatElapsed, typeConfig } from '../lib/record-types';
+import { formatElapsed, recordTypeLabel, typeConfig } from '../lib/record-types';
 import { invalidateRecordCaches } from '../lib/quick-record';
 import { Button, DateTimePicker, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, ScrollDateTimePicker, useToast } from './ui';
 
@@ -19,6 +20,7 @@ export function OngoingBanner({
   onChanged?: () => void;
 }) {
   const { toast } = useToast();
+  const { t } = useI18n();
   const ongoing = records.filter((r) => r.data?.ongoing);
   const [endingRecord, setEndingRecord] = useState<TimelineRecord | null>(null);
   const [endWakeTime, setEndWakeTime] = useState('');
@@ -37,12 +39,14 @@ export function OngoingBanner({
       });
       const durH = Math.floor(durationMinutes / 60);
       const durM = durationMinutes % 60;
-      const durStr = durH > 0 ? `${durH}小时${durM > 0 ? `${durM}分钟` : ''}` : `${durationMinutes}分钟`;
-      toast(`${typeConfig[record.type]?.label || '活动'}已结束（${durStr}）`, 'success');
+      const durStr = durH > 0
+        ? t('time.hoursMinutes', { h: durH, m: durM })
+        : t('duration.minutes', { n: durationMinutes });
+      toast(t('ongoing.ended', { label: recordTypeLabel(record.type, t), duration: durStr }), 'success');
       invalidateRecordCaches();
       onChanged?.();
     } catch {
-      toast('结束失败', 'error');
+      toast(t('ongoing.endFailed'), 'error');
     }
   };
 
@@ -70,15 +74,15 @@ export function OngoingBanner({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium dark:text-gray-100">{config.label}进行中</span>
-                  <span className="text-xs text-indigo-500">{dayjs(startTime).format('HH:mm')} 开始</span>
+                  <span className="font-medium dark:text-gray-100">{t('ongoing.inProgress', { label: recordTypeLabel(record.type, t) })}</span>
+                  <span className="text-xs text-indigo-500">{t('ongoing.startedAt', { time: dayjs(startTime).format('HH:mm') })}</span>
                 </div>
                 <p className="text-lg font-semibold tabular-nums text-indigo-600 dark:text-indigo-300">{elapsed}</p>
               </div>
               {!isViewer && (
                 <Button onClick={() => handleEnd(record)} size="sm" className="gap-1.5 rounded-full flex-shrink-0">
                   <Square size={14} fill="currentColor" />
-                  结束
+                  {t('ongoing.end')}
                 </Button>
               )}
             </div>
@@ -89,20 +93,20 @@ export function OngoingBanner({
       <Dialog open={!!endingRecord} onOpenChange={(v) => { if (!v) setEndingRecord(null); }}>
         <DialogContent className="max-w-sm mx-auto">
           <DialogHeader>
-            <DialogTitle>结束睡眠</DialogTitle>
+            <DialogTitle>{t('ongoing.endSleep')}</DialogTitle>
             <DialogDescription>
-              {endingRecord && `${dayjs(endingRecord.data?.startTime || endingRecord.occurredAt).format('HH:mm')} 入睡，请确认醒来时间`}
+              {endingRecord && t('ongoing.confirmWake', { time: dayjs(endingRecord.data?.startTime || endingRecord.occurredAt).format('HH:mm') })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 pt-2">
             <ScrollDateTimePicker value={endWakeTime} onChange={setEndWakeTime} className="md:hidden" />
-            <DateTimePicker value={endWakeTime} onChange={setEndWakeTime} placeholder="选择醒来时间" className="hidden md:flex" />
+            <DateTimePicker value={endWakeTime} onChange={setEndWakeTime} placeholder={t('ongoing.pickWakeTime')} className="hidden md:flex" />
             <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setEndingRecord(null)}>取消</Button>
+              <Button variant="outline" className="flex-1" onClick={() => setEndingRecord(null)}>{t('common.cancel')}</Button>
               <Button className="flex-1" onClick={() => {
                 if (endingRecord) finish(endingRecord, new Date(endWakeTime).toISOString());
                 setEndingRecord(null);
-              }}>确认结束</Button>
+              }}>{t('ongoing.confirmEnd')}</Button>
             </div>
           </div>
         </DialogContent>

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Ruler, Triangle, X, Undo2, Redo2, Circle, MapPin } from 'lucide-react';
+import { useI18n } from '../contexts/I18nContext';
 import { Button } from './ui';
 
 export interface AnnotationPoint {
@@ -54,6 +55,7 @@ const HIT_RADIUS_PX = 16;
 const REQUIRED_POINTS: Record<AnnotationType, number> = { angle: 3, line: 2, circle: 2, point: 1 };
 
 export function ImageAnnotator({ imageUrl, annotations, onChange, readonly = false }: ImageAnnotatorProps) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<AnnotationType | null>(null);
   const [pendingPoints, setPendingPoints] = useState<AnnotationPoint[]>([]);
@@ -322,10 +324,10 @@ export function ImageAnnotator({ imageUrl, annotations, onChange, readonly = fal
       {!readonly && (
         <div className="flex items-center gap-1 sm:gap-2">
           {([
-            { key: 'point' as const, icon: MapPin, label: '点' },
-            { key: 'line' as const, icon: Ruler, label: '线段' },
-            { key: 'circle' as const, icon: Circle, label: '圆' },
-            { key: 'angle' as const, icon: Triangle, label: '角度' },
+            { key: 'point' as const, icon: MapPin, label: t('annotator.point') },
+            { key: 'line' as const, icon: Ruler, label: t('annotator.line') },
+            { key: 'circle' as const, icon: Circle, label: t('annotator.circle') },
+            { key: 'angle' as const, icon: Triangle, label: t('annotator.angle') },
           ] as const).map(({ key, icon: Icon, label }) => (
             <Button
               key={key}
@@ -346,7 +348,7 @@ export function ImageAnnotator({ imageUrl, annotations, onChange, readonly = fal
             <Redo2 size={14} />
           </Button>
           <Button type="button" size="sm" variant="ghost" className="px-1.5 sm:px-3 h-7 sm:h-8" onClick={clearAll} disabled={annotations.length === 0 && pendingPoints.length === 0}>
-            <X size={14} /> <span className="hidden sm:inline">清除</span>
+            <X size={14} /> <span className="hidden sm:inline">{t('common.clear')}</span>
           </Button>
         </div>
       )}
@@ -354,10 +356,10 @@ export function ImageAnnotator({ imageUrl, annotations, onChange, readonly = fal
       {/* Hint */}
       {!readonly && tool && (
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          {tool === 'point' && '点击放置标记点（可拖拽已有端点调整位置）'}
-          {tool === 'line' && `点击标记${pendingPoints.length === 0 ? '起点' : '终点'}（可拖拽已有端点调整位置）`}
-          {tool === 'circle' && `点击标记${pendingPoints.length === 0 ? '圆心' : '边缘（确定半径）'}（可拖拽已有端点调整位置）`}
-          {tool === 'angle' && `点击标记${pendingPoints.length === 0 ? '第一个端点' : pendingPoints.length === 1 ? '顶点（角的中心）' : '第二个端点'}（可拖拽已有端点调整位置）`}
+          {tool === 'point' && t('annotator.hintPoint')}
+          {tool === 'line' && (pendingPoints.length === 0 ? t('annotator.hintLineStart') : t('annotator.hintLineEnd'))}
+          {tool === 'circle' && (pendingPoints.length === 0 ? t('annotator.hintCircleCenter') : t('annotator.hintCircleEdge'))}
+          {tool === 'angle' && (pendingPoints.length === 0 ? t('annotator.hintAngle1') : pendingPoints.length === 1 ? t('annotator.hintAngleVertex') : t('annotator.hintAngle2'))}
         </p>
       )}
 

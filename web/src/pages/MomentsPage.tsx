@@ -1,5 +1,4 @@
 import dayjs from "dayjs";
-import "dayjs/locale/zh-cn";
 import relativeTime from "dayjs/plugin/relativeTime";
 import {
   ChevronDown,
@@ -30,6 +29,7 @@ import {
 import { MomentsSkeleton } from "../components/ui/skeleton";
 import { VisibilityPicker } from "../components/ui/visibility-picker";
 import { useAuth } from "../contexts/AuthContext";
+import { useI18n } from "../contexts/I18nContext";
 import {
   api,
   generateIdempotencyKey,
@@ -42,7 +42,6 @@ import {
 } from "../lib/api";
 
 dayjs.extend(relativeTime);
-dayjs.locale("zh-cn");
 
 // ── Utility ──────────────────────────────────────────────────────────────────
 
@@ -96,6 +95,7 @@ function Avatar({
 // ── Visibility badge (read-only) ─────────────────────────────────────────────
 
 function VisibilityBadge({ visibleTo }: { visibleTo?: string[] }) {
+  const { t, locale } = useI18n();
   const [members, setMembers] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
@@ -110,12 +110,13 @@ function VisibilityBadge({ visibleTo }: { visibleTo?: string[] }) {
   if (!visibleTo || visibleTo.length === 0) return null;
 
   const names = visibleTo.map((id) => members.get(id) || '').filter(Boolean);
-  const label = names.length > 0 ? names.join('、') : `${visibleTo.length}人`;
+  const sep = locale === 'zh' ? '、' : ', ';
+  const label = names.length > 0 ? names.join(sep) : t('moments.peopleCount', { n: visibleTo.length });
 
   return (
     <div className="absolute top-1 left-1 flex items-center gap-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-full backdrop-blur-sm pointer-events-none">
       <Lock size={10} />
-      <span className="truncate max-w-[100px]">{label}可见</span>
+      <span className="truncate max-w-[100px]">{t('moments.visibleTo', { label })}</span>
     </div>
   );
 }
@@ -203,6 +204,7 @@ function CommentSection({
   onDeleteComment: (momentId: string, commentId: string) => Promise<void>;
   currentUserId: string;
 }) {
+  const { t } = useI18n();
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -258,7 +260,7 @@ function CommentSection({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && submit()}
-          placeholder="写评论..."
+          placeholder={t('moments.commentPlaceholder')}
           className="glass-input-ui flex-1 text-sm rounded-full px-3 py-1.5 outline-none focus:ring-0 text-gray-900 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-white/30"
         />
         <button
@@ -292,6 +294,7 @@ function MomentCard({
   onAddComment: (momentId: string, content: string) => Promise<void>;
   onDeleteComment: (momentId: string, commentId: string) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [likeAnimating, setLikeAnimating] = useState(false);
@@ -380,7 +383,7 @@ function MomentCard({
           >
             <MessageCircle size={16} />
             <span>
-              {moment.commentCount > 0 ? `${moment.commentCount} 条评论` : "评论"}
+              {moment.commentCount > 0 ? t('moments.comments', { n: moment.commentCount }) : t('moments.comment')}
             </span>
             {moment.commentCount > 0 && (
               <ChevronDown
@@ -439,6 +442,7 @@ function UploadProgressRing({
   progress: number;
   error?: boolean;
 }) {
+  const { t } = useI18n();
   const r = 18;
   const circumference = 2 * Math.PI * r;
   const offset = circumference - (progress / 100) * circumference;
@@ -446,7 +450,7 @@ function UploadProgressRing({
   return (
     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
       {error ? (
-        <div className="text-red-400 text-xs font-medium">失败</div>
+        <div className="text-red-400 text-xs font-medium">{t('common.fail')}</div>
       ) : (
         <div className="relative w-12 h-12">
           <svg className="w-12 h-12 -rotate-90" viewBox="0 0 44 44">
@@ -491,6 +495,7 @@ const PreviewItem = React.memo(function PreviewItem({
   onPreview: () => void;
   onVisibilityChange: (vt: string[] | undefined) => void;
 }) {
+  const { t } = useI18n();
   const p = preview;
   return (
     <div className="relative w-[calc(33.333%-0.375rem)] aspect-square rounded-lg overflow-hidden glass-media-thumb">
@@ -510,7 +515,7 @@ const PreviewItem = React.memo(function PreviewItem({
       )}
       <button
         type="button"
-        aria-label="删除"
+        aria-label={t('common.delete')}
         onClick={onRemove}
         className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black/80"
       >
@@ -536,6 +541,7 @@ export function MomentFormDialog({
   onSave: (content: string, mediaItems: MediaItem[]) => Promise<void>;
   editMoment?: Moment | null;
 }) {
+  const { t } = useI18n();
   const [content, setContent] = useState("");
   const [previews, setPreviews] = useState<MediaPreview[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -733,7 +739,7 @@ export function MomentFormDialog({
       >
         {/* Fixed header */}
         <DialogHeader className="shrink-0">
-          <DialogTitle>{editMoment ? "编辑动态" : "发布动态"}</DialogTitle>
+          <DialogTitle>{editMoment ? t('moments.edit') : t('moments.create')}</DialogTitle>
         </DialogHeader>
 
         {/* Scrollable content */}
@@ -741,7 +747,7 @@ export function MomentFormDialog({
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder="分享宝宝的精彩时刻..."
+            placeholder={t('moments.placeholder')}
             rows={3}
             className="glass-input-ui w-full rounded-xl border border-transparent p-3 text-sm outline-none focus:ring-0 resize-none text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-white/30"
           />
@@ -775,7 +781,7 @@ export function MomentFormDialog({
                 className="w-[calc(33.333%-0.375rem)] aspect-square rounded-lg glass-upload-zone flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-primary-400 transition-colors"
               >
                 <ImagePlus size={20} />
-                <span className="text-xs">添加</span>
+                <span className="text-xs">{t('moments.add')}</span>
               </button>
             </div>
           )}
@@ -786,7 +792,7 @@ export function MomentFormDialog({
               className="w-full min-h-[180px] rounded-xl glass-upload-zone flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-primary-400 transition-colors"
             >
               <ImagePlus size={36} />
-              <span className="text-sm">点击添加照片 / 视频</span>
+              <span className="text-sm">{t('moments.addMedia')}</span>
             </button>
           )}
 
@@ -807,18 +813,18 @@ export function MomentFormDialog({
         <div className="shrink-0 flex items-center justify-between pt-3 pb-6 border-t border-white/30 dark:border-white/[0.06]">
           {uploading ? (
             <span className="text-xs text-gray-400">
-              正在上传 {uploadingCount} 个文件…
+              {t('moments.uploadingFiles', { n: uploadingCount })}
             </span>
           ) : (
             activeCount > 0 && (
               <span className="text-xs text-gray-400">
-                已选择 {activeCount} 个文件
+                {t('moments.selectedFiles', { n: activeCount })}
               </span>
             )
           )}
           <div className="flex gap-2 ml-auto">
             <Button variant="secondary" onClick={onClose}>
-              取消
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={handleSave}
@@ -829,12 +835,12 @@ export function MomentFormDialog({
               }
             >
               {saving
-                ? "发布中..."
+                ? t('moments.publishing')
                 : uploading
-                  ? "上传中..."
+                  ? t('common.uploading')
                   : editMoment
-                    ? "保存"
-                    : "发布"}
+                    ? t('moments.save')
+                    : t('moments.publish')}
             </Button>
           </div>
         </div>
@@ -862,6 +868,7 @@ export function MomentFormDialog({
 
 export default function MomentsPage() {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [moments, setMoments] = useState<Moment[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -1057,9 +1064,9 @@ export default function MomentsPage() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">
-            朋友圈
+            {t('moments.title')}
           </h1>
-          <p className="text-xs text-gray-400 mt-0.5">共 {total} 条动态</p>
+          <p className="text-xs text-gray-400 mt-0.5">{t('moments.total', { n: total })}</p>
         </div>
         <Button
           onClick={() => setShowCreate(true)}
@@ -1067,7 +1074,7 @@ export default function MomentsPage() {
           className="gap-1.5 rounded-xl"
         >
           <ImagePlus size={16} />
-          <span>发布</span>
+          <span>{t('moments.publish')}</span>
         </Button>
       </div>
 
@@ -1092,7 +1099,7 @@ export default function MomentsPage() {
         {moments.length === 0 && !loading && (
           <div className="text-center py-16 text-gray-400">
             <ImagePlus size={48} className="mx-auto mb-3 opacity-30" />
-            <p className="text-sm">还没有动态，快来分享宝宝的精彩时刻吧！</p>
+            <p className="text-sm">{t('moments.empty')}</p>
           </div>
         )}
 
@@ -1116,7 +1123,7 @@ export default function MomentsPage() {
 
         {!hasMore && moments.length > 0 && !loading && (
           <div className="py-4 text-center text-xs text-gray-300 dark:text-gray-600">
-            已加载全部朋友圈
+            {t('moments.loadedAll')}
           </div>
         )}
       </div>
@@ -1138,9 +1145,9 @@ export default function MomentsPage() {
         onOpenChange={(open) => {
           if (!open) setDeleteTarget(null);
         }}
-        title="删除动态"
-        description="确认删除这条动态？此操作不可撤销，相关图片和视频也将一并删除。"
-        confirmLabel="删除"
+        title={t('moments.deleteTitle')}
+        description={t('moments.deleteDesc')}
+        confirmLabel={t('moments.delete')}
         variant="danger"
         loading={deleting}
         onConfirm={confirmDelete}

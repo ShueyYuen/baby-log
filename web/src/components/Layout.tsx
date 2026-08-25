@@ -13,6 +13,7 @@ import { ReactNode, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useBaby } from "../contexts/BabyContext";
+import { useI18n } from "../contexts/I18nContext";
 import { api } from "../lib/api";
 import { cropAndResizeAvatar } from "../lib/avatar-crop";
 import { formatBabyAge } from "../lib/baby-age";
@@ -43,6 +44,7 @@ export default function Layout({ children }: LayoutProps) {
   const { currentBaby, loading: babyLoading, refreshBabies } = useBaby();
   const { user, logout, isAdmin } = useAuth();
   const { toast } = useToast();
+  const { t } = useI18n();
 
   const [showBabyEdit, setShowBabyEdit] = useState(false);
   const [showSwitcher, setShowSwitcher] = useState(false);
@@ -84,7 +86,7 @@ export default function Layout({ children }: LayoutProps) {
       setEditAvatarPreview(res.data.url);
       setEditAvatarKey(res.data.key);
     } catch {
-      toast("头像上传失败", "error");
+      toast(t("baby.avatarUploadFailed"), "error");
     } finally {
       setAvatarUploading(false);
     }
@@ -106,7 +108,7 @@ export default function Layout({ children }: LayoutProps) {
       await refreshBabies();
       setShowBabyEdit(false);
     } catch {
-      toast("保存失败", "error");
+      toast(t("baby.saveFailed"), "error");
     } finally {
       setSaving(false);
     }
@@ -118,21 +120,23 @@ export default function Layout({ children }: LayoutProps) {
     );
 
   const mobileNav = [
-    { path: "/", icon: Home, label: "记录" },
-    { path: "/plans", icon: Calendar, label: "计划" },
-    { path: "/growth", icon: TrendingUp, label: "成长" },
-    { path: "/moments", icon: Images, label: "朋友圈" },
-    { path: "/me", icon: User, label: "我的" },
+    { path: "/", icon: Home, label: t("nav.records") },
+    { path: "/plans", icon: Calendar, label: t("nav.plans") },
+    { path: "/moments", icon: Images, label: t("nav.moments") },
+    { path: "/growth", icon: TrendingUp, label: t("nav.growth") },
+    { path: "/me", icon: User, label: t("nav.me") },
   ];
 
   const desktopNav = [
-    { path: "/", icon: Home, label: "记录" },
-    { path: "/plans", icon: Calendar, label: "计划" },
-    { path: "/growth", icon: TrendingUp, label: "成长" },
-    { path: "/moments", icon: Images, label: "朋友圈" },
-    { path: "/me", icon: User, label: "我的" },
-    { path: "/health", icon: Activity, label: "健康" },
-    ...(isAdmin ? [{ path: "/admin", icon: Users, label: "管理" }] : []),
+    { path: "/", icon: Home, label: t("nav.records") },
+    { path: "/plans", icon: Calendar, label: t("nav.plans") },
+    { path: "/moments", icon: Images, label: t("nav.moments") },
+    { path: "/growth", icon: TrendingUp, label: t("nav.growth") },
+    { path: "/me", icon: User, label: t("nav.me") },
+    { path: "/health", icon: Activity, label: t("nav.health") },
+    ...(isAdmin
+      ? [{ path: "/admin", icon: Users, label: t("nav.admin") }]
+      : []),
   ];
 
   const isActive = (path: string) => {
@@ -142,7 +146,7 @@ export default function Layout({ children }: LayoutProps) {
     );
   };
 
-  const babyAge = formatBabyAge(currentBaby?.birthDate);
+  const babyAge = formatBabyAge(currentBaby?.birthDate, t);
   const babyNameLabel = babyLoading ? "…" : currentBaby?.name;
 
   const babyButton = (size: "sm" | "md") =>
@@ -180,7 +184,7 @@ export default function Layout({ children }: LayoutProps) {
         to="/baby/setup"
         className="text-sm text-primary-500 hover:text-primary-600"
       >
-        添加宝宝
+        {t("baby.add")}
       </Link>
     );
 
@@ -229,7 +233,9 @@ export default function Layout({ children }: LayoutProps) {
 
       <aside className="glass-sidebar hidden md:flex fixed left-0 top-0 h-full w-64 border-r glass-divider flex-col z-50">
         <div className="p-6 border-b glass-divider">
-          <h1 className="text-xl font-bold text-primary-600">宝宝日志</h1>
+          <h1 className="text-xl font-bold text-primary-600">
+            {t("app.name")}
+          </h1>
           <div className="mt-1.5">{babyButton("md")}</div>
         </div>
 
@@ -248,7 +254,7 @@ export default function Layout({ children }: LayoutProps) {
               onClick={logout}
               className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
             >
-              退出
+              {t("auth.logout")}
             </button>
           </div>
         </div>
@@ -257,7 +263,7 @@ export default function Layout({ children }: LayoutProps) {
       <header
         className={`glass-topbar md:hidden fixed top-0 left-0 right-0 border-b glass-divider z-50 px-4 py-3 flex items-center justify-between ${isSecondaryPage ? "hidden" : ""}`}
       >
-        <h1 className="text-lg font-bold text-primary-600">宝宝日志</h1>
+        <h1 className="text-lg font-bold text-primary-600">{t("app.name")}</h1>
         {babyButton("sm")}
       </header>
 
@@ -278,12 +284,12 @@ export default function Layout({ children }: LayoutProps) {
       <Dialog open={showBabyEdit} onOpenChange={setShowBabyEdit}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>编辑宝宝信息</DialogTitle>
+            <DialogTitle>{t("baby.edit")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                头像
+                {t("baby.avatar")}
               </label>
               <div className="flex items-center gap-3">
                 <button
@@ -309,10 +315,10 @@ export default function Layout({ children }: LayoutProps) {
                   onClick={() => babyAvatarInputRef.current?.click()}
                 >
                   {avatarUploading
-                    ? "上传中..."
+                    ? t("common.uploading")
                     : editAvatarPreview
-                      ? "更换头像"
-                      : "选择图片"}
+                      ? t("common.changeAvatar")
+                      : t("common.selectImage")}
                 </Button>
                 <input
                   ref={babyAvatarInputRef}
@@ -329,31 +335,31 @@ export default function Layout({ children }: LayoutProps) {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                姓名
+                {t("baby.name")}
               </label>
               <Input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                placeholder="宝宝姓名"
+                placeholder={t("baby.namePlaceholder")}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                性别
+                {t("common.gender")}
               </label>
               <Select value={editGender} onValueChange={setEditGender}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="male">男</SelectItem>
-                  <SelectItem value="female">女</SelectItem>
+                  <SelectItem value="male">{t("common.male")}</SelectItem>
+                  <SelectItem value="female">{t("common.female")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                出生日期
+                {t("common.birthDate")}
               </label>
               <DateTimePicker
                 value={editBirthDate}
@@ -365,13 +371,13 @@ export default function Layout({ children }: LayoutProps) {
                 variant="secondary"
                 onClick={() => setShowBabyEdit(false)}
               >
-                取消
+                {t("common.cancel")}
               </Button>
               <Button
                 onClick={saveBabyEdit}
                 disabled={saving || !editName.trim()}
               >
-                {saving ? "保存中..." : "保存"}
+                {saving ? t("common.saving") : t("common.save")}
               </Button>
             </div>
           </div>

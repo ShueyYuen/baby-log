@@ -1,6 +1,7 @@
 import { Apple, Droplets, Gamepad2, GlassWater, Heart, Milk } from 'lucide-react';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useI18n } from '../contexts/I18nContext';
 import { useToast } from './ui';
 import { api } from '../lib/api';
 import { babyAgeMonths } from '../lib/baby-age';
@@ -29,6 +30,7 @@ export function QuickRecordBar({
   const { currentBaby } = useBaby();
   const { isViewer } = useAuth();
   const { toast } = useToast();
+  const { t } = useI18n();
   const months = babyAgeMonths(currentBaby?.birthDate);
   const bottleMl = getRecordDefaults().bottle?.amountMl ?? 120;
   const waterMl = getRecordDefaults().water?.amountMl ?? 30;
@@ -42,7 +44,7 @@ export function QuickRecordBar({
       const rec = await fn();
       toast(label, 'success', {
         action: {
-          label: '撤销',
+          label: t('common.undo'),
           onClick: async () => {
             try {
               await api.recordsCrud.delete(rec.id);
@@ -54,60 +56,63 @@ export function QuickRecordBar({
       });
       onCreated?.();
     } catch {
-      toast('记录失败', 'error');
+      toast(t('quick.recordFailed'), 'error');
     }
   };
 
   const catalog: Record<QuickActionId, { label: string; icon: typeof Droplets; onClick: () => void }> = {
     wet: {
-      label: '尿',
+      label: t('diaper.wet'),
       icon: Droplets,
-      onClick: () => run('已记小便', () => quickDiaper(currentBaby.id, 'wet' as DiaperKind)),
+      onClick: () => run(t('quick.loggedWet'), () => quickDiaper(currentBaby.id, 'wet' as DiaperKind)),
     },
     dirty: {
-      label: '便',
+      label: t('diaper.dirty'),
       icon: Droplets,
-      onClick: () => run('已记大便', () => quickDiaper(currentBaby.id, 'dirty')),
+      onClick: () => run(t('quick.loggedDirty'), () => quickDiaper(currentBaby.id, 'dirty')),
     },
     both: {
-      label: '尿+便',
+      label: t('diaper.both'),
       icon: Droplets,
-      onClick: () => run(`已记${diaperLabel('both')}`, () => quickDiaper(currentBaby.id, 'both')),
+      onClick: () => run(t('quick.loggedBoth', { label: diaperLabel('both', t) }), () => quickDiaper(currentBaby.id, 'both')),
     },
     bottle: {
-      label: `瓶喂 ${bottleMl}ml`,
+      label: t('quick.bottleLabel', { ml: bottleMl }),
       icon: Milk,
-      onClick: () => run(`已记瓶喂 ${bottleMl}ml`, () => quickBottle(currentBaby.id)),
+      onClick: () => run(t('quick.loggedBottle', { ml: bottleMl }), () => quickBottle(currentBaby.id)),
     },
     breastfeed: {
-      label: bf ? `母乳 ${bf.leftMinutes + bf.rightMinutes}分` : '母乳',
+      label: bf ? t('quick.breastfeedWithMin', { n: bf.leftMinutes + bf.rightMinutes }) : t('recordTypes.breastfeed'),
       icon: Heart,
-      onClick: () => run('已记母乳', () => quickBreastfeed(currentBaby.id)),
+      onClick: () => run(t('quick.loggedBreastfeed'), () => quickBreastfeed(currentBaby.id)),
     },
     water: {
-      label: `喝水 ${waterMl}ml`,
+      label: t('quick.waterLabel', { ml: waterMl }),
       icon: GlassWater,
-      onClick: () => run(`已记喝水 ${waterMl}ml`, () => quickWater(currentBaby.id)),
+      onClick: () => run(t('quick.loggedWater', { ml: waterMl }), () => quickWater(currentBaby.id)),
     },
     solid: {
-      label: solidName || '辅食',
+      label: solidName || t('quick.defaultSolid'),
       icon: Apple,
-      onClick: () => run(solidName ? `已记${solidName}` : '已记辅食', () => quickSolid(currentBaby.id)),
+      onClick: () => run(
+        solidName ? t('quick.loggedSolidNamed', { name: solidName }) : t('quick.loggedSolid'),
+        () => quickSolid(currentBaby.id, t('quick.defaultSolid')),
+      ),
     },
     play: {
-      label: '玩耍',
+      label: t('recordTypes.play'),
       icon: Gamepad2,
       onClick: async () => {
         if (ongoingTypes.includes('play')) {
-          toast('玩耍已在进行中', 'info');
+          toast(t('quick.playOngoing'), 'info');
           return;
         }
         try {
           await startOngoing(currentBaby.id, 'play');
-          toast('玩耍已开始', 'success');
+          toast(t('quick.playStarted'), 'success');
           onCreated?.();
         } catch {
-          toast('开始失败', 'error');
+          toast(t('quick.startFailed'), 'error');
         }
       },
     },

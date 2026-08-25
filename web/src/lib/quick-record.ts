@@ -1,6 +1,7 @@
 import { generateIdempotencyKey, api, type TimelineRecord } from './api';
 import { getRecordDefaults, getRecentNames, patchRecordDefaults, rememberName } from './record-defaults';
 import { cacheInvalidate } from './queryCache';
+import { tZh, type TranslateFn } from '../i18n';
 
 export type DiaperKind = 'wet' | 'dirty' | 'both';
 
@@ -67,8 +68,8 @@ export async function quickBreastfeed(babyId: string) {
   return rec;
 }
 
-export async function quickSolid(babyId: string) {
-  const name = getRecentNames('solid')[0] || '辅食';
+export async function quickSolid(babyId: string, defaultName?: string) {
+  const name = getRecentNames('solid')[0] || defaultName || tZh('quick.defaultSolid');
   const rec = await createQuickRecord({
     babyId,
     category: 'feeding',
@@ -103,8 +104,8 @@ export async function startOngoing(babyId: string, type: 'sleep' | 'bath' | 'pla
   return rec;
 }
 
-export function diaperLabel(kind: DiaperKind) {
-  return kind === 'wet' ? '尿' : kind === 'dirty' ? '便' : '尿+便';
+export function diaperLabel(kind: DiaperKind, t: TranslateFn = tZh) {
+  return kind === 'wet' ? t('diaper.wet') : kind === 'dirty' ? t('diaper.dirty') : t('diaper.both');
 }
 
 /** One-tap actions that match typical needs at this completed-month age. */

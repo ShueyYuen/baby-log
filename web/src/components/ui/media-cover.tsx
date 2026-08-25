@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { Play } from 'lucide-react';
+import { useI18n } from '../../contexts/I18nContext';
 import { cn } from '../../lib/utils';
 import { captureVideoPoster, isVideoMedia, posterUrlFromVideoSrc } from '../../lib/video-poster';
 
@@ -54,6 +55,7 @@ export function MediaCover({
   processing = false,
   onClick,
 }: MediaCoverProps) {
+  const { t } = useI18n();
   const video = isVideoMedia(mediaType, src);
   const inferredPoster = posterSrc || (video ? posterUrlFromVideoSrc(src) : '');
   const cover = useBlobPoster(src, video, inferredPoster || undefined);
@@ -96,7 +98,7 @@ export function MediaCover({
       )}
       {video && processing && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/45 pointer-events-none">
-          <span className="text-white text-[11px] font-medium bg-black/55 px-2 py-1 rounded-full">处理中</span>
+          <span className="text-white text-[11px] font-medium bg-black/55 px-2 py-1 rounded-full">{t('media.processing')}</span>
         </div>
       )}
       {video && !processing && (

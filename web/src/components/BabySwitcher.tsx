@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { useBaby } from '../contexts/BabyContext';
+import { useI18n } from '../contexts/I18nContext';
 import { formatBabyAge } from '../lib/baby-age';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui';
 
@@ -12,12 +13,13 @@ interface BabySwitcherProps {
 
 export function BabySwitcher({ open, onOpenChange, onEditCurrent }: BabySwitcherProps) {
   const { babies, currentBaby, setCurrentBaby } = useBaby();
+  const { t } = useI18n();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>选择宝宝</DialogTitle>
+          <DialogTitle>{t('baby.pick')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-2 pt-1">
           {babies.map((b) => {
@@ -43,9 +45,9 @@ export function BabySwitcher({ open, onOpenChange, onEditCurrent }: BabySwitcher
                 )}
                 <span className="flex-1 min-w-0">
                   <span className="block font-medium dark:text-gray-100 truncate">{b.name}</span>
-                  <span className="block text-xs text-gray-400">{formatBabyAge(b.birthDate)}</span>
+                  <span className="block text-xs text-gray-400">{formatBabyAge(b.birthDate, t)}</span>
                 </span>
-                {active && <span className="text-xs text-primary-500">当前</span>}
+                {active && <span className="text-xs text-primary-500">{t('common.current')}</span>}
               </button>
             );
           })}
@@ -59,7 +61,7 @@ export function BabySwitcher({ open, onOpenChange, onEditCurrent }: BabySwitcher
                 }}
                 className="flex-1 text-sm py-2 rounded-lg glass-chip text-gray-600 dark:text-gray-300"
               >
-                编辑资料
+                {t('baby.editProfile')}
               </button>
             )}
             <Link
@@ -67,7 +69,7 @@ export function BabySwitcher({ open, onOpenChange, onEditCurrent }: BabySwitcher
               onClick={() => onOpenChange(false)}
               className="flex-1 inline-flex items-center justify-center gap-1 text-sm py-2 rounded-lg glass-chip text-primary-600 dark:text-primary-400"
             >
-              <Plus size={14} /> 添加宝宝
+              <Plus size={14} /> {t('baby.add')}
             </Link>
           </div>
         </div>

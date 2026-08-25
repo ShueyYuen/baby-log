@@ -1,3 +1,5 @@
+import { tZh } from '../i18n';
+
 const MAX_POSTER_WIDTH = 480;
 const POSTER_QUALITY = 0.82;
 const CAPTURE_TIMEOUT_MS = 12000;
@@ -155,9 +157,9 @@ export async function uploadVideoPoster(
     body: form,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string }).error || '封面上传失败');
+  if (!res.ok) throw new Error((data as { error?: string }).error || tZh('media.coverUploadFailed'));
   const result = (data as { data?: { key: string; url: string } }).data;
-  if (!result?.key || !result?.url) throw new Error('封面上传失败');
+  if (!result?.key || !result?.url) throw new Error(tZh('media.coverUploadFailed'));
   return result;
 }
 

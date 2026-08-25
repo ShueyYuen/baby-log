@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useI18n } from '../contexts/I18nContext';
 import { api, generateIdempotencyKey, type HealthCondition, type MedicalVisit } from '../lib/api';
 import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import { useRefreshHandler } from '../hooks/usePullRefresh';
@@ -15,6 +16,7 @@ import { Textarea } from '../components/ui';
 export default function HealthPage() {
   const { currentBaby } = useBaby();
   const { isViewer } = useAuth();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -44,9 +46,9 @@ export default function HealthPage() {
       cacheWrite(cKey, res);
       setConditions(res.data);
     } catch {
-      toast('加载失败', 'error');
+      toast(t('health.loadFailed'), 'error');
     }
-  }, [currentBaby, toast]);
+  }, [currentBaby, toast, t]);
 
   const fetchVisits = useCallback(async (p = 1, q = '', append = false) => {
     if (!currentBaby) return;
@@ -67,10 +69,10 @@ export default function HealthPage() {
       setVisitsTotal(data.total);
       setVisitsPage(p);
     } catch {
-      toast('加载就诊记录失败', 'error');
+      toast(t('health.loadVisitsFailed'), 'error');
     }
     setVisitsLoading(false);
-  }, [currentBaby, toast]);
+  }, [currentBaby, toast, t]);
 
   const loadAll = useCallback(async () => {
     await Promise.all([loadConditions(), fetchVisits(1, '')]);
@@ -104,9 +106,9 @@ export default function HealthPage() {
       setDesc('');
       if (currentBaby) cacheInvalidate(`/health-conditions?babyId=${currentBaby.id}`);
       loadConditions();
-      toast('追踪已创建', 'success');
+      toast(t('health.created'), 'success');
     } catch {
-      toast('创建失败', 'error');
+      toast(t('health.createFailed'), 'error');
     }
   };
 
@@ -142,30 +144,30 @@ export default function HealthPage() {
     <div className="space-y-6 pb-8">
       {/* Health Conditions Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold dark:text-gray-100">健康</h2>
+        <h2 className="text-xl font-bold dark:text-gray-100">{t('health.title')}</h2>
         {!isViewer && (
           <Dialog open={showForm} onOpenChange={setShowForm}>
             <DialogTrigger asChild>
               <Button size="sm">
-                <Plus size={14} className="mr-1" /> 新增
+                <Plus size={14} className="mr-1" /> {t('common.new')}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-sm">
               <DialogHeader>
-                <DialogTitle>新增健康追踪</DialogTitle>
+                <DialogTitle>{t('health.newTracking')}</DialogTitle>
               </DialogHeader>
               <form onSubmit={createCondition} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">名称</label>
-                  <Input value={name} onChange={e => setName(e.target.value)} placeholder="如：斜颈、睾丸大小" required />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.name')}</label>
+                  <Input value={name} onChange={e => setName(e.target.value)} placeholder={t('health.namePlaceholder')} required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">描述（可选）</label>
-                  <Textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="简要描述症状或追踪目的..." rows={2} />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.descriptionOptional')}</label>
+                  <Textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder={t('health.descPlaceholder')} rows={2} />
                 </div>
                 <div className="flex gap-3">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => setShowForm(false)}>取消</Button>
-                  <Button type="submit" className="flex-1">创建</Button>
+                  <Button type="button" variant="outline" className="flex-1" onClick={() => setShowForm(false)}>{t('common.cancel')}</Button>
+                  <Button type="submit" className="flex-1">{t('common.create')}</Button>
                 </div>
               </form>
             </DialogContent>
@@ -176,7 +178,7 @@ export default function HealthPage() {
       {/* Active Conditions */}
       {activeConditions.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 px-1">进行中</h3>
+          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 px-1">{t('health.active')}</h3>
           <div className="space-y-2">
             {activeConditions.map(c => (
               <Card key={c.id} className="cursor-pointer hover:!bg-white/70 dark:hover:!bg-white/[0.1] active:scale-[0.98]" role="button" onClick={() => navigate(`/health/${c.id}`)}>
@@ -186,7 +188,7 @@ export default function HealthPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-medium text-base dark:text-gray-100">{c.name}</h4>
-                    <p className="text-sm text-gray-400">{c.entryCount} 条记录</p>
+                    <p className="text-sm text-gray-400">{t('health.entryCount', { n: c.entryCount })}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -198,7 +200,7 @@ export default function HealthPage() {
       {/* Resolved Conditions */}
       {resolvedConditions.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 px-1">已康复</h3>
+          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 px-1">{t('health.resolved')}</h3>
           <div className="space-y-2">
             {resolvedConditions.map(c => (
               <Card key={c.id} className="cursor-pointer hover:!bg-white/70 dark:hover:!bg-white/[0.1] active:scale-[0.98]" role="button" onClick={() => navigate(`/health/${c.id}`)}>
@@ -208,7 +210,7 @@ export default function HealthPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-medium text-base dark:text-gray-100">{c.name}</h4>
-                    <p className="text-sm text-gray-400">{c.entryCount} 条记录 · 已康复</p>
+                    <p className="text-sm text-gray-400">{t('health.entryCountResolved', { n: c.entryCount })}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -220,9 +222,9 @@ export default function HealthPage() {
       {conditions.length === 0 && (
         <div className="text-center py-8">
           <Activity size={32} className="mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-          <p className="text-sm text-gray-400 dark:text-gray-500">暂无追踪项目</p>
+          <p className="text-sm text-gray-400 dark:text-gray-500">{t('health.noTracking')}</p>
           {!isViewer && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">点击右上角"新增"开始追踪</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{t('health.noTrackingHint')}</p>
           )}
         </div>
       )}
@@ -230,10 +232,10 @@ export default function HealthPage() {
       {/* Medical Visits Section */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xl font-bold dark:text-gray-100">就诊记录</h2>
+          <h2 className="text-xl font-bold dark:text-gray-100">{t('health.visits')}</h2>
           {!isViewer && (
             <Button size="sm" onClick={() => navigate('/medical-visits/new')}>
-              <Plus size={14} className="mr-1" /> 新增
+              <Plus size={14} className="mr-1" /> {t('common.new')}
             </Button>
           )}
         </div>
@@ -245,7 +247,7 @@ export default function HealthPage() {
             type="text"
             value={visitsQuery}
             onChange={e => handleVisitSearch(e.target.value)}
-            placeholder="搜索医院、诊断、处方..."
+            placeholder={t('health.searchPlaceholder')}
             className="glass-input-ui w-full h-10 pl-9 pr-9 text-sm rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
           />
           {visitsQuery && (
@@ -257,7 +259,7 @@ export default function HealthPage() {
 
         {activeQuery && !visitsLoading && (
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-            搜索 &quot;{activeQuery}&quot;，共 {visitsTotal} 条结果
+            {t('health.searchResult', { query: activeQuery, n: visitsTotal })}
           </p>
         )}
 
@@ -271,11 +273,11 @@ export default function HealthPage() {
           <div className="text-center py-8">
             <Hospital size={32} className="mx-auto text-gray-300 dark:text-gray-600 mb-2" />
             <p className="text-sm text-gray-400 dark:text-gray-500">
-              {activeQuery ? '没有找到匹配的记录' : '暂无就诊记录'}
+              {activeQuery ? t('health.noMatch') : t('health.noVisits')}
             </p>
             {!activeQuery && !isViewer && (
               <Button className="mt-3" size="sm" onClick={() => navigate('/medical-visits/new')}>
-                添加就诊记录
+                {t('health.addVisit')}
               </Button>
             )}
           </div>
@@ -298,7 +300,7 @@ export default function HealthPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
-                        {v.hospital || '就诊记录'}
+                        {v.hospital || t('visits.fallbackTitle')}
                       </span>
                       {v.department && (
                         <Badge variant="secondary" className="text-[10px] shrink-0">
@@ -325,7 +327,7 @@ export default function HealthPage() {
                 onClick={() => fetchVisits(visitsPage + 1, activeQuery, true)}
                 disabled={visitsLoading}
               >
-                {visitsLoading ? '加载中...' : '加载更多'}
+                {visitsLoading ? t('common.loading') : t('common.more')}
               </Button>
             )}
           </div>

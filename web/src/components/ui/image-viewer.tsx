@@ -1,6 +1,7 @@
 import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { useI18n } from '../../contexts/I18nContext';
 import { KeepAliveActiveContext } from '../../hooks/useActivated';
 
 const VideoPlayer = React.lazy(() =>
@@ -401,6 +402,7 @@ interface ImageViewerProps {
 }
 
 export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: ImageViewerProps) {
+  const { t } = useI18n();
   const [currentIndex, setCurrentIndex] = React.useState(initialIndex);
   const keepAliveActive = React.useContext(KeepAliveActiveContext);
   const onOpenChangeRef = React.useRef(onOpenChange);
@@ -497,7 +499,7 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
           onPointerDown={stopBubble}
           onMouseDown={stopBubble}
         >
-          <DialogPrimitive.Title className="sr-only">查看媒体</DialogPrimitive.Title>
+          <DialogPrimitive.Title className="sr-only">{t('media.view')}</DialogPrimitive.Title>
 
           <div className="lightbox-chrome absolute top-4 left-0 right-0 z-30 flex items-center justify-between px-4">
             {images.length > 1 ? (
@@ -518,7 +520,7 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
                   onPointerDown={stopBubble}
                 >
                   <Download size={14} />
-                  <span>原图</span>
+                  <span>{t('media.original')}</span>
                 </a>
               )}
               <DialogPrimitive.Close
@@ -557,7 +559,7 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
               {current.posterUrl ? (
                 <img src={current.posterUrl} alt="" className="max-h-[70%] max-w-full object-contain opacity-70" />
               ) : null}
-              <span className="text-white/90 text-sm bg-black/50 px-3 py-1.5 rounded-full">视频处理中，请稍后再看</span>
+              <span className="text-white/90 text-sm bg-black/50 px-3 py-1.5 rounded-full">{t('media.videoProcessing')}</span>
             </div>
           ) : video ? (
             <ViewerVideo

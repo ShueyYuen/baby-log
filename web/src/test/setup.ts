@@ -44,3 +44,8 @@ if (!window.matchMedia) {
       dispatchEvent: () => false,
     }) as MediaQueryList;
 }
+
+Object.defineProperty(navigator, 'language', {
+  configurable: true,
+  get: () => 'zh-CN',
+});

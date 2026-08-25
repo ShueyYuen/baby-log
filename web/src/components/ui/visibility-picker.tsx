@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Lock, Unlock, Check } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from './popover';
+import { useI18n } from '../../contexts/I18nContext';
 import { api, Member } from '../../lib/api';
 import { cn } from '../../lib/utils';
 
@@ -13,6 +14,7 @@ interface VisibilityPickerProps {
 }
 
 export function VisibilityPicker({ value, onChange, className }: VisibilityPickerProps) {
+  const { t } = useI18n();
   const [members, setMembers] = useState<Member[]>(membersCache || []);
   const [open, setOpen] = useState(false);
 
@@ -56,22 +58,22 @@ export function VisibilityPicker({ value, onChange, className }: VisibilityPicke
               : 'glass-chip text-gray-500 dark:text-gray-400',
             className
           )}
-          title={hasRestriction ? `${value.length}人可见` : '所有人可见'}
+          title={hasRestriction ? t('visibility.nPeople', { n: value.length }) : t('visibility.all')}
         >
           {hasRestriction ? <Lock size={12} /> : <Unlock size={12} />}
-          {hasRestriction && <span>{value.length}人可见</span>}
+          {hasRestriction && <span>{t('visibility.nPeople', { n: value.length })}</span>}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-56 p-2">
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">可见用户</span>
+          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{t('visibility.users')}</span>
           {hasRestriction && (
             <button
               type="button"
               onClick={clearAll}
               className="text-xs text-blue-500 hover:text-blue-700"
             >
-              清除限制
+              {t('visibility.clear')}
             </button>
           )}
         </div>
@@ -105,7 +107,7 @@ export function VisibilityPicker({ value, onChange, className }: VisibilityPicke
         </div>
         {!hasRestriction && (
           <p className="mt-2 text-[11px] text-gray-400">
-            不选择则所有人可见
+            {t('visibility.hint')}
           </p>
         )}
       </PopoverContent>

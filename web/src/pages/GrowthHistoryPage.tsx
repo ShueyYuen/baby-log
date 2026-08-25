@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useI18n } from '../contexts/I18nContext';
 import { api, type GrowthItem } from '../lib/api';
 import dayjs from 'dayjs';
 import { ArrowLeft } from 'lucide-react';
@@ -11,6 +12,7 @@ export default function GrowthHistoryPage() {
   const navigate = useNavigate();
   const { currentBaby } = useBaby();
   const { isViewer } = useAuth();
+  const { t } = useI18n();
   const [records, setRecords] = useState<GrowthItem[]>([]);
   const [editingRecord, setEditingRecord] = useState<GrowthItem | null>(null);
   const [gDate, setGDate] = useState('');
@@ -103,14 +105,14 @@ export default function GrowthHistoryPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate('/growth')}>
           <ArrowLeft size={20} />
         </Button>
-        <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">成长记录历史</h2>
-        <span className="text-sm text-gray-400">{total}条</span>
+        <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">{t('growth.historyTitle')}</h2>
+        <span className="text-sm text-gray-400">{total}</span>
       </div>
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4">
         {records.length === 0 ? (
-          <p className="text-center text-gray-400 py-12">暂无记录</p>
+          <p className="text-center text-gray-400 py-12">{t('growth.noRecords')}</p>
         ) : (
           <div className="space-y-2 max-w-4xl mx-auto">
             {records.map((r) => (
@@ -124,13 +126,13 @@ export default function GrowthHistoryPage() {
                     <p className="text-sm font-medium dark:text-gray-100">{dayjs(r.date).format('YYYY-MM-DD')}</p>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                       {r.weight != null && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">体重 <span className="font-medium text-orange-500">{r.weight}</span> kg</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{t('growth.weightShort')} <span className="font-medium text-orange-500">{r.weight}</span> kg</span>
                       )}
                       {r.height != null && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">身高 <span className="font-medium text-green-500">{r.height}</span> cm</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{t('growth.heightShort')} <span className="font-medium text-green-500">{r.height}</span> cm</span>
                       )}
                       {r.headCircumference != null && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">头围 <span className="font-medium text-indigo-500">{r.headCircumference}</span> cm</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{t('growth.headShort')} <span className="font-medium text-indigo-500">{r.headCircumference}</span> cm</span>
                       )}
                     </div>
                   </div>
@@ -147,7 +149,7 @@ export default function GrowthHistoryPage() {
             )}
             {!hasMore && records.length > 0 && !loadingMore && (
               <div className="py-4 text-center text-xs text-gray-300 dark:text-gray-600">
-                已加载全部记录
+                {t('common.loadedAll')}
               </div>
             )}
           </div>
@@ -158,28 +160,28 @@ export default function GrowthHistoryPage() {
       <Dialog open={!!editingRecord} onOpenChange={(open) => { if (!open) setEditingRecord(null); }}>
         <DialogContent className="w-[calc(100%-2rem)] max-w-sm">
           <DialogHeader>
-            <DialogTitle>编辑记录</DialogTitle>
+            <DialogTitle>{t('growth.editRecord')}</DialogTitle>
           </DialogHeader>
           <form onSubmit={saveEdit} className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">日期</label>
-              <DatePicker value={gDate} onChange={setGDate} placeholder="选择日期" />
+              <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">{t('common.date')}</label>
+              <DatePicker value={gDate} onChange={setGDate} placeholder={t('growth.pickDate')} />
             </div>
             <div>
-              <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">体重(kg)</label>
-              <Input type="number" value={gWeight} onChange={(e) => setGWeight(e.target.value)} step="0.1" placeholder="如：3.5" />
+              <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">{t('growth.weight')}</label>
+              <Input type="number" value={gWeight} onChange={(e) => setGWeight(e.target.value)} step="0.1" placeholder={t('growth.placeholderWeight')} />
             </div>
             <div>
-              <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">身高(cm)</label>
-              <Input type="number" value={gHeight} onChange={(e) => setGHeight(e.target.value)} step="0.1" placeholder="如：50" />
+              <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">{t('growth.height')}</label>
+              <Input type="number" value={gHeight} onChange={(e) => setGHeight(e.target.value)} step="0.1" placeholder={t('growth.placeholderHeight')} />
             </div>
             <div>
-              <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">头围(cm)</label>
-              <Input type="number" value={gHead} onChange={(e) => setGHead(e.target.value)} step="0.1" placeholder="如：34" />
+              <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">{t('growth.head')}</label>
+              <Input type="number" value={gHead} onChange={(e) => setGHead(e.target.value)} step="0.1" placeholder={t('growth.placeholderHead')} />
             </div>
             <div className="flex gap-3">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => setEditingRecord(null)}>取消</Button>
-              <Button type="submit" className="flex-1">保存</Button>
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setEditingRecord(null)}>{t('common.cancel')}</Button>
+              <Button type="submit" className="flex-1">{t('common.save')}</Button>
             </div>
             <Button
               type="button"
@@ -187,7 +189,7 @@ export default function GrowthHistoryPage() {
               className="w-full text-red-500 hover:!text-red-600"
               onClick={() => { setEditingRecord(null); confirmDelete(editingRecord!.id); }}
             >
-              删除此记录
+              {t('recordForm.deleteThis')}
             </Button>
           </form>
         </DialogContent>
@@ -197,12 +199,12 @@ export default function GrowthHistoryPage() {
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>确认删除</DialogTitle>
-            <DialogDescription>确定要删除此成长记录吗？此操作不可撤销。</DialogDescription>
+            <DialogTitle>{t('growth.confirmDelete')}</DialogTitle>
+            <DialogDescription>{t('growth.confirmDeleteDesc')}</DialogDescription>
           </DialogHeader>
           <div className="flex gap-3 mt-4">
-            <Button variant="outline" className="flex-1" onClick={() => setShowDeleteConfirm(false)}>取消</Button>
-            <Button variant="destructive" className="flex-1" onClick={doDelete}>删除</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setShowDeleteConfirm(false)}>{t('common.cancel')}</Button>
+            <Button variant="destructive" className="flex-1" onClick={doDelete}>{t('common.delete')}</Button>
           </div>
         </DialogContent>
       </Dialog>

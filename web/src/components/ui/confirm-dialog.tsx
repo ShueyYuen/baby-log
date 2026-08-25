@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './dialog';
 import { Button } from './button';
+import { useI18n } from '../../contexts/I18nContext';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -18,12 +19,14 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
-  confirmLabel = '确定',
-  cancelLabel = '取消',
+  confirmLabel,
+  cancelLabel,
   variant = 'default',
   loading = false,
   onConfirm,
 }: ConfirmDialogProps) {
+  const { t } = useI18n();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
@@ -38,14 +41,14 @@ export function ConfirmDialog({
             onClick={() => onOpenChange(false)}
             disabled={loading}
           >
-            {cancelLabel}
+            {cancelLabel ?? t('common.cancel')}
           </Button>
           <Button
             className={`flex-1 ${variant === 'danger' ? 'bg-red-500 hover:bg-red-600 text-white' : ''}`}
             onClick={onConfirm}
             disabled={loading}
           >
-            {loading ? '处理中...' : confirmLabel}
+            {loading ? t('common.processing') : (confirmLabel ?? t('common.ok'))}
           </Button>
         </div>
       </DialogContent>

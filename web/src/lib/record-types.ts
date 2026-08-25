@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import type { LucideIcon } from 'lucide-react';
+import { tZh, type TranslateFn } from '../i18n';
 import {
   Apple,
   Baby,
@@ -46,17 +47,38 @@ export const typeConfig: Record<string, RecordTypeMeta> = Object.fromEntries(
 
 export const twoPhaseTypes = ['sleep', 'bath', 'play'];
 
-export function formatRecordDetail(record: TimelineRecord): string {
+export function recordTypeLabel(type: string, t: TranslateFn = tZh): string {
+  const key = `recordTypes.${type}`;
+  const label = t(key);
+  return label === key ? typeConfig[type]?.label || t('recordTypes.activityFallback') : label;
+}
+
+export function formatRecordDetail(record: TimelineRecord, t: TranslateFn = tZh): string {
   const { type, data } = record;
   switch (type) {
     case 'breastfeed':
-      return `左${data.leftMinutes || 0}分钟 / 右${data.rightMinutes || 0}分钟`;
+      return t('recordDetail.breastfeed', { left: data.leftMinutes || 0, right: data.rightMinutes || 0 });
     case 'bottle':
-      return `${data.milkType === 'formula' ? '配方奶' : '母乳'} ${data.amountMl}ml`;
+      return t('recordDetail.bottle', {
+        milk: data.milkType === 'formula' ? t('milk.formula') : t('milk.breastMilk'),
+        amount: data.amountMl,
+      });
     case 'pump': {
-      const sideLabels: Record<string, string> = { left: '左', right: '右', both: '双侧' };
-      const storageLabels: Record<string, string> = { fridge: '冷藏', freezer: '冷冻', direct_feed: '直接喂' };
-      const parts = [`${data.amountMl}ml`, sideLabels[data.side] || data.side, `${data.durationMinutes || 0}分钟`];
+      const sideLabels: Record<string, string> = {
+        left: t('pump.left'),
+        right: t('pump.right'),
+        both: t('pump.both'),
+      };
+      const storageLabels: Record<string, string> = {
+        fridge: t('milk.fridge'),
+        freezer: t('milk.freezer'),
+        direct_feed: t('milk.directFeed'),
+      };
+      const parts = [
+        `${data.amountMl}ml`,
+        sideLabels[data.side] || data.side,
+        t('duration.minutes', { n: data.durationMinutes || 0 }),
+      ];
       if (data.storage) parts.push(storageLabels[data.storage] || data.storage);
       return parts.join(' · ');
     }
@@ -65,9 +87,9 @@ export function formatRecordDetail(record: TimelineRecord): string {
     case 'water':
       return `${data.amountMl}ml`;
     case 'diaper':
-      return data.type === 'wet' ? '尿' : data.type === 'dirty' ? '便' : '尿+便';
+      return data.type === 'wet' ? t('diaper.wet') : data.type === 'dirty' ? t('diaper.dirty') : t('diaper.both');
     case 'sleep': {
-      if (data.ongoing) return '进行中';
+      if (data.ongoing) return t('duration.ongoing');
       const sStart = data.startTime || record.occurredAt;
       const sEnd = data.endTime;
       if (sStart && sEnd) {
@@ -76,22 +98,33 @@ export function formatRecordDetail(record: TimelineRecord): string {
         const durMin = data.durationMinutes || Math.round(e.diff(s, 'minute'));
         const durH = Math.floor(durMin / 60);
         const durM = durMin % 60;
-        const durStr = durH > 0 ? `${durH}h${durM > 0 ? `${durM}m` : ''}` : `${durM}m`;
+        const durStr =
+          durH > 0
+            ? durM > 0
+              ? t('duration.hoursMinutes', { h: durH, m: durM })
+              : t('duration.hoursOnly', { h: durH })
+            : t('duration.minutesOnly', { m: durM });
         const crossDay = !s.isSame(e, 'day');
-        return `${s.format('HH:mm')}-${crossDay ? e.format('次日HH:mm') : e.format('HH:mm')} (${durStr})`;
+        const endLabel = crossDay ? t('recordDetail.nextDay', { time: e.format('HH:mm') }) : e.format('HH:mm');
+        return `${s.format('HH:mm')}-${endLabel} (${durStr})`;
       }
-      return data.durationMinutes ? `${data.durationMinutes}分钟` : '';
+      return data.durationMinutes ? t('duration.minutes', { n: data.durationMinutes }) : '';
     }
     case 'supplement':
       return data.name || '';
     case 'temperature': {
-      const loc: Record<string, string> = { axillary: '腋下', ear: '耳温', forehead: '额温', rectal: '肛温' };
+      const loc: Record<string, string> = {
+        axillary: t('temp.axillary'),
+        ear: t('temp.ear'),
+        forehead: t('temp.forehead'),
+        rectal: t('temp.rectal'),
+      };
       return `${data.value}°C (${loc[data.location] || data.location})`;
     }
     case 'play':
-      return data.ongoing ? '进行中' : data.durationMinutes ? `${data.durationMinutes}分钟` : '';
+      return data.ongoing ? t('duration.ongoing') : data.durationMinutes ? t('duration.minutes', { n: data.durationMinutes }) : '';
     case 'bath':
-      return data.ongoing ? '进行中' : data.durationMinutes ? `${data.durationMinutes}分钟` : '';
+      return data.ongoing ? t('duration.ongoing') : data.durationMinutes ? t('duration.minutes', { n: data.durationMinutes }) : '';
     default:
       return record.note || '';
   }

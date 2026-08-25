@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import type { LucideProps } from 'lucide-react';
+import { useI18n } from '../contexts/I18nContext';
 
 const LONG_PRESS_MS = 500;
 
@@ -24,6 +25,7 @@ export function TwoPhaseTypeButton({
   onShortPress,
   onLongPress,
 }: TwoPhaseTypeButtonProps) {
+  const { t } = useI18n();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [pressing, setPressing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -190,7 +192,7 @@ export function TwoPhaseTypeButton({
         <Icon size={24} />
       </div>
       <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
-      <span className="text-[10px] text-indigo-400 leading-none">按住开始</span>
+      <span className="text-[10px] text-indigo-400 leading-none">{t('timeline.holdToStart')}</span>
     </button>
   );
 }

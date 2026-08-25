@@ -1,4 +1,6 @@
 import * as React from 'react';
+import { useI18n } from '../../contexts/I18nContext';
+import type { TranslateFn } from '../../i18n';
 import { cn } from '../../lib/utils';
 import dayjs from 'dayjs';
 
@@ -105,11 +107,12 @@ function ScrollColumn({ items, selected, onSelect, circular = false, className }
   );
 }
 
-function dateLabel(d: dayjs.Dayjs, todayStr: string): string {
+function dateLabel(d: dayjs.Dayjs, todayStr: string, t: TranslateFn): string {
   const diff = d.startOf('day').diff(dayjs(todayStr).startOf('day'), 'day');
-  if (diff === 0) return `${d.format('MM-DD')} 今天`;
-  if (diff === -1) return `${d.format('MM-DD')} 昨天`;
-  if (diff === 1) return `${d.format('MM-DD')} 明天`;
+  const date = d.format('MM-DD');
+  if (diff === 0) return t('time.dateToday', { date });
+  if (diff === -1) return t('time.dateYesterday', { date });
+  if (diff === 1) return t('time.dateTomorrow', { date });
   return d.format('MM-DD ddd');
 }
 
@@ -120,6 +123,7 @@ interface DateScrollColumnProps {
 }
 
 function DateScrollColumn({ selected, onSelect, className }: DateScrollColumnProps) {
+  const { t } = useI18n();
   const containerRef = React.useRef<HTMLDivElement>(null);
   const itemHeight = 36;
   const isScrollingRef = React.useRef(false);
@@ -136,10 +140,10 @@ function DateScrollColumn({ selected, onSelect, className }: DateScrollColumnPro
     const arr: { value: string; label: string }[] = [];
     for (let i = -range.past; i <= range.future; i++) {
       const d = today.add(i, 'day');
-      arr.push({ value: d.format('YYYY-MM-DD'), label: dateLabel(d, todayStr) });
+      arr.push({ value: d.format('YYYY-MM-DD'), label: dateLabel(d, todayStr, t) });
     }
     return arr;
-  }, [range, todayStr]);
+  }, [range, todayStr, t]);
 
   // 扩展前置日期后，补偿 scrollTop，保持视觉位置不跳动
   React.useLayoutEffect(() => {

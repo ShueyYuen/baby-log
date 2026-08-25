@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import 'dayjs/locale/zh-cn';
 import { ArrowLeft, Plus, Refrigerator, Snowflake, Check, Trash2 } from 'lucide-react';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useI18n } from '../contexts/I18nContext';
+import type { TranslateFn } from '../i18n';
 import { api, generateIdempotencyKey, type MilkInventoryItem } from '../lib/api';
 import { cacheInvalidate, cacheRead, cacheWrite } from '../lib/queryCache';
 import { useRefreshHandler } from '../hooks/usePullRefresh';
@@ -30,7 +31,6 @@ import {
 import { Skeleton } from '../components/ui/skeleton';
 
 dayjs.extend(relativeTime);
-dayjs.locale('zh-cn');
 
 type ExpiryState = 'ok' | 'warning' | 'expired';
 
@@ -42,13 +42,13 @@ function getExpiryState(item: MilkInventoryItem): ExpiryState {
   return 'ok';
 }
 
-function formatRemaining(expiresAt: string): string {
+function formatRemaining(expiresAt: string, t: TranslateFn): string {
   const msLeft = new Date(expiresAt).getTime() - Date.now();
-  if (msLeft <= 0) return '已过期';
+  if (msLeft <= 0) return t('milkInv.expired');
   const hours = Math.floor(msLeft / (60 * 60 * 1000));
-  if (hours < 24) return `剩余 ${hours > 0 ? `${hours}小时` : '不足1小时'}`;
+  if (hours < 24) return hours > 0 ? t('milkInv.remainingHours', { n: hours }) : t('milkInv.remainingLtHour');
   const days = Math.floor(hours / 24);
-  return `剩余 ${days}天`;
+  return t('milkInv.remainingDays', { n: days });
 }
 
 function MilkItemCard({
@@ -60,6 +60,7 @@ function MilkItemCard({
   isViewer: boolean;
   onStatusChange: (id: string, status: 'used' | 'discarded') => void;
 }) {
+  const { t } = useI18n();
   const expiry = getExpiryState(item);
   const borderClass =
     expiry === 'expired'
@@ -74,7 +75,7 @@ function MilkItemCard({
         <div>
           <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{item.amountMl} ml</p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            存入 {dayjs(item.storedAt).format('MM/DD HH:mm')}
+            {t('milkInv.storedAt', { time: dayjs(item.storedAt).format('MM/DD HH:mm') })}
           </p>
           <p
             className={`text-xs mt-1 font-medium ${
@@ -85,18 +86,18 @@ function MilkItemCard({
                   : 'text-gray-500 dark:text-gray-400'
             }`}
           >
-            {formatRemaining(item.expiresAt)}
+            {formatRemaining(item.expiresAt, t)}
           </p>
           {item.note && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">{item.note}</p>
           )}
         </div>
         {expiry === 'expired' && (
-          <Badge variant="danger" className="shrink-0">已过期</Badge>
+          <Badge variant="danger" className="shrink-0">{t('milkInv.expired')}</Badge>
         )}
         {expiry === 'warning' && (
           <Badge className="shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 hover:bg-amber-100">
-            快过期
+            {t('milkInv.expiring')}
           </Badge>
         )}
       </div>
@@ -109,7 +110,7 @@ function MilkItemCard({
             onClick={() => onStatusChange(item.id, 'used')}
           >
             <Check size={14} />
-            已使用
+            {t('milkInv.used')}
           </Button>
           <Button
             size="sm"
@@ -118,7 +119,7 @@ function MilkItemCard({
             onClick={() => onStatusChange(item.id, 'discarded')}
           >
             <Trash2 size={14} />
-            丢弃
+            {t('milkInv.discard')}
           </Button>
         </div>
       ) : null}
@@ -129,6 +130,7 @@ function MilkItemCard({
 export default function MilkInventoryPage() {
   const { currentBaby } = useBaby();
   const { isViewer } = useAuth();
+  const { t } = useI18n();
   const { toast } = useToast();
   const [items, setItems] = useState<MilkInventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,11 +159,11 @@ export default function MilkInventoryPage() {
       cacheWrite(cKey, res);
       setItems(res.data);
     } catch {
-      if (!cached) toast('加载失败', 'error');
+      if (!cached) toast(t('milkInv.loadFailed'), 'error');
     } finally {
       setLoading(false);
     }
-  }, [currentBaby, toast]);
+  }, [currentBaby, toast, t]);
 
   useEffect(() => {
     loadData();
@@ -178,10 +180,10 @@ export default function MilkInventoryPage() {
   const handleStatusChange = async (id: string, status: 'used' | 'discarded') => {
     try {
       await api.milkInventory.update(id, { status });
-      toast(status === 'used' ? '已标记为使用' : '已标记为丢弃', 'success');
+      toast(status === 'used' ? t('milkInv.markedUsed') : t('milkInv.markedDiscarded'), 'success');
       loadData(true);
     } catch {
-      toast('操作失败', 'error');
+      toast(t('milkInv.actionFailed'), 'error');
     }
   };
 
@@ -190,7 +192,7 @@ export default function MilkInventoryPage() {
     if (!currentBaby) return;
     const amount = parseFloat(addAmount);
     if (!amount || amount <= 0) {
-      toast('请输入有效奶量', 'error');
+      toast(t('milkInv.invalidAmount'), 'error');
       return;
     }
     setSubmitting(true);
@@ -205,14 +207,14 @@ export default function MilkInventoryPage() {
         },
         generateIdempotencyKey(),
       );
-      toast('存奶已添加', 'success');
+      toast(t('milkInv.added'), 'success');
       setShowAddDialog(false);
       setAddAmount('120');
       setAddNote('');
       setAddStoredAt(dayjs().format('YYYY-MM-DDTHH:mm'));
       loadData(true);
     } catch {
-      toast('添加失败', 'error');
+      toast(t('milkInv.addFailed'), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -239,11 +241,11 @@ export default function MilkInventoryPage() {
             <ArrowLeft size={20} />
           </Link>
         </Button>
-        <h1 className="text-xl font-semibold dark:text-gray-100">母乳库存</h1>
+        <h1 className="text-xl font-semibold dark:text-gray-100">{t('milkInv.title')}</h1>
         {!isViewer && (
           <Button size="sm" className="ml-auto" onClick={() => setShowAddDialog(true)}>
             <Plus size={16} />
-            新增存奶
+            {t('milkInv.add')}
           </Button>
         )}
       </div>
@@ -254,18 +256,18 @@ export default function MilkInventoryPage() {
             <div>
               <div className="flex items-center justify-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 mb-1">
                 <Refrigerator size={16} />
-                冷藏
+                {t('milkInv.fridge')}
               </div>
               <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{Math.round(fridgeTotal)} ml</p>
-              <p className="text-xs text-gray-400 mt-0.5">{fridgeItems.length} 袋</p>
+              <p className="text-xs text-gray-400 mt-0.5">{t('milkInv.bags', { n: fridgeItems.length })}</p>
             </div>
             <div>
               <div className="flex items-center justify-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 mb-1">
                 <Snowflake size={16} />
-                冷冻
+                {t('milkInv.freezer')}
               </div>
               <p className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{Math.round(freezerTotal)} ml</p>
-              <p className="text-xs text-gray-400 mt-0.5">{freezerItems.length} 袋</p>
+              <p className="text-xs text-gray-400 mt-0.5">{t('milkInv.bags', { n: freezerItems.length })}</p>
             </div>
           </div>
         </CardContent>
@@ -276,13 +278,13 @@ export default function MilkInventoryPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Refrigerator size={18} className="text-blue-500" />
-              冷藏区
-              <span className="text-xs font-normal text-gray-400">（4天内有效）</span>
+              {t('milkInv.fridgeZone')}
+              <span className="text-xs font-normal text-gray-400">{t('milkInv.fridgeHint')}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {fridgeItems.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">暂无冷藏母乳</p>
+              <p className="text-sm text-gray-400 text-center py-6">{t('milkInv.noFridge')}</p>
             ) : (
               fridgeItems.map((item) => (
                 <MilkItemCard key={item.id} item={item} isViewer={isViewer} onStatusChange={handleStatusChange} />
@@ -295,13 +297,13 @@ export default function MilkInventoryPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Snowflake size={18} className="text-cyan-500" />
-              冷冻区
-              <span className="text-xs font-normal text-gray-400">（6个月内有效）</span>
+              {t('milkInv.freezerZone')}
+              <span className="text-xs font-normal text-gray-400">{t('milkInv.freezerHint')}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {freezerItems.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">暂无冷冻母乳</p>
+              <p className="text-sm text-gray-400 text-center py-6">{t('milkInv.noFreezer')}</p>
             ) : (
               freezerItems.map((item) => (
                 <MilkItemCard key={item.id} item={item} isViewer={isViewer} onStatusChange={handleStatusChange} />
@@ -314,11 +316,11 @@ export default function MilkInventoryPage() {
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>新增存奶</DialogTitle>
+            <DialogTitle>{t('milkInv.add')}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleAdd} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">存储方式</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('milkInv.storage')}</label>
               <div className="flex gap-3">
                 <button
                   type="button"
@@ -330,7 +332,7 @@ export default function MilkInventoryPage() {
                   }`}
                 >
                   <Refrigerator size={16} />
-                  冷藏
+                  {t('milk.fridge')}
                 </button>
                 <button
                   type="button"
@@ -342,29 +344,29 @@ export default function MilkInventoryPage() {
                   }`}
                 >
                   <Snowflake size={16} />
-                  冷冻
+                  {t('milk.freezer')}
                 </button>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">奶量 (ml)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('milkInv.amount')}</label>
               <Input type="number" value={addAmount} onChange={(e) => setAddAmount(e.target.value)} min={1} step={5} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">存入时间</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('milkInv.storedTime')}</label>
               <ScrollDateTimePicker value={addStoredAt} onChange={setAddStoredAt} className="md:hidden" />
-              <DateTimePicker value={addStoredAt} onChange={setAddStoredAt} placeholder="选择存入时间" className="hidden md:flex" />
+              <DateTimePicker value={addStoredAt} onChange={setAddStoredAt} placeholder={t('milkInv.pickStoredTime')} className="hidden md:flex" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">备注</label>
-              <Textarea value={addNote} onChange={(e) => setAddNote(e.target.value)} rows={2} placeholder="可选..." />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.note')}</label>
+              <Textarea value={addNote} onChange={(e) => setAddNote(e.target.value)} rows={2} placeholder={t('milkInv.notePlaceholder')} />
             </div>
             <div className="flex gap-3">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setShowAddDialog(false)}>
-                取消
+                {t('common.cancel')}
               </Button>
               <Button type="submit" className="flex-1" disabled={submitting}>
-                {submitting ? '保存中...' : '保存'}
+                {submitting ? t('common.saving') : t('common.save')}
               </Button>
             </div>
           </form>

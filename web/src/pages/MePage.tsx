@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Download,
   KeyRound,
+  Languages,
   LogOut,
   Monitor,
   Moon,
@@ -17,7 +18,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useBaby } from '../contexts/BabyContext';
+import { useI18n } from '../contexts/I18nContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { LOCALES, type TranslateFn } from '../i18n';
 import { api, type Member, type TimelineRecord } from '../lib/api';
 import { formatBabyAge } from '../lib/baby-age';
 import { formatRecordDetail } from '../lib/record-types';
@@ -35,14 +38,14 @@ function downloadBlob(filename: string, content: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
-function recordsToCsv(records: TimelineRecord[]): string {
+function recordsToCsv(records: TimelineRecord[], t: TranslateFn): string {
   const header = 'occurredAt,category,type,detail,note,createdBy';
   const rows = records.map((r) => {
     const cells = [
       r.occurredAt,
       r.category,
       r.type,
-      formatRecordDetail(r).replace(/"/g, '""'),
+      formatRecordDetail(r, t).replace(/"/g, '""'),
       (r.note || '').replace(/"/g, '""'),
       r.user?.displayName || '',
     ];
@@ -55,6 +58,7 @@ export default function MePage() {
   const { user, logout, isAdmin } = useAuth();
   const { babies, currentBaby, setCurrentBaby } = useBaby();
   const { theme, setTheme } = useTheme();
+  const { t, locale, setLocale } = useI18n();
   const { toast } = useToast();
   const [members, setMembers] = useState<Member[]>([]);
   const [pwOpen, setPwOpen] = useState(false);
@@ -68,10 +72,10 @@ export default function MePage() {
   }, []);
 
   const themeOptions: { value: ThemeOpt; icon: typeof Sun; label: string }[] = [
-    { value: 'light', icon: Sun, label: '浅色' },
-    { value: 'dark', icon: Moon, label: '深色' },
-    { value: 'night', icon: Moon, label: '夜间' },
-    { value: 'system', icon: Monitor, label: '系统' },
+    { value: 'light', icon: Sun, label: t('theme.light') },
+    { value: 'dark', icon: Moon, label: t('theme.dark') },
+    { value: 'night', icon: Moon, label: t('theme.night') },
+    { value: 'system', icon: Monitor, label: t('theme.system') },
   ];
 
   const changePassword = async () => {
@@ -79,12 +83,12 @@ export default function MePage() {
     setSavingPw(true);
     try {
       await api.auth.changePassword(currentPw, newPw);
-      toast('密码已更新', 'success');
+      toast(t('auth.passwordUpdated'), 'success');
       setPwOpen(false);
       setCurrentPw('');
       setNewPw('');
     } catch (err: any) {
-      toast(err.message || '修改失败', 'error');
+      toast(err.message || t('auth.changeFailed'), 'error');
     } finally {
       setSavingPw(false);
     }
@@ -99,36 +103,36 @@ export default function MePage() {
       if (format === 'json') {
         downloadBlob(`baby-log-${currentBaby.name}-${stamp}.json`, JSON.stringify(res.data, null, 2), 'application/json');
       } else {
-        downloadBlob(`baby-log-${currentBaby.name}-${stamp}.csv`, recordsToCsv(res.data.records || []), 'text/csv;charset=utf-8');
+        downloadBlob(`baby-log-${currentBaby.name}-${stamp}.csv`, recordsToCsv(res.data.records || [], t), 'text/csv;charset=utf-8');
       }
-      toast('已开始下载', 'success');
+      toast(t('me.downloadStarted'), 'success');
     } catch {
-      toast('导出失败', 'error');
+      toast(t('me.exportFailed'), 'error');
     } finally {
       setExporting(false);
     }
   };
 
   const links = [
-    { to: '/plans', icon: Calendar, label: '计划' },
-    { to: '/health', icon: Activity, label: '健康' },
-    { to: '/stats', icon: BarChart3, label: '数据统计' },
-    { to: '/milk-inventory', icon: Refrigerator, label: '母乳库存' },
-    ...(isAdmin ? [{ to: '/admin', icon: Users, label: '用户管理' }] : []),
+    { to: '/plans', icon: Calendar, label: t('nav.plans') },
+    { to: '/health', icon: Activity, label: t('nav.health') },
+    { to: '/stats', icon: BarChart3, label: t('me.stats') },
+    { to: '/milk-inventory', icon: Refrigerator, label: t('me.milkInventory') },
+    ...(isAdmin ? [{ to: '/admin', icon: Users, label: t('me.userAdmin') }] : []),
   ];
 
   return (
     <div className="space-y-6 pb-8">
       <div>
-        <h2 className="text-xl font-semibold dark:text-gray-100">我的</h2>
+        <h2 className="text-xl font-semibold dark:text-gray-100">{t('me.title')}</h2>
         <p className="text-sm text-gray-400 mt-0.5">{user?.displayName}</p>
       </div>
 
       <section className="card">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-gray-500">宝宝</h3>
+          <h3 className="text-sm font-medium text-gray-500">{t('baby.section')}</h3>
           <Link to="/baby/setup" className="text-xs text-primary-500 inline-flex items-center gap-0.5">
-            <Plus size={12} /> 添加
+            <Plus size={12} /> {t('baby.addShort')}
           </Link>
         </div>
         <div className="space-y-2">
@@ -152,20 +156,20 @@ export default function MePage() {
                 )}
                 <span className="flex-1 min-w-0">
                   <span className="block font-medium dark:text-gray-100 truncate">{b.name}</span>
-                  <span className="block text-xs text-gray-400">{formatBabyAge(b.birthDate)}</span>
+                  <span className="block text-xs text-gray-400">{formatBabyAge(b.birthDate, t)}</span>
                 </span>
-                {active && <span className="text-xs text-primary-500">当前</span>}
+                {active && <span className="text-xs text-primary-500">{t('common.current')}</span>}
               </button>
             );
           })}
           {babies.length === 0 && (
-            <p className="text-sm text-gray-400 py-2">还没有宝宝，先添加一位</p>
+            <p className="text-sm text-gray-400 py-2">{t('baby.none')}</p>
           )}
         </div>
       </section>
 
       <section>
-        <h3 className="text-sm font-medium text-gray-500 mb-2 px-1">功能</h3>
+        <h3 className="text-sm font-medium text-gray-500 mb-2 px-1">{t('me.features')}</h3>
         <div className="card divide-y divide-gray-100 dark:divide-white/10 p-0 overflow-hidden">
           {links.map((item) => (
             <Link key={item.to} to={item.to} className="flex items-center gap-3 px-4 py-3 text-sm dark:text-gray-100">
@@ -179,7 +183,7 @@ export default function MePage() {
 
       {members.length > 0 && (
         <section>
-          <h3 className="text-sm font-medium text-gray-500 mb-2 px-1">家庭成员</h3>
+          <h3 className="text-sm font-medium text-gray-500 mb-2 px-1">{t('me.members')}</h3>
           <div className="card flex flex-wrap gap-2">
             {members.map((m) => (
               <span key={m.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full glass-chip text-xs dark:text-gray-200">
@@ -194,7 +198,7 @@ export default function MePage() {
       )}
 
       <section>
-        <h3 className="text-sm font-medium text-gray-500 mb-2 px-1">外观</h3>
+        <h3 className="text-sm font-medium text-gray-500 mb-2 px-1">{t('theme.section')}</h3>
         <div className="grid grid-cols-4 gap-2">
           {themeOptions.map((opt) => (
             <button
@@ -210,7 +214,26 @@ export default function MePage() {
             </button>
           ))}
         </div>
-        <p className="text-[11px] text-gray-400 mt-2 px-1">夜间模式降低亮度与透明，方便夜里喂奶时使用。</p>
+        <p className="text-[11px] text-gray-400 mt-2 px-1">{t('theme.nightHint')}</p>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-medium text-gray-500 mb-2 px-1">{t('language.section')}</h3>
+        <div className="grid grid-cols-2 gap-2">
+          {LOCALES.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setLocale(opt.value)}
+              className={`card py-3 flex items-center justify-center gap-2 text-sm ${
+                locale === opt.value ? 'border-primary-400 text-primary-600' : 'text-gray-500'
+              }`}
+            >
+              <Languages size={16} />
+              {opt.nativeLabel}
+            </button>
+          ))}
+        </div>
       </section>
 
       <section className="space-y-2">
@@ -221,7 +244,7 @@ export default function MePage() {
           className="card w-full flex items-center gap-3 text-sm dark:text-gray-100"
         >
           <Download size={18} className="text-gray-400" />
-          导出 JSON 备份
+          {t('me.exportJson')}
         </button>
         <button
           type="button"
@@ -230,7 +253,7 @@ export default function MePage() {
           className="card w-full flex items-center gap-3 text-sm dark:text-gray-100"
         >
           <Download size={18} className="text-gray-400" />
-          导出记录 CSV
+          {t('me.exportCsv')}
         </button>
         <button
           type="button"
@@ -238,7 +261,7 @@ export default function MePage() {
           className="card w-full flex items-center gap-3 text-sm dark:text-gray-100"
         >
           <KeyRound size={18} className="text-gray-400" />
-          修改密码
+          {t('auth.changePassword')}
         </button>
         <button
           type="button"
@@ -246,28 +269,28 @@ export default function MePage() {
           className="card w-full flex items-center gap-3 text-sm text-red-500"
         >
           <LogOut size={18} />
-          退出登录
+          {t('auth.logoutFull')}
         </button>
       </section>
 
       <Dialog open={pwOpen} onOpenChange={setPwOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>修改密码</DialogTitle>
+            <DialogTitle>{t('auth.changePassword')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-2">
             <div>
-              <label className="block text-sm mb-1 text-gray-600 dark:text-gray-300">当前密码</label>
+              <label className="block text-sm mb-1 text-gray-600 dark:text-gray-300">{t('auth.currentPassword')}</label>
               <Input type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} />
             </div>
             <div>
-              <label className="block text-sm mb-1 text-gray-600 dark:text-gray-300">新密码</label>
-              <Input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="至少 8 位，含大小写、数字和符号" />
+              <label className="block text-sm mb-1 text-gray-600 dark:text-gray-300">{t('auth.newPassword')}</label>
+              <Input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder={t('auth.passwordHint')} />
             </div>
             <div className="flex gap-2 pt-1">
-              <Button variant="secondary" className="flex-1" onClick={() => setPwOpen(false)}>取消</Button>
+              <Button variant="secondary" className="flex-1" onClick={() => setPwOpen(false)}>{t('common.cancel')}</Button>
               <Button className="flex-1" disabled={savingPw || !currentPw || !newPw} onClick={changePassword}>
-                {savingPw ? '保存中...' : '保存'}
+                {savingPw ? t('common.saving') : t('common.save')}
               </Button>
             </div>
           </div>

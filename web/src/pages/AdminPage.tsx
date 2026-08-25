@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useI18n } from '../contexts/I18nContext';
 import { api } from '../lib/api';
 import { cropAndResizeAvatar } from '../lib/avatar-crop';
 import dayjs from 'dayjs';
@@ -11,6 +12,7 @@ import type { UserItem } from '../lib/api';
 
 export default function AdminPage() {
   const { user: currentUser } = useAuth();
+  const { t } = useI18n();
   const { toast } = useToast();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -50,7 +52,7 @@ export default function AdminPage() {
       const res = await api.auth.listUsers();
       setUsers(res.data);
     } catch {
-      toast('加载用户列表失败', 'error');
+      toast(t('admin.loadFailed'), 'error');
     }
   };
 
@@ -74,7 +76,7 @@ export default function AdminPage() {
       setNewAvatarKey(null);
       loadUsers();
     } catch (err: any) {
-      toast(err.message || '创建失败', 'error');
+      toast(err.message || t('admin.createFailed'), 'error');
     } finally {
       setCreating(false);
     }
@@ -88,17 +90,17 @@ export default function AdminPage() {
     if (type === 'delete') {
       try {
         await api.auth.deleteUser(id);
-        toast('用户已删除', 'success');
+        toast(t('admin.deleted'), 'success');
         loadUsers();
       } catch (err: any) {
-        toast(err.message || '删除失败', 'error');
+        toast(err.message || t('admin.deleteFailed'), 'error');
       }
     } else {
       try {
         const res = await api.post<{ success: boolean; data: { generatedPassword: string } }>(`/auth/users/${id}/reset-password`, {});
         setGeneratedPassword(res.data.generatedPassword);
       } catch (err: any) {
-        toast(err.message || '重置失败', 'error');
+        toast(err.message || t('admin.resetFailed'), 'error');
       }
     }
   };
@@ -123,11 +125,11 @@ export default function AdminPage() {
       if (Object.keys(payload).length > 0) {
         await api.auth.updateUser(editTarget.id, payload);
       }
-      toast('用户信息已更新', 'success');
+      toast(t('admin.updated'), 'success');
       setEditTarget(null);
       loadUsers();
     } catch (err: any) {
-      toast(err.message || '更新失败', 'error');
+      toast(err.message || t('admin.updateFailed'), 'error');
     } finally {
       setEditSaving(false);
     }
@@ -144,9 +146,9 @@ export default function AdminPage() {
     try {
       const res = await api.post<{ success: boolean; data: typeof cleanupResult }>('/admin/cleanup', {});
       setCleanupResult(res.data);
-      toast(`已清理 ${res.data?.deleted ?? 0} 个孤立文件`, 'success');
+      toast(t('admin.cleaned', { n: res.data?.deleted ?? 0 }), 'success');
     } catch (err: any) {
-      toast(err.message || '清理失败', 'error');
+      toast(err.message || t('admin.cleanFailed'), 'error');
     } finally {
       setCleaningUp(false);
     }
@@ -161,7 +163,7 @@ export default function AdminPage() {
       const targetId = userId || editTarget?.id;
       if (targetId) {
         const res = await api.put<{ success: boolean; data: { id: string; avatar: string } }>(`/auth/users/${targetId}/avatar`, formData);
-        toast('头像已更新', 'success');
+        toast(t('admin.avatarUpdated'), 'success');
         loadUsers();
         if (editTarget) {
           setEditTarget({ ...editTarget, avatar: res.data.avatar });
@@ -173,24 +175,24 @@ export default function AdminPage() {
         setNewAvatarKey(key);
       }
     } catch (err: any) {
-      toast(err.message || '上传失败', 'error');
+      toast(err.message || t('admin.uploadFailed'), 'error');
     } finally {
       setAvatarUploading(false);
     }
   }, [editTarget]);
 
   const roleBadge = (role: string) => {
-    if (role === 'admin') return <Badge variant="info">管理员</Badge>;
-    if (role === 'viewer') return <Badge variant="secondary">只读</Badge>;
-    return <Badge variant="secondary">普通用户</Badge>;
+    if (role === 'admin') return <Badge variant="info">{t('admin.roleAdmin')}</Badge>;
+    if (role === 'viewer') return <Badge variant="secondary">{t('admin.roleViewer')}</Badge>;
+    return <Badge variant="secondary">{t('admin.roleUser')}</Badge>;
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold dark:text-gray-100">用户管理</h2>
+        <h2 className="text-xl font-semibold dark:text-gray-100">{t('admin.title')}</h2>
         <Button size="sm" onClick={() => { setShowCreateForm(true); setGeneratedPassword(''); }}>
-          <UserPlus size={16} /> 新建用户
+          <UserPlus size={16} /> {t('admin.newUser')}
         </Button>
       </div>
 
@@ -224,21 +226,21 @@ export default function AdminPage() {
                   <button
                     onClick={() => openEditUser(u)}
                     className="p-2 rounded-md text-gray-400 hover:text-primary-500 glass-icon-btn transition-colors"
-                    title="编辑用户"
+                    title={t('admin.editUser')}
                   >
                     <Pencil size={16} />
                   </button>
                   <button
                     onClick={() => setConfirmAction({ type: 'reset', id: u.id, name: u.displayName })}
                     className="p-2 rounded-md text-gray-400 hover:text-primary-500 glass-icon-btn transition-colors"
-                    title="重置密码"
+                    title={t('admin.resetPassword')}
                   >
                     <KeyRound size={16} />
                   </button>
                   <button
                     onClick={() => setConfirmAction({ type: 'delete', id: u.id, name: u.displayName })}
                     className="p-2 rounded-md text-gray-400 hover:text-red-500 glass-icon-btn transition-colors"
-                    title="删除用户"
+                    title={t('admin.deleteUser')}
                   >
                     <Trash2 size={16} />
                   </button>
@@ -252,13 +254,13 @@ export default function AdminPage() {
       <ConfirmDialog
         open={!!confirmAction}
         onOpenChange={(open) => { if (!open) setConfirmAction(null); }}
-        title={confirmAction?.type === 'delete' ? '删除用户' : '重置密码'}
+        title={confirmAction?.type === 'delete' ? t('admin.deleteUser') : t('admin.resetPassword')}
         description={
           confirmAction?.type === 'delete'
-            ? `确定删除用户"${confirmAction?.name}"？此操作不可撤销。`
-            : `确定重置用户"${confirmAction?.name}"的密码？`
+            ? t('admin.deleteConfirm', { name: confirmAction?.name ?? '' })
+            : t('admin.resetConfirm', { name: confirmAction?.name ?? '' })
         }
-        confirmLabel={confirmAction?.type === 'delete' ? '删除' : '重置'}
+        confirmLabel={confirmAction?.type === 'delete' ? t('common.delete') : t('admin.reset')}
         variant={confirmAction?.type === 'delete' ? 'danger' : 'default'}
         onConfirm={handleConfirm}
       />
@@ -267,7 +269,7 @@ export default function AdminPage() {
       <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>编辑用户 — {editTarget?.username}</DialogTitle>
+            <DialogTitle>{t('admin.editTitle', { username: editTarget?.username ?? '' })}</DialogTitle>
           </DialogHeader>
           <div className="space-y-5 pt-2">
             {/* Avatar */}
@@ -292,7 +294,7 @@ export default function AdminPage() {
                   disabled={avatarUploading}
                   onClick={() => avatarFileRef.current?.click()}
                 >
-                  {avatarUploading ? '上传中...' : '更换头像'}
+                  {avatarUploading ? t('common.uploading') : t('common.changeAvatar')}
                 </Button>
                 {editTarget?.avatar && (
                   <Button
@@ -301,12 +303,12 @@ export default function AdminPage() {
                     onClick={async () => {
                       if (!editTarget) return;
                       await api.auth.updateAvatar(editTarget.id, null);
-                      toast('头像已移除', 'success');
+                      toast(t('admin.avatarRemoved'), 'success');
                       setEditTarget({ ...editTarget, avatar: null });
                       loadUsers();
                     }}
                   >
-                    移除
+                    {t('common.remove')}
                   </Button>
                 )}
               </div>
@@ -325,31 +327,31 @@ export default function AdminPage() {
 
             {/* Display Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">称呼</label>
-              <Input value={editDisplayName} onChange={(e) => setEditDisplayName(e.target.value)} placeholder="如：爸爸/妈妈/奶奶" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('admin.displayName')}</label>
+              <Input value={editDisplayName} onChange={(e) => setEditDisplayName(e.target.value)} placeholder={t('admin.displayNamePlaceholder')} />
             </div>
 
             {/* Role */}
             {editTarget?.id !== currentUser?.id && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">角色</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('admin.role')}</label>
                 <Select value={editRole} onValueChange={setEditRole}>
                   <SelectTrigger>
-                    <SelectValue placeholder="选择角色" />
+                    <SelectValue placeholder={t('admin.pickRole')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">管理员（可管理所有用户）</SelectItem>
-                    <SelectItem value="user">普通用户（可记录宝宝数据）</SelectItem>
-                    <SelectItem value="viewer">只读用户（仅可查看 + 发朋友圈）</SelectItem>
+                    <SelectItem value="admin">{t('admin.roleAdminFull')}</SelectItem>
+                    <SelectItem value="user">{t('admin.roleUserFull')}</SelectItem>
+                    <SelectItem value="viewer">{t('admin.roleViewerFull')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             )}
 
             <div className="flex gap-2 justify-end pt-1">
-              <Button variant="secondary" onClick={() => setEditTarget(null)}>取消</Button>
+              <Button variant="secondary" onClick={() => setEditTarget(null)}>{t('common.cancel')}</Button>
               <Button onClick={handleSaveEdit} disabled={editSaving}>
-                {editSaving ? '保存中...' : '保存'}
+                {editSaving ? t('common.saving') : t('common.save')}
               </Button>
             </div>
           </div>
@@ -360,32 +362,32 @@ export default function AdminPage() {
       <Dialog open={showCreateForm} onOpenChange={(open) => { setShowCreateForm(open); if (!open) { setGeneratedPassword(''); setNewAvatarPreview(null); setNewAvatarKey(null); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>新建用户</DialogTitle>
+            <DialogTitle>{t('admin.newUser')}</DialogTitle>
           </DialogHeader>
           {!generatedPassword ? (
             <form onSubmit={createUser} className="space-y-4 pt-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">用户名</label>
-                <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="登录用户名" required minLength={2} />
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('auth.username')}</label>
+                <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder={t('admin.loginUsername')} required minLength={2} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">显示名称</label>
-                <Input value={newDisplayName} onChange={(e) => setNewDisplayName(e.target.value)} placeholder="如：爸爸/妈妈/奶奶" required />
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.displayNameField')}</label>
+                <Input value={newDisplayName} onChange={(e) => setNewDisplayName(e.target.value)} placeholder={t('admin.displayNamePlaceholder')} required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">角色</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.role')}</label>
                 <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as 'user' | 'viewer')}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="user">普通用户（可记录宝宝数据）</SelectItem>
-                    <SelectItem value="viewer">只读用户（仅可查看 + 发朋友圈）</SelectItem>
+                    <SelectItem value="user">{t('admin.roleUserFull')}</SelectItem>
+                    <SelectItem value="viewer">{t('admin.roleViewerFull')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">头像（可选）</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.optionalAvatar')}</label>
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-14 rounded-full overflow-hidden glass-avatar-placeholder flex items-center justify-center flex-shrink-0">
                     {newAvatarPreview ? (
@@ -402,7 +404,7 @@ export default function AdminPage() {
                       disabled={avatarUploading}
                       onClick={() => createAvatarFileRef.current?.click()}
                     >
-                      {avatarUploading ? '上传中...' : newAvatarPreview ? '更换' : '选择图片'}
+                      {avatarUploading ? t('common.uploading') : newAvatarPreview ? t('common.change') : t('common.selectImage')}
                     </Button>
                     <input
                       ref={createAvatarFileRef}
@@ -418,18 +420,18 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">系统将自动生成强密码，创建后请妥善保存。</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('admin.autoPassword')}</p>
               <div className="flex gap-3">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setShowCreateForm(false)}>取消</Button>
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setShowCreateForm(false)}>{t('common.cancel')}</Button>
                 <Button type="submit" className="flex-1" disabled={creating}>
-                  {creating ? '创建中...' : '创建'}
+                  {creating ? t('common.creating') : t('common.create')}
                 </Button>
               </div>
             </form>
           ) : (
             <div className="space-y-4 pt-2">
               <div className="glass-success-panel rounded-lg p-4">
-                <p className="text-sm font-medium text-green-800 dark:text-green-300 mb-2">用户创建成功！请保存以下密码：</p>
+                <p className="text-sm font-medium text-green-800 dark:text-green-300 mb-2">{t('admin.createdOk')}</p>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 glass-code-block px-3 py-2 rounded text-sm font-mono select-all dark:text-gray-100">
                     {generatedPassword}
@@ -438,10 +440,10 @@ export default function AdminPage() {
                     {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
                   </Button>
                 </div>
-                <p className="text-xs text-green-600 dark:text-green-400 mt-2">此密码仅显示一次，请立即复制保存！</p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-2">{t('admin.passwordOnce')}</p>
               </div>
               <Button className="w-full" onClick={() => { setGeneratedPassword(''); setShowCreateForm(false); }}>
-                确认已保存
+                {t('admin.confirmSaved')}
               </Button>
             </div>
           )}
@@ -453,11 +455,11 @@ export default function AdminPage() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <HardDrive size={18} className="text-gray-500" />
-            <h2 className="text-xl font-semibold dark:text-gray-100">存储清理</h2>
+            <h2 className="text-xl font-semibold dark:text-gray-100">{t('admin.storageCleanup')}</h2>
           </div>
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          清理上传超过 24 小时但未被任何记录引用的孤立文件。此操作与定时清理任务执行相同的逻辑。
+          {t('admin.cleanupHint')}
         </p>
 
         <div className="flex flex-wrap gap-2 mb-4">
@@ -467,7 +469,7 @@ export default function AdminPage() {
             disabled={cleaningUp}
             onClick={runCleanup}
           >
-            {cleaningUp ? '清理中...' : '立即清理'}
+            {cleaningUp ? t('admin.cleaning') : t('admin.cleanNow')}
           </Button>
         </div>
 
@@ -477,11 +479,11 @@ export default function AdminPage() {
               <div className="grid grid-cols-2 gap-3 text-center text-sm">
                 <div>
                   <p className="text-lg font-bold text-primary-500">{cleanupResult.found}</p>
-                  <p className="text-xs text-gray-500">发现孤立文件</p>
+                  <p className="text-xs text-gray-500">{t('admin.foundOrphans')}</p>
                 </div>
                 <div>
                   <p className="text-lg font-bold text-green-500">{cleanupResult.deleted}</p>
-                  <p className="text-xs text-gray-500">已删除</p>
+                  <p className="text-xs text-gray-500">{t('admin.deletedCount')}</p>
                 </div>
               </div>
               {cleanupResult.errors && cleanupResult.errors.length > 0 && (
@@ -501,11 +503,11 @@ export default function AdminPage() {
         <Dialog open={true} onOpenChange={() => setGeneratedPassword('')}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>密码已重置</DialogTitle>
+              <DialogTitle>{t('admin.passwordReset')}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="glass-success-panel rounded-lg p-4">
-                <p className="text-sm font-medium text-green-800 dark:text-green-300 mb-2">新密码：</p>
+                <p className="text-sm font-medium text-green-800 dark:text-green-300 mb-2">{t('admin.newPassword')}</p>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 glass-code-block px-3 py-2 rounded text-sm font-mono select-all dark:text-gray-100">
                     {generatedPassword}
@@ -514,10 +516,10 @@ export default function AdminPage() {
                     {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
                   </Button>
                 </div>
-                <p className="text-xs text-green-600 dark:text-green-400 mt-2">此密码仅显示一次，请立即复制保存！</p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-2">{t('admin.passwordOnce')}</p>
               </div>
               <Button className="w-full" onClick={() => setGeneratedPassword('')}>
-                确认已保存
+                {t('admin.confirmSaved')}
               </Button>
             </div>
           </DialogContent>

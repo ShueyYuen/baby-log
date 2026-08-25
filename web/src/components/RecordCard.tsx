@@ -1,8 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import type { MouseEvent } from 'react';
+import { useI18n } from '../contexts/I18nContext';
 import type { TimelineRecord } from '../lib/api';
-import { formatRecordDetail, typeConfig } from '../lib/record-types';
+import { formatRecordDetail, recordTypeLabel, typeConfig } from '../lib/record-types';
 import { MediaThumbs, toViewerImages } from './ui';
 
 interface RecordCardProps {
@@ -12,6 +13,7 @@ interface RecordCardProps {
 
 export function RecordCard({ record, isViewer }: RecordCardProps) {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const href = `/record/${record.id}/edit`;
   const config = typeConfig[record.type] || typeConfig.other;
   const Icon = config.icon;
@@ -34,13 +36,13 @@ export function RecordCard({ record, isViewer }: RecordCardProps) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-base dark:text-gray-100">{config.label}</span>
+          <span className="font-medium text-base dark:text-gray-100">{recordTypeLabel(record.type, t)}</span>
           <span className="text-sm text-gray-400 dark:text-gray-500">
             {dayjs(record.occurredAt).format('HH:mm')}
           </span>
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400 truncate mt-0.5">
-          {formatRecordDetail(record)}
+          {formatRecordDetail(record, t)}
         </p>
         {record.user?.displayName && (
           <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">{record.user.displayName}</p>

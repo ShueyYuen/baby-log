@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
+import { useI18n } from '../contexts/I18nContext';
 import { api } from '../lib/api';
 import { useServerEvent } from '../hooks/useServerEvents';
 import dayjs from 'dayjs';
@@ -21,10 +22,16 @@ interface DailyData {
   feedingDetails: { breastfeed: number; bottle: number; solid: number };
 }
 
-const diaperStatusStyle: Record<DiaperStatus, { badge: string; text: string; label: string }> = {
-  normal: { badge: 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400', text: 'text-green-600 dark:text-green-400', label: '正常' },
-  low: { badge: 'bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-400', text: 'text-orange-600 dark:text-orange-400', label: '偏少' },
-  high: { badge: 'bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-400', text: 'text-orange-600 dark:text-orange-400', label: '偏多' },
+const diaperStatusStyle: Record<DiaperStatus, { badge: string; text: string }> = {
+  normal: { badge: 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400', text: 'text-green-600 dark:text-green-400' },
+  low: { badge: 'bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-400', text: 'text-orange-600 dark:text-orange-400' },
+  high: { badge: 'bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-400', text: 'text-orange-600 dark:text-orange-400' },
+};
+
+const STATUS_KEYS: Record<DiaperStatus, 'statusNormal' | 'statusLow' | 'statusHigh'> = {
+  normal: 'statusNormal',
+  low: 'statusLow',
+  high: 'statusHigh',
 };
 
 interface TempPoint {
@@ -35,11 +42,11 @@ interface TempPoint {
 
 type RangePreset = '7' | '14' | '30' | 'custom';
 
-const RANGE_PRESETS: { value: RangePreset; label: string }[] = [
-  { value: '7', label: '7天' },
-  { value: '14', label: '14天' },
-  { value: '30', label: '30天' },
-  { value: 'custom', label: '自定义' },
+const RANGE_PRESETS: { value: RangePreset; labelKey: 'days7' | 'days14' | 'days30' | 'custom' }[] = [
+  { value: '7', labelKey: 'days7' },
+  { value: '14', labelKey: 'days14' },
+  { value: '30', labelKey: 'days30' },
+  { value: 'custom', labelKey: 'custom' },
 ];
 
 function getPresetDateRange(preset: RangePreset, customStart: string, customEnd: string) {
@@ -71,6 +78,7 @@ function buildEmptyRange(startDate: string, endDate: string): DailyData[] {
 export default function StatsPage() {
   const navigate = useNavigate();
   const { currentBaby } = useBaby();
+  const { t } = useI18n();
   const [weekData, setWeekData] = useState<DailyData[]>([]);
   const [loading, setLoading] = useState(true);
   const [rangePreset, setRangePreset] = useState<RangePreset>('7');
@@ -136,12 +144,12 @@ export default function StatsPage() {
   const chartData = weekData.map((d) => ({
     date: dayjs(d.date).format('MM/DD'),
     rawDate: d.date,
-    喂养: d.feedingCount,
-    换尿布: d.diaperCount,
-    小便: d.peeCount,
-    大便: d.poopCount,
-    睡眠: Math.round(d.sleepMinutes / 60 * 10) / 10,
-    奶量: d.bottleAmountMl ?? 0,
+    feeding: d.feedingCount,
+    diaper: d.diaperCount,
+    pee: d.peeCount,
+    poop: d.poopCount,
+    sleep: Math.round(d.sleepMinutes / 60 * 10) / 10,
+    milk: d.bottleAmountMl ?? 0,
   }));
 
   const xAxisInterval = chartData.length > 14 ? Math.max(1, Math.ceil(chartData.length / 7) - 1) : 0;
@@ -150,7 +158,7 @@ export default function StatsPage() {
     if (rangePreset === 'custom') {
       return `${dayjs(dateRange.startDate).format('MM/DD')}-${dayjs(dateRange.endDate).format('MM/DD')}${suffix}`;
     }
-    return `近${rangePreset}天${suffix}`;
+    return t('stats.recentDays', { n: rangePreset, suffix });
   };
 
   const todayStr = dayjs().format('YYYY-MM-DD');
@@ -170,21 +178,21 @@ export default function StatsPage() {
     if (!active || !payload || payload.length === 0) return null;
     const row = payload[0].payload;
     const ageDays = getAgeDays(currentBaby?.birthDate, row.rawDate);
-    const feed = evaluateFeeding(row.喂养, ageDays);
+    const feed = evaluateFeeding(row.feeding, ageDays, t);
     return (
       <div
         className="rounded-lg p-3 max-w-[260px] shadow-lg"
         style={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', color: 'var(--chart-tooltip-text)' }}
       >
-        <p className="text-xs font-medium mb-2">{dayjs(row.rawDate).format('MM月DD日')}</p>
-        {row.喂养 === 0 ? (
-          <p className="text-xs opacity-70">当天无喂养记录</p>
+        <p className="text-xs font-medium mb-2">{dayjs(row.rawDate).format(t('dateFmt.mdPad'))}</p>
+        {row.feeding === 0 ? (
+          <p className="text-xs opacity-70">{t('stats.noFeeding')}</p>
         ) : (
           <div>
             <p className="text-xs">
               <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: '#f19232' }} />
-              喂养 {feed.count} 次
-              <span className={diaperStatusStyle[feed.status].text}> · {diaperStatusStyle[feed.status].label}</span>
+              {t('stats.feedingTimes', { n: feed.count })}
+              <span className={diaperStatusStyle[feed.status].text}> · {t(`stats.${STATUS_KEYS[feed.status]}`)}</span>
             </p>
             <p className="text-[11px] opacity-80 leading-relaxed mt-0.5">{feed.advice}</p>
           </div>
@@ -197,21 +205,21 @@ export default function StatsPage() {
     if (!active || !payload || payload.length === 0) return null;
     const row = payload[0].payload;
     const ageDays = getAgeDays(currentBaby?.birthDate, row.rawDate);
-    const sleep = evaluateSleep(row.睡眠, ageDays);
+    const sleep = evaluateSleep(row.sleep, ageDays, t);
     return (
       <div
         className="rounded-lg p-3 max-w-[260px] shadow-lg"
         style={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', color: 'var(--chart-tooltip-text)' }}
       >
-        <p className="text-xs font-medium mb-2">{dayjs(row.rawDate).format('MM月DD日')}</p>
-        {row.睡眠 === 0 ? (
-          <p className="text-xs opacity-70">当天无睡眠记录</p>
+        <p className="text-xs font-medium mb-2">{dayjs(row.rawDate).format(t('dateFmt.mdPad'))}</p>
+        {row.sleep === 0 ? (
+          <p className="text-xs opacity-70">{t('stats.noSleep')}</p>
         ) : (
           <div>
             <p className="text-xs">
               <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: '#6366f1' }} />
-              睡眠 {sleep.count} 小时
-              <span className={diaperStatusStyle[sleep.status].text}> · {diaperStatusStyle[sleep.status].label}</span>
+              {t('stats.sleepHoursVal', { n: sleep.count })}
+              <span className={diaperStatusStyle[sleep.status].text}> · {t(`stats.${STATUS_KEYS[sleep.status]}`)}</span>
             </p>
             <p className="text-[11px] opacity-80 leading-relaxed mt-0.5">{sleep.advice}</p>
           </div>
@@ -224,31 +232,31 @@ export default function StatsPage() {
     if (!active || !payload || payload.length === 0) return null;
     const row = payload[0].payload;
     const ageDays = getAgeDays(currentBaby?.birthDate, row.rawDate);
-    const pee = evaluatePee(row.小便, ageDays);
-    const poop = evaluatePoop(row.大便, ageDays);
+    const pee = evaluatePee(row.pee, ageDays, t);
+    const poop = evaluatePoop(row.poop, ageDays, t);
     return (
       <div
         className="rounded-lg p-3 max-w-[260px] shadow-lg"
         style={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', color: 'var(--chart-tooltip-text)' }}
       >
-        <p className="text-xs font-medium mb-2">{dayjs(row.rawDate).format('MM月DD日')}</p>
-        {row.换尿布 === 0 ? (
-          <p className="text-xs opacity-70">当天无换尿布记录</p>
+        <p className="text-xs font-medium mb-2">{dayjs(row.rawDate).format(t('dateFmt.mdPad'))}</p>
+        {row.diaper === 0 ? (
+          <p className="text-xs opacity-70">{t('stats.noDiaper')}</p>
         ) : (
           <div className="space-y-2">
             <div>
               <p className="text-xs">
                 <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: '#06b6d4' }} />
-                小便 {pee.count} 次
-                <span className={diaperStatusStyle[pee.status].text}> · {diaperStatusStyle[pee.status].label}</span>
+                {t('stats.peeTimes', { n: pee.count })}
+                <span className={diaperStatusStyle[pee.status].text}> · {t(`stats.${STATUS_KEYS[pee.status]}`)}</span>
               </p>
               <p className="text-[11px] opacity-80 leading-relaxed mt-0.5">{pee.advice}</p>
             </div>
             <div>
               <p className="text-xs">
                 <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: '#d97706' }} />
-                大便 {poop.count} 次
-                <span className={diaperStatusStyle[poop.status].text}> · {diaperStatusStyle[poop.status].label}</span>
+                {t('stats.poopTimes', { n: poop.count })}
+                <span className={diaperStatusStyle[poop.status].text}> · {t(`stats.${STATUS_KEYS[poop.status]}`)}</span>
               </p>
               <p className="text-[11px] opacity-80 leading-relaxed mt-0.5">{poop.advice}</p>
             </div>
@@ -266,13 +274,13 @@ export default function StatsPage() {
         className="rounded-lg p-3 max-w-[260px] shadow-lg"
         style={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', color: 'var(--chart-tooltip-text)' }}
       >
-        <p className="text-xs font-medium mb-2">{dayjs(row.rawDate).format('MM月DD日')}</p>
-        {row.奶量 === 0 ? (
-          <p className="text-xs opacity-70">当天无瓶喂记录</p>
+        <p className="text-xs font-medium mb-2">{dayjs(row.rawDate).format(t('dateFmt.mdPad'))}</p>
+        {row.milk === 0 ? (
+          <p className="text-xs opacity-70">{t('stats.noBottle')}</p>
         ) : (
           <p className="text-xs">
             <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: '#3b82f6' }} />
-            瓶喂 {row.奶量} ml
+            {t('stats.bottleMl', { n: row.milk })}
           </p>
         )}
       </div>
@@ -287,7 +295,7 @@ export default function StatsPage() {
         <button onClick={() => navigate(-1)} className="p-1 -ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
           <ArrowLeft size={20} />
         </button>
-        <h2 className="text-lg font-semibold dark:text-gray-100">数据统计</h2>
+        <h2 className="text-lg font-semibold dark:text-gray-100">{t('stats.title')}</h2>
       </div>
       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 space-y-6">
 
@@ -304,7 +312,7 @@ export default function StatsPage() {
                   : 'text-gray-600 dark:text-gray-300 hover:bg-white/40 dark:hover:bg-white/[0.06]'
               }`}
             >
-              {preset.label}
+              {t(`stats.${preset.labelKey}`)}
             </button>
           ))}
         </div>
@@ -312,12 +320,12 @@ export default function StatsPage() {
         {rangePreset === 'custom' && (
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
-              <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">开始日期</span>
-              <DatePicker value={customStartDate} onChange={handleCustomStartChange} placeholder="开始日期" />
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('stats.startDate')}</span>
+              <DatePicker value={customStartDate} onChange={handleCustomStartChange} placeholder={t('stats.startDate')} />
             </div>
             <div className="flex-1">
-              <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">结束日期</span>
-              <DatePicker value={customEndDate} onChange={handleCustomEndChange} placeholder="结束日期" />
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('stats.endDate')}</span>
+              <DatePicker value={customEndDate} onChange={handleCustomEndChange} placeholder={t('stats.endDate')} />
             </div>
           </div>
         )}
@@ -332,36 +340,36 @@ export default function StatsPage() {
             <div className="grid grid-cols-3 gap-3">
               <div className="card text-center">
                 <p className="text-2xl font-bold text-primary-500">{todayData.feedingCount}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">今日喂养</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('stats.todayFeeding')}</p>
               </div>
               <div className="card text-center">
                 <p className="text-2xl font-bold text-yellow-500">{todayData.diaperCount}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">今日换尿布</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('stats.todayDiaper')}</p>
               </div>
               <div className="card text-center">
                 <p className="text-2xl font-bold text-indigo-500">{Math.round(todayData.sleepMinutes / 60 * 10) / 10}h</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">今日睡眠</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('stats.todaySleep')}</p>
               </div>
             </div>
           )}
 
           {/* Feeding Chart */}
           <div className="card">
-            <h3 className="font-medium mb-4 dark:text-gray-100">{rangeChartTitle('喂养次数')}</h3>
+            <h3 className="font-medium mb-4 dark:text-gray-100">{rangeChartTitle(t('stats.feedingCount'))}</h3>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="date" fontSize={12} interval={xAxisInterval} tick={{ fill: 'var(--chart-axis)' }} />
                 <YAxis fontSize={12} allowDecimals={false} tick={{ fill: 'var(--chart-axis)' }} />
                 <Tooltip content={<FeedingTooltip />} cursor={{ stroke: 'var(--chart-cursor)' }} />
-                <Line type="monotone" dataKey="喂养" stroke="#f19232" strokeWidth={2} dot={{ r: 3 }} animationDuration={300} />
+                <Line type="monotone" dataKey="feeding" stroke="#f19232" strokeWidth={2} dot={{ r: 3 }} name={t('stats.feeding')} animationDuration={300} />
               </LineChart>
             </ResponsiveContainer>
           </div>
 
           {/* Diaper Chart */}
           <div className="card">
-            <h3 className="font-medium mb-4 dark:text-gray-100">{rangeChartTitle('大小便次数')}</h3>
+            <h3 className="font-medium mb-4 dark:text-gray-100">{rangeChartTitle(t('stats.diaperCount'))}</h3>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -369,36 +377,36 @@ export default function StatsPage() {
                 <YAxis fontSize={12} allowDecimals={false} tick={{ fill: 'var(--chart-axis)' }} />
                 <Tooltip content={<DiaperTooltip />} cursor={{ stroke: 'var(--chart-cursor)' }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line type="monotone" dataKey="小便" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} animationDuration={300} />
-                <Line type="monotone" dataKey="大便" stroke="#d97706" strokeWidth={2} dot={{ r: 3 }} animationDuration={300} />
+                <Line type="monotone" dataKey="pee" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} name={t('stats.pee')} animationDuration={300} />
+                <Line type="monotone" dataKey="poop" stroke="#d97706" strokeWidth={2} dot={{ r: 3 }} name={t('stats.poop')} animationDuration={300} />
               </LineChart>
             </ResponsiveContainer>
           </div>
 
           {/* Sleep Chart */}
           <div className="card">
-            <h3 className="font-medium mb-4 dark:text-gray-100">{rangeChartTitle('睡眠时长(小时)')}</h3>
+            <h3 className="font-medium mb-4 dark:text-gray-100">{rangeChartTitle(t('stats.sleepHours'))}</h3>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="date" fontSize={12} interval={xAxisInterval} tick={{ fill: 'var(--chart-axis)' }} />
                 <YAxis fontSize={12} tick={{ fill: 'var(--chart-axis)' }} />
                 <Tooltip content={<SleepTooltip />} cursor={{ stroke: 'var(--chart-cursor)' }} />
-                <Line type="monotone" dataKey="睡眠" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} animationDuration={300} />
+                <Line type="monotone" dataKey="sleep" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} name={t('stats.sleep')} animationDuration={300} />
               </LineChart>
             </ResponsiveContainer>
           </div>
 
           {/* Bottle Amount Chart */}
           <div className="card">
-            <h3 className="font-medium mb-4 dark:text-gray-100">{rangeChartTitle('奶量(ml)')}</h3>
+            <h3 className="font-medium mb-4 dark:text-gray-100">{rangeChartTitle(t('stats.milkMl'))}</h3>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="date" fontSize={12} interval={xAxisInterval} tick={{ fill: 'var(--chart-axis)' }} />
                 <YAxis fontSize={12} allowDecimals={false} tick={{ fill: 'var(--chart-axis)' }} unit="ml" />
                 <Tooltip content={<BottleTooltip />} cursor={{ stroke: 'var(--chart-cursor)' }} />
-                <Line type="monotone" dataKey="奶量" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} animationDuration={300} />
+                <Line type="monotone" dataKey="milk" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} name={t('stats.milk')} animationDuration={300} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -406,7 +414,7 @@ export default function StatsPage() {
           {/* Temperature Chart */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium dark:text-gray-100">体温变化</h3>
+              <h3 className="font-medium dark:text-gray-100">{t('stats.tempChange')}</h3>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setTempDate(dayjs(tempDate).subtract(1, 'day').format('YYYY-MM-DD'))}
@@ -415,8 +423,8 @@ export default function StatsPage() {
                   <ChevronLeft size={16} />
                 </button>
                 <span className="text-sm text-gray-600 dark:text-gray-300">
-                  {dayjs(tempDate).format('MM月DD日')}
-                  {tempDate === dayjs().format('YYYY-MM-DD') && ' (今天)'}
+                  {dayjs(tempDate).format(t('dateFmt.mdPad'))}
+                  {tempDate === dayjs().format('YYYY-MM-DD') && t('stats.todaySuffix')}
                 </span>
                 <button
                   onClick={() => setTempDate(dayjs(tempDate).add(1, 'day').format('YYYY-MM-DD'))}
@@ -436,8 +444,9 @@ export default function StatsPage() {
                   <Tooltip
                     contentStyle={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: '8px', color: 'var(--chart-tooltip-text)' }}
                     formatter={(value: number, _name: string, props: any) => {
-                      const loc: Record<string, string> = { axillary: '腋下', ear: '耳温', forehead: '额温', rectal: '肛温' };
-                      return [`${value}°C (${loc[props.payload.location] || ''})`, '体温'];
+                      const locKey = props.payload.location ? `temp.${props.payload.location}` : '';
+                      const loc = locKey ? t(locKey) : '';
+                      return [`${value}°C (${loc === locKey ? '' : loc})`, t('stats.temperature')];
                     }}
                   />
                   <ReferenceLine y={37.3} stroke="#fbbf24" strokeDasharray="4 4" label={{ value: '37.3°C', position: 'right', fontSize: 10, fill: '#fbbf24' }} />
@@ -445,7 +454,7 @@ export default function StatsPage() {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-center text-gray-400 py-8">当天无体温记录</p>
+              <p className="text-center text-gray-400 py-8">{t('stats.noTemp')}</p>
             )}
           </div>
         </>

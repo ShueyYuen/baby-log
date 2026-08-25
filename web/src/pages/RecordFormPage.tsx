@@ -26,6 +26,7 @@ import { Skeleton } from "../components/ui/skeleton";
 import { VisibilityPicker } from "../components/ui/visibility-picker";
 import { useAuth } from "../contexts/AuthContext";
 import { useBaby } from "../contexts/BabyContext";
+import { useI18n } from "../contexts/I18nContext";
 import {
   api,
   generateIdempotencyKey,
@@ -34,6 +35,7 @@ import {
   type UploadMomentResult,
 } from "../lib/api";
 import { cacheInvalidate, cacheRead } from "../lib/queryCache";
+import { recordTypeLabel } from "../lib/record-types";
 import {
   getRecordDefaults,
   getRecentNames,
@@ -111,50 +113,17 @@ function toLocalDateTimeString(date: Date): string {
 
 type CategoryType = "feeding" | "nursing" | "activity";
 
-const categories: { value: CategoryType; label: string }[] = [
-  { value: "feeding", label: "喂养" },
-  { value: "nursing", label: "护理" },
-  { value: "activity", label: "活动" },
-];
-
-const subTypes: Record<CategoryType, { value: string; label: string }[]> = {
-  feeding: [
-    { value: "breastfeed", label: "母乳" },
-    { value: "bottle", label: "瓶喂" },
-    { value: "pump", label: "吸奶" },
-    { value: "solid", label: "辅食" },
-    { value: "water", label: "喝水" },
-  ],
-  nursing: [
-    { value: "diaper", label: "换尿布" },
-    { value: "bath", label: "洗澡" },
-    { value: "supplement", label: "营养补充" },
-    { value: "temperature", label: "体温" },
-  ],
-  activity: [
-    { value: "sleep", label: "睡眠" },
-    { value: "play", label: "玩耍" },
-    { value: "other", label: "其他" },
-  ],
+const categoryFirstType: Record<CategoryType, string> = {
+  feeding: "breastfeed",
+  nursing: "diaper",
+  activity: "sleep",
 };
 
-const typeLabels: Record<string, string> = Object.values(subTypes)
-  .flat()
-  .reduce(
-    (acc, item) => {
-      acc[item.value] = item.label;
-      return acc;
-    },
-    {} as Record<string, string>,
-  );
-
-const quickTimes = [
-  { label: "现在", offset: 0 },
-  { label: "5分钟前", offset: -5 },
-  { label: "10分钟前", offset: -10 },
-  { label: "30分钟前", offset: -30 },
-  { label: "1小时前", offset: -60 },
-];
+const subTypeValues: Record<CategoryType, string[]> = {
+  feeding: ["breastfeed", "bottle", "pump", "solid", "water"],
+  nursing: ["diaper", "bath", "supplement", "temperature"],
+  activity: ["sleep", "play", "other"],
+};
 
 function normalizeRecordImages(raw: unknown): RecordImage[] {
   if (!Array.isArray(raw) || raw.length === 0) return [];
@@ -188,6 +157,36 @@ export default function RecordFormPage() {
   const isEditing = !!id;
   const { currentBaby } = useBaby();
   const { isViewer } = useAuth();
+  const { t } = useI18n();
+
+  const categories: { value: CategoryType; label: string }[] = [
+    { value: "feeding", label: t("categories.feeding") },
+    { value: "nursing", label: t("categories.nursing") },
+    { value: "activity", label: t("categories.activity") },
+  ];
+
+  const subTypes: Record<CategoryType, { value: string; label: string }[]> = {
+    feeding: subTypeValues.feeding.map((value) => ({
+      value,
+      label: t(`recordTypes.${value}`),
+    })),
+    nursing: subTypeValues.nursing.map((value) => ({
+      value,
+      label: t(`recordTypes.${value}`),
+    })),
+    activity: subTypeValues.activity.map((value) => ({
+      value,
+      label: t(`recordTypes.${value}`),
+    })),
+  };
+
+  const quickTimes = [
+    { label: t("time.quickNow"), offset: 0 },
+    { label: t("time.quick5"), offset: -5 },
+    { label: t("time.quick10"), offset: -10 },
+    { label: t("time.quick30"), offset: -30 },
+    { label: t("time.quick60"), offset: -60 },
+  ];
 
   // Viewers cannot create or edit records
   useEffect(() => {
@@ -257,7 +256,7 @@ export default function RecordFormPage() {
     if (_d.startTime && _d.durationMinutes) return dayjs(_d.startTime).add(_d.durationMinutes, 'minute').format('YYYY-MM-DDTHH:mm');
     return dayjs().format('YYYY-MM-DDTHH:mm');
   });
-  const [supplementName, setSupplementName] = useState(_d.name || _defaults.supplement?.name || "维生素D");
+  const [supplementName, setSupplementName] = useState(_d.name || _defaults.supplement?.name || t("supplements.vitaminD"));
   const [temperature, setTemperature] = useState(_d.value ?? 36.5);
   const [tempLocation, setTempLocation] = useState<
     "axillary" | "ear" | "forehead" | "rectal"
@@ -332,7 +331,7 @@ export default function RecordFormPage() {
         populateData(freshRecord.type, freshRecord.data);
       }
     } catch {
-      toast('加载记录失败', 'error');
+      toast(t("recordForm.loadFailed"), "error");
     } finally {
       setLoadingRecord(false);
     }
@@ -402,7 +401,7 @@ export default function RecordFormPage() {
 
   const handleCategoryChange = (cat: CategoryType) => {
     setCategory(cat);
-    setType(subTypes[cat][0].value);
+    setType(categoryFirstType[cat]);
   };
 
   const setQuickTime = (offsetMinutes: number) => {
@@ -620,14 +619,14 @@ export default function RecordFormPage() {
             );
             cacheInvalidate("/milk-inventory");
           } catch {
-            toast("记录已保存，但自动入库失败", "error");
+            toast(t("recordForm.savedInventoryFailed"), "error");
           }
         }
       }
       cacheInvalidate("/timeline");
       navigate(-1);
     } catch {
-      toast(isEditing ? "修改失败" : "添加失败", "error");
+      toast(isEditing ? t("recordForm.updateFailed") : t("recordForm.addFailed"), "error");
     } finally {
       setLoading(false);
     }
@@ -640,7 +639,7 @@ export default function RecordFormPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-                左侧
+                {t("recordForm.leftSide")}
               </label>
               <Slider
                 value={leftMinutes}
@@ -648,12 +647,12 @@ export default function RecordFormPage() {
                 min={0}
                 max={60}
                 step={1}
-                unit="分钟"
+                unit={t("time.minutesUnit")}
               />
             </div>
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-                右侧
+                {t("recordForm.rightSide")}
               </label>
               <Slider
                 value={rightMinutes}
@@ -661,7 +660,7 @@ export default function RecordFormPage() {
                 min={0}
                 max={60}
                 step={1}
-                unit="分钟"
+                unit={t("time.minutesUnit")}
               />
             </div>
           </div>
@@ -671,7 +670,7 @@ export default function RecordFormPage() {
           <div className="space-y-3">
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-                奶类型
+                {t("recordForm.milkType")}
               </label>
               <div className="flex gap-3">
                 <button
@@ -679,20 +678,20 @@ export default function RecordFormPage() {
                   onClick={() => setMilkType("formula")}
                   className={`flex-1 py-2.5 rounded-lg border-2 text-base transition-colors ${milkType === "formula" ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "glass-toggle-btn dark:text-gray-300"}`}
                 >
-                  配方奶
+                  {t("milk.formula")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setMilkType("breast_milk")}
                   className={`flex-1 py-2.5 rounded-lg border-2 text-base transition-colors ${milkType === "breast_milk" ? "border-primary-400 bg-primary-50 dark:bg-primary-900/30 dark:text-primary-300" : "glass-toggle-btn dark:text-gray-300"}`}
                 >
-                  母乳
+                  {t("milk.breastMilk")}
                 </button>
               </div>
             </div>
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-                奶量
+                {t("recordForm.amount")}
               </label>
               <Slider
                 value={amountMl}
@@ -710,14 +709,14 @@ export default function RecordFormPage() {
           <div className="space-y-3">
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-                食物名称
+                {t("recordForm.foodName")}
               </label>
               <input
                 type="text"
                 value={solidName}
                 onChange={(e) => setSolidName(e.target.value)}
                 className="input"
-                placeholder="如：米糊"
+                placeholder={t("recordForm.foodPlaceholder")}
               />
               {getRecentNames("solid").length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
@@ -736,14 +735,14 @@ export default function RecordFormPage() {
             </div>
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-                食用量
+                {t("recordForm.foodAmount")}
               </label>
               <input
                 type="text"
                 value={solidAmount}
                 onChange={(e) => setSolidAmount(e.target.value)}
                 className="input"
-                placeholder="如：半碗"
+                placeholder={t("recordForm.foodAmountPlaceholder")}
               />
             </div>
           </div>
@@ -752,7 +751,7 @@ export default function RecordFormPage() {
         return (
           <div>
             <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-              水量
+              {t("recordForm.waterAmount")}
             </label>
             <Slider
               value={waterMl}
@@ -768,13 +767,13 @@ export default function RecordFormPage() {
         return (
           <div>
             <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-              类型
+              {t("common.type")}
             </label>
             <div className="flex gap-3">
               {[
-                { value: "wet" as const, label: "尿" },
-                { value: "dirty" as const, label: "便" },
-                { value: "both" as const, label: "尿+便" },
+                { value: "wet" as const, label: t("diaper.wet") },
+                { value: "dirty" as const, label: t("diaper.dirty") },
+                { value: "both" as const, label: t("diaper.both") },
               ].map((item) => (
                 <button
                   key={item.value}
@@ -792,27 +791,26 @@ export default function RecordFormPage() {
         return (
           <div>
             <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-              名称
+              {t("recordForm.supplementName")}
             </label>
             <input
               type="text"
               value={supplementName}
               onChange={(e) => setSupplementName(e.target.value)}
               className="input"
-              placeholder="如：维生素D"
+              placeholder={t("recordForm.supplementPlaceholder")}
             />
             <div className="flex flex-wrap gap-2 mt-3">
               {[
                 ...getRecentNames("supplement"),
-                "维生素D",
-                "DHA",
-                "益生菌",
-                "维生素AD",
-                "铁剂",
-                "钙",
-                "锌",
-                "乳铁蛋白",
-                "鱼肝油",
+                t("supplements.vitaminD"),
+                t("supplements.probiotics"),
+                t("supplements.vitaminAD"),
+                t("supplements.iron"),
+                t("supplements.calcium"),
+                t("supplements.zinc"),
+                t("supplements.lactoferrin"),
+                t("supplements.fishOil"),
               ].map((name) => (
                 <button
                   key={name}
@@ -835,7 +833,7 @@ export default function RecordFormPage() {
           <div className="space-y-3">
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-                温度
+                {t("recordForm.temperature")}
               </label>
               <Slider
                 value={temperature}
@@ -848,14 +846,14 @@ export default function RecordFormPage() {
             </div>
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-                测量部位
+                {t("recordForm.location")}
               </label>
               <div className="flex gap-2">
                 {[
-                  { value: "axillary" as const, label: "腋下" },
-                  { value: "ear" as const, label: "耳温" },
-                  { value: "forehead" as const, label: "额温" },
-                  { value: "rectal" as const, label: "肛温" },
+                  { value: "axillary" as const, label: t("temp.axillary") },
+                  { value: "ear" as const, label: t("temp.ear") },
+                  { value: "forehead" as const, label: t("temp.forehead") },
+                  { value: "rectal" as const, label: t("temp.rectal") },
                 ].map((item) => (
                   <button
                     key={item.value}
@@ -876,7 +874,7 @@ export default function RecordFormPage() {
             <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800">
               <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
               <span className="text-sm font-medium text-primary-700 dark:text-primary-300">
-                睡眠进行中，如需结束请返回时间线
+                {t("recordForm.sleepOngoingHint")}
               </span>
             </div>
           );
@@ -890,9 +888,12 @@ export default function RecordFormPage() {
         const sleepDurMin = Math.max(0, Math.round((sleepEnd.getTime() - sleepStart.getTime()) / 60000));
         const sleepDurH = Math.floor(sleepDurMin / 60);
         const sleepDurM = sleepDurMin % 60;
-        const sleepDurLabel = sleepDurH > 0
-          ? `${sleepDurH}小时${sleepDurM > 0 ? `${sleepDurM}分钟` : ''}`
-          : `${sleepDurM}分钟`;
+        const sleepDurLabel =
+          sleepDurH > 0
+            ? sleepDurM > 0
+              ? t("time.hoursMinutes", { h: sleepDurH, m: sleepDurM })
+              : t("time.hoursOnly", { h: sleepDurH })
+            : t("time.minutesShort", { n: sleepDurM });
 
         const applyPreset = (minutes: number) => {
           const base = dayjs(occurredAt);
@@ -909,13 +910,13 @@ export default function RecordFormPage() {
         return (
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">快捷录入</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t("recordForm.quickEntry")}</label>
               <div className="flex gap-2 flex-wrap">
                 {[
-                  { label: '小睡30min', min: 30 },
-                  { label: '小睡1h', min: 60 },
-                  { label: '小睡1.5h', min: 90 },
-                  { label: '小睡2h', min: 120 },
+                  { label: t("time.nap30"), min: 30 },
+                  { label: t("time.nap60"), min: 60 },
+                  { label: t("time.nap90"), min: 90 },
+                  { label: t("time.nap120"), min: 120 },
                 ].map(p => (
                   <button
                     key={p.min}
@@ -931,12 +932,12 @@ export default function RecordFormPage() {
                   onClick={applyNight}
                   className="px-3 py-1.5 text-sm rounded-lg glass-chip text-indigo-600 dark:text-indigo-400 transition-colors"
                 >
-                  夜间睡眠
+                  {t("time.overnight")}
                 </button>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">醒来时间</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t("recordForm.wakeTime")}</label>
               <ScrollDateTimePicker
                 value={sleepEndTime}
                 onChange={(v) => setSleepEndTime(v)}
@@ -945,15 +946,15 @@ export default function RecordFormPage() {
               <DateTimePicker
                 value={sleepEndTime}
                 onChange={(v) => setSleepEndTime(v)}
-                placeholder="选择醒来时间"
+                placeholder={t("ongoing.pickWakeTime")}
                 className="hidden md:flex"
               />
             </div>
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg glass-info-strip">
-              <span className="text-sm text-gray-500 dark:text-gray-400">时长：</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">{t("recordForm.durationLabel")}</span>
               <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{sleepDurLabel}</span>
               {sleepEnd.getDate() !== sleepStart.getDate() && (
-                <span className="text-xs text-indigo-500 dark:text-indigo-400 ml-1">跨天</span>
+                <span className="text-xs text-indigo-500 dark:text-indigo-400 ml-1">{t("recordForm.crossDay")}</span>
               )}
             </div>
           </div>
@@ -965,7 +966,7 @@ export default function RecordFormPage() {
             <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800">
               <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
               <span className="text-sm font-medium text-primary-700 dark:text-primary-300">
-                洗澡进行中，如需结束请返回时间线
+                {t("recordForm.bathOngoingHint")}
               </span>
             </div>
           );
@@ -973,7 +974,7 @@ export default function RecordFormPage() {
         return (
           <div>
             <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-              持续时间
+              {t("recordForm.duration")}
             </label>
             <Slider
               value={bathDuration}
@@ -981,7 +982,7 @@ export default function RecordFormPage() {
               min={0}
               max={60}
               step={1}
-              unit="分钟"
+              unit={t("time.minutesUnit")}
             />
             <div className="flex flex-wrap gap-2 mt-3">
               {[5, 10, 15, 20, 30].map((min) => (
@@ -995,7 +996,7 @@ export default function RecordFormPage() {
                       : "glass-chip text-gray-500 dark:text-gray-400"
                   }`}
                 >
-                  {min}分钟
+                  {t("time.minutesShort", { n: min })}
                 </button>
               ))}
             </div>
@@ -1007,7 +1008,7 @@ export default function RecordFormPage() {
             <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800">
               <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
               <span className="text-sm font-medium text-primary-700 dark:text-primary-300">
-                活动进行中，如需结束请返回时间线
+                {t("recordForm.playOngoingHint")}
               </span>
             </div>
           );
@@ -1015,7 +1016,7 @@ export default function RecordFormPage() {
         return (
           <div>
             <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-              持续时间
+              {t("recordForm.duration")}
             </label>
             <Slider
               value={playDuration}
@@ -1023,7 +1024,7 @@ export default function RecordFormPage() {
               min={0}
               max={120}
               step={5}
-              unit="分钟"
+              unit={t("time.minutesUnit")}
             />
             <div className="flex flex-wrap gap-2 mt-3">
               {[10, 15, 20, 30, 45, 60].map((min) => (
@@ -1037,7 +1038,7 @@ export default function RecordFormPage() {
                       : "glass-chip text-gray-500 dark:text-gray-400"
                   }`}
                 >
-                  {min}分钟
+                  {t("time.minutesShort", { n: min })}
                 </button>
               ))}
             </div>
@@ -1048,7 +1049,7 @@ export default function RecordFormPage() {
           <div className="space-y-4">
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-                吸出量
+                {t("recordForm.pumpAmount")}
               </label>
               <Slider
                 value={pumpAmountMl}
@@ -1061,13 +1062,13 @@ export default function RecordFormPage() {
             </div>
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-                侧别
+                {t("recordForm.pumpSide")}
               </label>
               <div className="flex gap-3">
                 {[
-                  { value: "left" as const, label: "左" },
-                  { value: "right" as const, label: "右" },
-                  { value: "both" as const, label: "双侧" },
+                  { value: "left" as const, label: t("pump.left") },
+                  { value: "right" as const, label: t("pump.right") },
+                  { value: "both" as const, label: t("pump.both") },
                 ].map((item) => (
                   <button
                     key={item.value}
@@ -1086,7 +1087,7 @@ export default function RecordFormPage() {
             </div>
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-                时长
+                {t("recordForm.pumpDuration")}
               </label>
               <Slider
                 value={pumpDuration}
@@ -1094,18 +1095,18 @@ export default function RecordFormPage() {
                 min={0}
                 max={60}
                 step={1}
-                unit="分钟"
+                unit={t("time.minutesUnit")}
               />
             </div>
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-                存储方式
+                {t("recordForm.storage")}
               </label>
               <div className="flex gap-2">
                 {[
-                  { value: "fridge" as const, label: "冷藏" },
-                  { value: "freezer" as const, label: "冷冻" },
-                  { value: "direct_feed" as const, label: "直接喂" },
+                  { value: "fridge" as const, label: t("milk.fridge") },
+                  { value: "freezer" as const, label: t("milk.freezer") },
+                  { value: "direct_feed" as const, label: t("milk.directFeed") },
                 ].map((item) => (
                   <button
                     key={item.value}
@@ -1150,7 +1151,7 @@ export default function RecordFormPage() {
           <ArrowLeft size={20} />
         </Button>
         <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">
-          {typeLabels[type] || type}
+          {recordTypeLabel(type, t)}
         </h2>
         <Button
           type="submit"
@@ -1158,7 +1159,7 @@ export default function RecordFormPage() {
           size="sm"
           disabled={loading || uploading}
         >
-          {loading ? "保存中..." : uploading ? "上传中..." : "保存"}
+          {loading ? t("common.saving") : uploading ? t("common.uploading") : t("common.save")}
         </Button>
       </div>
 
@@ -1209,7 +1210,7 @@ export default function RecordFormPage() {
         {/* Quick Time */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            时间
+            {t("common.time")}
           </label>
           <div className="flex flex-wrap gap-2 mb-2">
             {quickTimes.map((qt) => (
@@ -1233,7 +1234,7 @@ export default function RecordFormPage() {
           <DateTimePicker
             value={occurredAt}
             onChange={(val) => setOccurredAt(val)}
-            placeholder="选择记录时间"
+            placeholder={t("recordForm.pickRecordTime")}
             className="hidden md:flex"
           />
         </div>
@@ -1244,20 +1245,20 @@ export default function RecordFormPage() {
         {/* Note */}
         <div>
           <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
-            备注
+            {t("common.note")}
           </label>
           <Textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
-            placeholder="可选备注..."
+            placeholder={t("recordForm.notePlaceholder")}
           />
         </div>
 
         {/* Images / Videos */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            图片 / 视频
+            {t("common.photosVideos")}
           </label>
           <div className="flex flex-wrap gap-2">
             {previews.map((p, idx) => p.cancelled ? null : (
@@ -1328,7 +1329,7 @@ export default function RecordFormPage() {
               />
               {uploading && uploadingCount > 0 ? (
                 <span className="text-xs text-gray-400 animate-pulse">
-                  上传中
+                  {t("common.uploading")}
                 </span>
               ) : (
                 <ImagePlus size={20} className="text-gray-400" />
@@ -1337,9 +1338,9 @@ export default function RecordFormPage() {
           </div>
           {previews.filter((p) => !p.cancelled).length > 0 && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              已选 {previews.filter((p) => !p.cancelled).length} 个文件
+              {t("recordForm.selectedFiles", { n: previews.filter((p) => !p.cancelled).length })}
               {previews.some((p) => p.error && !p.cancelled) && (
-                <span className="text-red-400 ml-1">(部分上传失败)</span>
+                <span className="text-red-400 ml-1">{t("recordForm.partialUploadFailed")}</span>
               )}
             </p>
           )}
@@ -1352,7 +1353,7 @@ export default function RecordFormPage() {
             onClick={() => setShowDeleteConfirm(true)}
             className="w-full py-2.5 text-sm text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
           >
-            删除这条记录
+            {t("recordForm.deleteThis")}
           </button>
         )}
       </form>
@@ -1360,9 +1361,9 @@ export default function RecordFormPage() {
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>确认删除</DialogTitle>
+            <DialogTitle>{t("recordForm.confirmDelete")}</DialogTitle>
             <DialogDescription>
-              确定要删除这条记录吗？此操作不可撤销。
+              {t("recordForm.confirmDeleteDesc")}
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-3 mt-4">
@@ -1371,7 +1372,7 @@ export default function RecordFormPage() {
               className="flex-1"
               onClick={() => setShowDeleteConfirm(false)}
             >
-              取消
+              {t("common.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -1382,11 +1383,11 @@ export default function RecordFormPage() {
                   cacheInvalidate("/timeline");
                   navigate(-1);
                 } catch {
-                  toast("删除失败", "error");
+                  toast(t("recordForm.deleteFailed"), "error");
                 }
               }}
             >
-              删除
+              {t("common.delete")}
             </Button>
           </div>
         </DialogContent>

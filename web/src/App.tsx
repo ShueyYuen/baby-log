@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, useEffect, useLayoutEffect, useMemo, useRef }
 import { Routes, Route, Navigate, useLocation, Link, type Location } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { useBaby } from './contexts/BabyContext';
+import { useI18n } from './contexts/I18nContext';
 import { KeepAliveActiveContext } from './hooks/useActivated';
 import { usePullRefresh, PullRefreshProvider } from './hooks/usePullRefresh';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
@@ -35,19 +36,21 @@ function PageFallback() {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="flex items-center justify-center h-screen">加载中...</div>;
+  const { t } = useI18n();
+  if (loading) return <div className="flex items-center justify-center h-screen">{t('common.loading')}</div>;
   if (!user) return <Navigate to="/login" />;
   return <>{children}</>;
 }
 
 function BabyBanner() {
   const { currentBaby, loading } = useBaby();
+  const { t } = useI18n();
   if (loading || currentBaby) return null;
   return (
     <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/30">
-      <p className="text-sm text-amber-800 dark:text-amber-200">还没有宝宝信息，添加后即可开始记录</p>
+      <p className="text-sm text-amber-800 dark:text-amber-200">{t('baby.noneBanner')}</p>
       <Link to="/baby/setup" className="shrink-0 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400">
-        去添加
+        {t('baby.goAdd')}
       </Link>
     </div>
   );

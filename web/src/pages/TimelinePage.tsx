@@ -33,6 +33,7 @@ import {
 import { TimelineSkeleton } from "../components/ui/skeleton";
 import { useAuth } from "../contexts/AuthContext";
 import { useBaby } from "../contexts/BabyContext";
+import { useI18n } from "../contexts/I18nContext";
 import { useActivated } from "../hooks/useActivated";
 import { useRefreshHandler } from "../hooks/usePullRefresh";
 import { useServerEvent } from "../hooks/useServerEvents";
@@ -50,11 +51,12 @@ import {
   cacheWrite,
 } from "../lib/queryCache";
 import { quickDiaper, startOngoing } from "../lib/quick-record";
-import { allRecordTypes, twoPhaseTypes, typeConfig } from "../lib/record-types";
+import { allRecordTypes, recordTypeLabel, twoPhaseTypes } from "../lib/record-types";
 
 export default function TimelinePage() {
   const { currentBaby } = useBaby();
   const { isViewer, user } = useAuth();
+  const { t } = useI18n();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -88,20 +90,20 @@ export default function TimelinePage() {
 
   const handleStartOngoing = async (type: string, category: string) => {
     if (!currentBaby) return;
-    const label = typeConfig[type]?.label || "活动";
+    const label = recordTypeLabel(type, t);
     const existing = records.find((r) => r.type === type && r.data?.ongoing);
     if (existing) {
-      toast(`${label}已在进行中`, "info");
+      toast(t("timeline.alreadyOngoing", { label }), "info");
       setShowTypePanel(false);
       return;
     }
     try {
       await startOngoing(currentBaby.id, type as "sleep" | "bath" | "play");
       setShowTypePanel(false);
-      toast(`${label}已开始`, "success");
+      toast(t("timeline.started", { label }), "success");
       loadData(true);
     } catch {
-      toast("开始失败", "error");
+      toast(t("timeline.startFailed"), "error");
     }
   };
 
@@ -202,13 +204,13 @@ export default function TimelinePage() {
       try {
         if (quick === "sleep") {
           await startOngoing(currentBaby.id, "sleep");
-          toast("睡眠已开始", "success");
+          toast(t("timeline.sleepStarted"), "success");
           loadData(true);
         } else if (quick === "diaper") {
           const rec = await quickDiaper(currentBaby.id, "wet");
-          toast("已记小便", "success", {
+          toast(t("timeline.loggedWet"), "success", {
             action: {
-              label: "撤销",
+              label: t("common.undo"),
               onClick: async () => {
                 try {
                   await api.recordsCrud.delete(rec.id);
@@ -222,7 +224,7 @@ export default function TimelinePage() {
           loadData(true);
         }
       } catch {
-        toast("操作失败", "error");
+        toast(t("timeline.actionFailed"), "error");
       }
     })();
   }, [searchParams, currentBaby, isViewer]);
@@ -242,19 +244,19 @@ export default function TimelinePage() {
             babyId: currentBaby.id,
             remindAt: remindAt.toISOString(),
             source: "feeding_manual",
-            title: "喂奶提醒",
-            body: "您设置的喂奶提醒时间已到",
+            title: t("timeline.reminderTitle"),
+            body: t("timeline.reminderBody"),
           });
-          toast("提醒已设置", "success");
+          toast(t("timeline.reminderSet"), "success");
         } catch {
-          toast("设置提醒失败", "error");
+          toast(t("timeline.reminderFailed"), "error");
         }
       }
       return;
     }
     const success = await subscribePush();
     setPushEnabled(success);
-    if (success) toast("通知已开启", "success");
+    if (success) toast(t("timeline.pushEnabled"), "success");
   };
 
   const loadMore = async () => {
@@ -293,10 +295,10 @@ export default function TimelinePage() {
         const today = dayjs().startOf("day");
         const yesterday = today.subtract(1, "day");
         let group: string;
-        if (date.isAfter(today) || date.isSame(today, "day")) group = "今天";
+        if (date.isAfter(today) || date.isSame(today, "day")) group = t("time.today");
         else if (date.isAfter(yesterday) || date.isSame(yesterday, "day"))
-          group = "昨天";
-        else group = date.format("MM月DD日");
+          group = t("time.yesterday");
+        else group = date.format(t("dateFmt.mdPad"));
         if (!acc[group]) acc[group] = [];
         acc[group].push(record);
         return acc;
@@ -309,7 +311,7 @@ export default function TimelinePage() {
       for (const record of items) rows.push({ kind: "item", record });
     }
     return rows;
-  }, [records]);
+  }, [records, t]);
 
   const listRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -370,26 +372,26 @@ export default function TimelinePage() {
           <div className="flex gap-2 items-stretch">
             <div className="grid grid-cols-3 gap-2 flex-1 min-w-0">
               <div className="card text-center py-2 px-1">
-                <p className="text-[11px] text-gray-500">上次喂养</p>
+                <p className="text-[11px] text-gray-500">{t("timeline.lastFeeding")}</p>
                 <p className="text-sm font-semibold mt-0.5 dark:text-gray-100">
                   {summary.lastFeeding
-                    ? formatTimeAgo(minutesSince(summary.lastFeeding.time, now))
+                    ? formatTimeAgo(minutesSince(summary.lastFeeding.time, now), t)
                     : "--"}
                 </p>
               </div>
               <div className="card text-center py-2 px-1">
-                <p className="text-[11px] text-gray-500">上次尿布</p>
+                <p className="text-[11px] text-gray-500">{t("timeline.lastDiaper")}</p>
                 <p className="text-sm font-semibold mt-0.5 dark:text-gray-100">
                   {summary.lastDiaper
-                    ? formatTimeAgo(minutesSince(summary.lastDiaper.time, now))
+                    ? formatTimeAgo(minutesSince(summary.lastDiaper.time, now), t)
                     : "--"}
                 </p>
               </div>
               <div className="card text-center py-2 px-1">
-                <p className="text-[11px] text-gray-500">上次睡眠</p>
+                <p className="text-[11px] text-gray-500">{t("timeline.lastSleep")}</p>
                 <p className="text-sm font-semibold mt-0.5 dark:text-gray-100">
                   {summary.lastSleep
-                    ? formatTimeAgo(minutesSince(summary.lastSleep.time, now))
+                    ? formatTimeAgo(minutesSince(summary.lastSleep.time, now), t)
                     : "--"}
                 </p>
               </div>
@@ -397,16 +399,16 @@ export default function TimelinePage() {
             <div className="flex flex-col gap-1.5 shrink-0 w-9">
               <Link
                 to="/stats"
-                aria-label="数据统计"
-                title="数据统计"
+                aria-label={t("me.stats")}
+                title={t("me.stats")}
                 className="card flex-1 flex items-center justify-center !p-0 text-gray-500 hover:text-primary-500"
               >
                 <BarChart3 size={15} />
               </Link>
               <Link
                 to="/milk-inventory"
-                aria-label="母乳库存"
-                title="母乳库存"
+                aria-label={t("me.milkInventory")}
+                title={t("me.milkInventory")}
                 className="card flex-1 flex items-center justify-center !p-0 text-gray-500 hover:text-primary-500"
               >
                 <Refrigerator size={15} />
@@ -443,7 +445,7 @@ export default function TimelinePage() {
             />
             <input
               type="text"
-              placeholder="搜索备注、内容..."
+              placeholder={t("timeline.searchPlaceholder")}
               className="glass-input-ui w-full h-10 pl-9 pr-3 text-sm rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none"
               onChange={(e) => {
                 const val = e.target.value;
@@ -464,15 +466,15 @@ export default function TimelinePage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全部</SelectItem>
-              <SelectItem value="feeding">喂养</SelectItem>
-              <SelectItem value="nursing">护理</SelectItem>
-              <SelectItem value="activity">活动</SelectItem>
+              <SelectItem value="all">{t("common.all")}</SelectItem>
+              <SelectItem value="feeding">{t("categories.feeding")}</SelectItem>
+              <SelectItem value="nursing">{t("categories.nursing")}</SelectItem>
+              <SelectItem value="activity">{t("categories.activity")}</SelectItem>
             </SelectContent>
           </Select>
           <button
             type="button"
-            aria-label="筛选"
+            aria-label={t("common.filter")}
             className={`${chipClass(showFilters || extraFilterActive)} h-10 w-10 !px-0 inline-flex items-center justify-center shrink-0 rounded-lg`}
             onClick={() => setShowFilters((v) => !v)}
           >
@@ -487,16 +489,16 @@ export default function TimelinePage() {
               className={chipClass(typeFilter === "all")}
               onClick={() => setTypeFilter("all")}
             >
-              全部类型
+              {t("timeline.allTypes")}
             </button>
-            {subtypeOptions.map((t) => (
+            {subtypeOptions.map((item) => (
               <button
-                key={t.type}
+                key={item.type}
                 type="button"
-                className={chipClass(typeFilter === t.type)}
-                onClick={() => setTypeFilter(t.type)}
+                className={chipClass(typeFilter === item.type)}
+                onClick={() => setTypeFilter(item.type)}
               >
-                {t.label}
+                {recordTypeLabel(item.type, t)}
               </button>
             ))}
           </div>
@@ -510,27 +512,27 @@ export default function TimelinePage() {
                 className={chipClass(hasImages)}
                 onClick={() => setHasImages((v) => !v)}
               >
-                有图
+                {t("timeline.hasImages")}
               </button>
               <button
                 type="button"
                 className={chipClass(mineOnly)}
                 onClick={() => setMineOnly((v) => !v)}
               >
-                我记的
+                {t("timeline.mineOnly")}
               </button>
             </div>
             <div className="flex gap-2 items-center">
               <DatePicker
                 value={startDate}
                 onChange={setStartDate}
-                placeholder="开始日期"
+                placeholder={t("timeline.startDate")}
               />
-              <span className="text-xs text-gray-400">至</span>
+              <span className="text-xs text-gray-400">{t("common.to")}</span>
               <DatePicker
                 value={endDate}
                 onChange={setEndDate}
-                placeholder="结束日期"
+                placeholder={t("timeline.endDate")}
               />
               {(startDate || endDate) && (
                 <button
@@ -541,7 +543,7 @@ export default function TimelinePage() {
                     setEndDate("");
                   }}
                 >
-                  清除
+                  {t("common.clear")}
                 </button>
               )}
             </div>
@@ -552,17 +554,17 @@ export default function TimelinePage() {
           <TimelineSkeleton />
         ) : error ? (
           <div className="text-center py-12 text-gray-400">
-            <p>加载失败</p>
+            <p>{t("common.loadFailed")}</p>
             <button
               onClick={() => loadData(true)}
               className="mt-2 text-sm text-primary-500 hover:underline"
             >
-              重试
+              {t("common.retry")}
             </button>
           </div>
         ) : records.length === 0 ? (
           <div className="text-center py-12 text-gray-400 text-sm">
-            还没有记录。点右下角 +，或用「尿 / 便」一键记下换尿布。
+            {t("timeline.empty")}
           </div>
         ) : (
           <div ref={listRef}>
@@ -607,12 +609,12 @@ export default function TimelinePage() {
             </div>
             {loadingMore && (
               <div className="py-4 text-center text-sm text-gray-400">
-                加载中...
+                {t("common.loading")}
               </div>
             )}
             {!hasMore && records.length > 0 && !loadingMore && (
               <div className="py-4 text-center text-xs text-gray-300 dark:text-gray-600">
-                已加载全部记录
+                {t("timeline.loadedAll")}
               </div>
             )}
           </div>
@@ -639,7 +641,7 @@ export default function TimelinePage() {
             <div className="glass-type-panel relative w-full max-w-sm rounded-t-2xl md:rounded-2xl p-6 pb-10 animate-slide-up">
               <div className="flex items-center justify-between mb-5">
                 <h3 className="text-lg font-semibold dark:text-gray-100">
-                  添加记录
+                  {t("timeline.addRecord")}
                 </h3>
                 <button
                   onClick={() => setShowTypePanel(false)}
@@ -649,7 +651,7 @@ export default function TimelinePage() {
                 </button>
               </div>
               <p className="text-sm text-gray-400 mb-3">
-                短按填写详情 · 按住睡眠/洗澡/玩耍约 0.5 秒可直接开始
+                {t("timeline.addHint")}
               </p>
               <div className="grid grid-cols-4 gap-3">
                 {allRecordTypes.map((item) => {
@@ -658,7 +660,7 @@ export default function TimelinePage() {
                     return (
                       <TwoPhaseTypeButton
                         key={item.type}
-                        label={item.label}
+                        label={recordTypeLabel(item.type, t)}
                         icon={Icon}
                         color={`${item.color} bg-white/50 dark:bg-white/[0.06]`}
                         onShortPress={() =>
@@ -683,7 +685,7 @@ export default function TimelinePage() {
                         <Icon size={24} />
                       </div>
                       <span className="text-sm text-gray-700 dark:text-gray-300">
-                        {item.label}
+                        {recordTypeLabel(item.type, t)}
                       </span>
                     </button>
                   );

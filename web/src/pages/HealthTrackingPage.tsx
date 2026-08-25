@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useI18n } from '../contexts/I18nContext';
 import { api, generateIdempotencyKey, toStoredMedia, type HealthCondition, type HealthEntry, type HealthAnnotationsMap, type RecordImage, type UploadMomentResult } from '../lib/api';
 import { useServerEvent } from '../hooks/useServerEvents';
 import dayjs from 'dayjs';
@@ -65,6 +66,7 @@ function ViewAnnotationPanel({ entry, imageIdx, onImageIdxChange, isViewer, onSa
   onSave: (annotations: HealthAnnotationsMap) => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [localAnnotations, setLocalAnnotations] = useState<HealthAnnotationsMap>(entry.annotations || {});
   const currentImg = entry.images[imageIdx];
   const imgKey = currentImg?.key || '';
@@ -94,8 +96,8 @@ function ViewAnnotationPanel({ entry, imageIdx, onImageIdxChange, isViewer, onSa
       />
       {!isViewer && (
         <div className="flex gap-3">
-          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>取消</Button>
-          <Button type="button" className="flex-1" onClick={() => onSave(localAnnotations)}>保存标注</Button>
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button type="button" className="flex-1" onClick={() => onSave(localAnnotations)}>{t('tracking.saveAnnotation')}</Button>
         </div>
       )}
     </div>
@@ -107,6 +109,7 @@ export default function HealthTrackingPage() {
   const navigate = useNavigate();
   const { currentBaby, loading: babyLoading } = useBaby();
   const { isViewer } = useAuth();
+  const { t } = useI18n();
   const { toast } = useToast();
 
   const [condition, setCondition] = useState<HealthCondition | null>(null);
@@ -230,9 +233,9 @@ export default function HealthTrackingPage() {
     try {
       const res = await api.healthConditions.update(condition.id, { status: newStatus });
       setCondition(res.data);
-      toast(newStatus === 'resolved' ? '已标记为康复' : '已重新激活', 'success');
+      toast(newStatus === 'resolved' ? t('tracking.markedResolved') : t('tracking.reactivated'), 'success');
     } catch {
-      toast('操作失败', 'error');
+      toast(t('tracking.actionFailed'), 'error');
     }
   };
 
@@ -246,9 +249,9 @@ export default function HealthTrackingPage() {
       });
       setCondition(res.data);
       setShowEditCondition(false);
-      toast('已更新', 'success');
+      toast(t('tracking.updated'), 'success');
     } catch {
-      toast('更新失败', 'error');
+      toast(t('tracking.updateFailed'), 'error');
     }
   };
 
@@ -256,10 +259,10 @@ export default function HealthTrackingPage() {
     if (!condition) return;
     try {
       await api.healthConditions.delete(condition.id);
-      toast('已删除', 'success');
+      toast(t('tracking.deleted'), 'success');
       navigate('/health');
     } catch {
-      toast('删除失败', 'error');
+      toast(t('tracking.deleteFailed'), 'error');
     }
     setDeletingCondition(false);
   };
@@ -391,9 +394,9 @@ export default function HealthTrackingPage() {
       setEntryPreviews([]);
       setFormAnnotations({});
       loadEntries(1, true);
-      toast(editingEntry ? '记录已更新' : '记录已添加', 'success');
+      toast(editingEntry ? t('tracking.recordUpdated') : t('tracking.recordAdded'), 'success');
     } catch {
-      toast('保存失败', 'error');
+      toast(t('tracking.saveFailed'), 'error');
     }
   };
 
@@ -401,10 +404,10 @@ export default function HealthTrackingPage() {
     if (!conditionId) return;
     try {
       await api.healthConditions.deleteEntry(conditionId, entryId);
-      toast('记录已删除', 'success');
+      toast(t('tracking.recordDeleted'), 'success');
       loadEntries(1, true);
     } catch {
-      toast('删除失败', 'error');
+      toast(t('tracking.deleteFailed'), 'error');
     }
     setDeletingEntryId(null);
   };
@@ -423,9 +426,9 @@ export default function HealthTrackingPage() {
       } as any);
       setViewAnnotationEntry(null);
       loadEntries(1, true);
-      toast('标注已保存', 'success');
+      toast(t('tracking.annotationSaved'), 'success');
     } catch {
-      toast('保存失败', 'error');
+      toast(t('tracking.saveFailed'), 'error');
     }
   };
 
@@ -436,7 +439,7 @@ export default function HealthTrackingPage() {
           <button onClick={() => navigate('/health')} className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 glass-icon-btn transition-colors">
             <ArrowLeft size={20} />
           </button>
-          <h2 className="text-xl font-semibold dark:text-gray-100">加载中...</h2>
+          <h2 className="text-xl font-semibold dark:text-gray-100">{t('common.loading')}</h2>
         </div>
         <div className="flex justify-center py-8">
           <div className="w-6 h-6 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
@@ -452,9 +455,9 @@ export default function HealthTrackingPage() {
           <button onClick={() => navigate('/health')} className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 glass-icon-btn transition-colors">
             <ArrowLeft size={20} />
           </button>
-          <h2 className="text-xl font-semibold dark:text-gray-100">未找到</h2>
+          <h2 className="text-xl font-semibold dark:text-gray-100">{t('common.notFound')}</h2>
         </div>
-        <p className="text-center text-gray-400 py-8">追踪项目不存在</p>
+        <p className="text-center text-gray-400 py-8">{t('tracking.notFound')}</p>
       </div>
     );
   }
@@ -476,7 +479,7 @@ export default function HealthTrackingPage() {
           )}
         </div>
         <Badge variant={condition.status === 'active' ? 'default' : 'secondary'}>
-          {condition.status === 'active' ? '追踪中' : '已康复'}
+          {condition.status === 'active' ? t('health.tracking') : t('health.resolved')}
         </Badge>
       </div>
 
@@ -484,10 +487,10 @@ export default function HealthTrackingPage() {
       {!isViewer && (
         <div className="flex gap-2">
           <Button size="sm" onClick={openNewEntry}>
-            <Plus size={14} /> 添加记录
+            <Plus size={14} /> {t('tracking.addRecord')}
           </Button>
           <Button size="sm" variant="outline" onClick={toggleStatus}>
-            <CheckCircle2 size={14} /> {condition.status === 'active' ? '标记康复' : '重新激活'}
+            <CheckCircle2 size={14} /> {condition.status === 'active' ? t('tracking.markResolved') : t('tracking.reactivate')}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => { setEditName(condition.name); setEditDesc(condition.description || ''); setShowEditCondition(true); }}>
             <Pencil size={14} />
@@ -500,7 +503,7 @@ export default function HealthTrackingPage() {
 
       {/* Timeline Entries */}
       {entries.length === 0 ? (
-        <p className="text-center text-gray-400 py-8">暂无记录，点击上方添加</p>
+        <p className="text-center text-gray-400 py-8">{t('tracking.noRecords')}</p>
       ) : (
         <div className="relative pl-6">
           {/* Timeline vertical line */}
@@ -519,7 +522,7 @@ export default function HealthTrackingPage() {
                 {/* Date + actions */}
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                    {dayjs(entry.date).format('YYYY年M月D日')}
+                    {dayjs(entry.date).format(t('dateFmt.ymd'))}
                   </span>
                   {!isViewer && (
                     <div className="flex items-center gap-0.5">
@@ -594,7 +597,7 @@ export default function HealthTrackingPage() {
       )}
       {!hasMore && entries.length > 0 && !loadingMore && (
         <div className="py-4 text-center text-xs text-gray-300 dark:text-gray-600">
-          已加载全部记录
+          {t('tracking.loadedAll')}
         </div>
       )}
 
@@ -602,19 +605,19 @@ export default function HealthTrackingPage() {
       <Dialog open={showEntryForm} onOpenChange={(open) => { if (!open) { setShowEntryForm(false); setEntryPreviews([]); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>{editingEntry ? '编辑记录' : '添加记录'}</DialogTitle>
+            <DialogTitle>{editingEntry ? t('tracking.editRecord') : t('tracking.addRecord')}</DialogTitle>
           </DialogHeader>
           <form onSubmit={saveEntry} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">日期</label>
-              <DatePicker value={entryDate} onChange={setEntryDate} placeholder="选择日期" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.date')}</label>
+              <DatePicker value={entryDate} onChange={setEntryDate} placeholder={t('datePicker.pickDate')} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">记录</label>
-              <Textarea value={entryNote} onChange={(e) => setEntryNote(e.target.value)} placeholder="观察、测量数据等..." rows={3} />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.record')}</label>
+              <Textarea value={entryNote} onChange={(e) => setEntryNote(e.target.value)} placeholder={t('tracking.notePlaceholder')} rows={3} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">照片 / 视频</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.photosVideosSlash')}</label>
               <div className="flex flex-wrap gap-2">
                 {entryPreviews.map((p, idx) => p.cancelled ? null : (
                   <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden glass-media-thumb">
@@ -630,7 +633,7 @@ export default function HealthTrackingPage() {
                         type="button"
                         onClick={() => setAnnotatingIdx(idx)}
                         className={`absolute bottom-0.5 right-0.5 flex items-center gap-0.5 rounded-md px-1.5 py-1 text-xs transition-colors ${formAnnotations[p.result.key]?.length ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'glass-chip text-gray-500 dark:text-gray-400'}`}
-                        title="标注测量"
+                        title={t('tracking.annotate')}
                       >
                         <Ruler size={12} />
                       </button>
@@ -647,14 +650,14 @@ export default function HealthTrackingPage() {
                 ))}
                 <label className="w-16 h-16 rounded-lg glass-upload-zone flex items-center justify-center cursor-pointer transition-colors">
                   <input type="file" accept="image/*,video/*" className="hidden" multiple disabled={entryUploading} onChange={(e) => { handleEntryUpload(e.target.files); e.target.value = ''; }} />
-                  {entryUploading && entryUploadingCount > 0 ? <span className="text-[10px] text-gray-400 animate-pulse">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
+                  {entryUploading && entryUploadingCount > 0 ? <span className="text-[10px] text-gray-400 animate-pulse">{t('common.uploading')}</span> : <ImagePlus size={16} className="text-gray-400" />}
                 </label>
               </div>
             </div>
 
             <div className="flex gap-3">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowEntryForm(false); setEntryPreviews([]); setFormAnnotations({}); }}>取消</Button>
-              <Button type="submit" className="flex-1" disabled={entryUploading}>保存</Button>
+              <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowEntryForm(false); setEntryPreviews([]); setFormAnnotations({}); }}>{t('common.cancel')}</Button>
+              <Button type="submit" className="flex-1" disabled={entryUploading}>{t('common.save')}</Button>
             </div>
           </form>
         </DialogContent>
@@ -664,7 +667,7 @@ export default function HealthTrackingPage() {
       <Dialog open={annotatingIdx !== null && !!entryPreviews[annotatingIdx!]?.result && !entryPreviews[annotatingIdx!]?.cancelled && entryPreviews[annotatingIdx!]?.type === 'image'} onOpenChange={(open) => { if (!open) setAnnotatingIdx(null); }}>
         <DialogContent className="max-w-lg sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>标注测量</DialogTitle>
+            <DialogTitle>{t('tracking.annotate')}</DialogTitle>
           </DialogHeader>
           {annotatingIdx !== null && entryPreviews[annotatingIdx]?.result && (
             <div className="space-y-3">
@@ -677,7 +680,7 @@ export default function HealthTrackingPage() {
                 }}
               />
               <div className="flex gap-3">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setAnnotatingIdx(null)}>关闭</Button>
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setAnnotatingIdx(null)}>{t('common.close')}</Button>
               </div>
             </div>
           )}
@@ -688,20 +691,20 @@ export default function HealthTrackingPage() {
       <Dialog open={showEditCondition} onOpenChange={setShowEditCondition}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>编辑追踪信息</DialogTitle>
+            <DialogTitle>{t('tracking.editInfo')}</DialogTitle>
           </DialogHeader>
           <form onSubmit={updateCondition} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">名称</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.name')}</label>
               <Input value={editName} onChange={(e) => setEditName(e.target.value)} required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">描述（可选）</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.descriptionOptional')}</label>
               <Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2} />
             </div>
             <div className="flex gap-3">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => setShowEditCondition(false)}>取消</Button>
-              <Button type="submit" className="flex-1">保存</Button>
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setShowEditCondition(false)}>{t('common.cancel')}</Button>
+              <Button type="submit" className="flex-1">{t('common.save')}</Button>
             </div>
           </form>
         </DialogContent>
@@ -710,9 +713,9 @@ export default function HealthTrackingPage() {
       <ConfirmDialog
         open={!!deletingEntryId}
         onOpenChange={(open) => { if (!open) setDeletingEntryId(null); }}
-        title="删除记录"
-        description="确定删除此记录？此操作不可撤销。"
-        confirmLabel="删除"
+        title={t('tracking.deleteRecord')}
+        description={t('tracking.deleteRecordDesc')}
+        confirmLabel={t('common.delete')}
         variant="danger"
         onConfirm={() => deletingEntryId && deleteEntry(deletingEntryId)}
       />
@@ -720,9 +723,9 @@ export default function HealthTrackingPage() {
       <ConfirmDialog
         open={deletingCondition}
         onOpenChange={setDeletingCondition}
-        title="删除追踪"
-        description="确定删除此追踪？所有相关记录都将被删除，此操作不可撤销。"
-        confirmLabel="删除"
+        title={t('tracking.deleteTracking')}
+        description={t('tracking.deleteTrackingDesc')}
+        confirmLabel={t('common.delete')}
         variant="danger"
         onConfirm={deleteCondition}
       />
@@ -731,7 +734,7 @@ export default function HealthTrackingPage() {
       <Dialog open={!!viewAnnotationEntry} onOpenChange={(open) => { if (!open) setViewAnnotationEntry(null); }}>
         <DialogContent className="max-w-lg sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>照片标注</DialogTitle>
+            <DialogTitle>{t('tracking.photoAnnotation')}</DialogTitle>
           </DialogHeader>
           {viewAnnotationEntry && viewAnnotationEntry.images[viewAnnotationImgIdx] && (
             <ViewAnnotationPanel

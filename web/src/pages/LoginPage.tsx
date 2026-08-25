@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useI18n } from '../contexts/I18nContext';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -10,6 +11,7 @@ export default function LoginPage() {
   const [focused, setFocused] = useState<string | null>(null);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,7 +22,7 @@ export default function LoginPage() {
       await login(username, password);
       navigate('/');
     } catch (err: any) {
-      setError(err.message || '登录失败');
+      setError(err.message || t('auth.loginFailed'));
     } finally {
       setLoading(false);
     }
@@ -46,10 +48,10 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-white tracking-wide mt-5">
-            宝宝日志
+            {t('app.name')}
           </h1>
           <p className="text-white/50 text-sm mt-2 tracking-widest uppercase">
-            新生儿照护记录系统
+            {t('app.tagline')}
           </p>
         </div>
 
@@ -59,7 +61,7 @@ export default function LoginPage() {
           <div className="glass-card-glow" />
 
           <h2 className="text-lg font-semibold text-white/90 text-center mb-6 relative z-10">
-            登录
+            {t('auth.login')}
           </h2>
 
           {error && (
@@ -71,7 +73,7 @@ export default function LoginPage() {
           <div className="space-y-5 relative z-10">
             <div>
               <label className="block text-xs font-medium text-white/60 mb-2 tracking-wide uppercase">
-                用户名
+                {t('auth.username')}
               </label>
               <div className={`glass-input-wrapper ${focused === 'username' ? 'glass-input-focused' : ''}`}>
                 <input
@@ -81,7 +83,7 @@ export default function LoginPage() {
                   onFocus={() => setFocused('username')}
                   onBlur={() => setFocused(null)}
                   className="glass-input"
-                  placeholder="请输入用户名"
+                  placeholder={t('auth.usernamePlaceholder')}
                   required
                   autoComplete="username"
                 />
@@ -90,7 +92,7 @@ export default function LoginPage() {
 
             <div>
               <label className="block text-xs font-medium text-white/60 mb-2 tracking-wide uppercase">
-                密码
+                {t('auth.password')}
               </label>
               <div className={`glass-input-wrapper ${focused === 'password' ? 'glass-input-focused' : ''}`}>
                 <input
@@ -100,7 +102,7 @@ export default function LoginPage() {
                   onFocus={() => setFocused('password')}
                   onBlur={() => setFocused(null)}
                   className="glass-input"
-                  placeholder="请输入密码"
+                  placeholder={t('auth.passwordPlaceholder')}
                   required
                   autoComplete="current-password"
                 />
@@ -120,15 +122,15 @@ export default function LoginPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    登录中…
+                    {t('auth.loggingIn')}
                   </span>
-                ) : '登录'}
+                ) : t('auth.login')}
               </span>
             </button>
           </div>
 
           <p className="text-center text-xs text-white/30 mt-6 relative z-10">
-            请联系管理员获取账号
+            {t('auth.contactAdmin')}
           </p>
         </form>
       </div>

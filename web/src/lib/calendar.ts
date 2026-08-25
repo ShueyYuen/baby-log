@@ -1,7 +1,4 @@
-/**
- * Generate an .ics (iCalendar) file and trigger download / share
- * This allows users to add reminders to their system calendar
- */
+import { tZh, type TranslateFn } from '../i18n';
 
 function formatICSDate(date: Date): string {
   return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
@@ -82,23 +79,25 @@ function triggerDownload(url: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export function addFeedingReminderToCalendar(minutesUntilNext: number) {
+export function addFeedingReminderToCalendar(minutesUntilNext: number, t: TranslateFn = tZh) {
   const targetDate = new Date(Date.now() + minutesUntilNext * 60000);
   const hours = targetDate.getHours();
   const minutes = targetDate.getMinutes();
+  const title = t('feeding.calendarTitle');
+  const description = t('feeding.calendarDesc');
 
   // On Android, try to open the system alarm clock
   const isAndroid = /android/i.test(navigator.userAgent);
   if (isAndroid) {
-    const intentUrl = `intent://set?hour=${hours}&minutes=${minutes}&message=${encodeURIComponent('🍼 宝宝喂奶时间到!')}#Intent;action=android.intent.action.SET_ALARM;end`;
+    const intentUrl = `intent://set?hour=${hours}&minutes=${minutes}&message=${encodeURIComponent(title)}#Intent;action=android.intent.action.SET_ALARM;end`;
     const opened = tryOpenUrl(intentUrl);
     if (opened) return;
   }
 
   // Fallback: generate .ics with alarm trigger at event time
   downloadICS({
-    title: '🍼 宝宝喂奶时间到!',
-    description: '根据喂养规律，宝宝预计需要喂奶了',
+    title,
+    description,
     startDate: targetDate,
     endDate: new Date(targetDate.getTime() + 60000),
     alarmMinutesBefore: 0,

@@ -9,6 +9,9 @@
     <title>宝宝日志 - 新生儿照护记录</title>
     <script>
       (function() {
+        var locale = localStorage.getItem('locale');
+        document.documentElement.lang = locale === 'en' ? 'en' : 'zh-CN';
+        if (locale === 'en') document.title = 'Baby Log - Newborn Care Records';
         var theme = localStorage.getItem('theme') || 'system';
         var dark = theme === 'dark' || theme === 'night' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
         if (dark) document.documentElement.classList.add('dark');

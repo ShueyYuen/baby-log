@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useI18n } from '../contexts/I18nContext';
+import type { TranslateFn } from '../i18n';
 import { api, generateIdempotencyKey, toStoredMedia, type RecordImage, type UploadMomentResult, type GrowthItem, type MilestoneItem } from '../lib/api';
 import { cacheRead, cacheWrite, cacheInvalidate } from '../lib/queryCache';
 import { useRefreshHandler } from '../hooks/usePullRefresh';
@@ -18,13 +20,27 @@ import { VisibilityPicker } from '../components/ui/visibility-picker';
 import { getPercentileData, PercentileData } from '../lib/growth-standards';
 import {
   milestoneStandards,
-  milestoneCategoryLabels,
   milestoneCategoryColors,
   getMilestonesForAge,
   evaluateMilestoneTiming,
   formatMonthRange,
   type MilestoneStandard,
 } from '../lib/milestone-standards';
+
+const milestoneTypes = [...milestoneStandards.map((s) => s.type), 'custom'];
+
+function uiMilestoneLabel(type: string, t: TranslateFn, fallback?: string): string {
+  if (type === 'custom') return t('growth.custom');
+  const key = `milestoneItems.${type}`;
+  const translated = t(key);
+  return translated === key ? (fallback ?? type) : translated;
+}
+
+function timingI18nKey(timing: string): string {
+  if (timing === 'on_time') return 'onTime';
+  if (timing === 'not_yet') return 'notYet';
+  return timing;
+}
 
 interface MilestonePreview {
   file?: File;
@@ -73,11 +89,6 @@ function recordImageToPreview(img: RecordImage): MilestonePreview {
 }
 
 
-const milestoneLabels: Record<string, string> = Object.fromEntries([
-  ...milestoneStandards.map((s) => [s.type, s.label]),
-  ['custom', '自定义'],
-]);
-
 function DevelopmentChecklist({
   birthDate,
   milestones,
@@ -89,6 +100,7 @@ function DevelopmentChecklist({
   onRecord: (std: MilestoneStandard) => void;
   isViewer: boolean;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(true);
 
   if (!birthDate) return null;
@@ -123,16 +135,7 @@ function DevelopmentChecklist({
     }
   };
 
-  const timingLabel = (timing: string) => {
-    switch (timing) {
-      case 'early': return '偏早达成';
-      case 'on_time': return '正常达成';
-      case 'late': return '偏晚达成';
-      case 'not_yet': return '待观察';
-      case 'upcoming': return '即将到来';
-      default: return '';
-    }
-  };
+  const timingLabel = (timing: string) => t(`growth.timing.${timingI18nKey(timing)}`);
 
   return (
     <div>
@@ -141,7 +144,7 @@ function DevelopmentChecklist({
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-lg dark:text-gray-100">发育里程碑参考</h3>
+          <h3 className="font-semibold text-lg dark:text-gray-100">{t('growth.checklist')}</h3>
           <span className="text-xs text-gray-400 dark:text-gray-500">
             {doneCount}/{totalCount}
           </span>
@@ -157,7 +160,7 @@ function DevelopmentChecklist({
           <CardContent className="space-y-1 py-2">
             <div className="flex items-center gap-1.5 mb-2 text-[11px] text-gray-400 dark:text-gray-500">
               <Info size={12} />
-              <span>基于 WHO 运动发育研究和 CDC/AAP 指南，{ageMonths.toFixed(1)} 月龄参考</span>
+              <span>{t('growth.checklistHint', { age: ageMonths.toFixed(1) })}</span>
             </div>
 
             {/* Progress bar */}
@@ -186,20 +189,22 @@ function DevelopmentChecklist({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className={`font-medium text-sm ${achieved ? 'line-through text-gray-400 dark:text-gray-500' : 'dark:text-gray-100'}`}>
-                      {std.label}
+                      {uiMilestoneLabel(std.type, t, std.label)}
                     </span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${milestoneCategoryColors[std.category]}`}>
-                      {milestoneCategoryLabels[std.category]}
+                      {t(`growth.cats.${std.category}`)}
                     </span>
                     {std.whoSource && (
                       <span className="text-[9px] px-1 py-0.5 rounded bg-indigo-50 text-indigo-500 dark:bg-indigo-900/30 dark:text-indigo-300 font-medium">WHO</span>
                     )}
                   </div>
                   <div className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-                    {formatMonthRange(std.earliestMonth, std.latestMonth)}
+                    {formatMonthRange(std.earliestMonth, std.latestMonth, t)}
                     {achieved && achievedAge !== null && (
                       <span className="ml-1.5">
-                        · {achievedAge < 1 ? `${Math.round(achievedAge * 30)}天` : `${achievedAge.toFixed(1)}月`}达成
+                        · {achievedAge < 1
+                          ? t('growth.achievedAtDays', { n: Math.round(achievedAge * 30) })
+                          : t('growth.achievedAtMonths', { n: achievedAge.toFixed(1) })}
                       </span>
                     )}
                     {!achieved && <span className="ml-1.5">· {timingLabel(timing)}</span>}
@@ -211,7 +216,7 @@ function DevelopmentChecklist({
                     onClick={() => onRecord(std)}
                     className="flex-shrink-0 text-xs text-primary-500 hover:text-primary-600 px-2 py-1 rounded glass-icon-btn transition-colors"
                   >
-                    记录
+                    {t('growth.recordAction')}
                   </button>
                 )}
               </div>
@@ -226,6 +231,7 @@ function DevelopmentChecklist({
 export default function GrowthPage() {
   const { currentBaby } = useBaby();
   const { isViewer } = useAuth();
+  const { t } = useI18n();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [growthRecords, setGrowthRecords] = useState<GrowthItem[]>([]);
@@ -373,7 +379,7 @@ export default function GrowthPage() {
     await api.milestonesCrud.create({
       babyId: currentBaby.id,
       type: mType,
-      title: mTitle || milestoneLabels[mType],
+      title: mTitle || uiMilestoneLabel(mType, t),
       occurredAt: new Date(mDate).toISOString(),
       description: mDesc || undefined,
       images: completed.length > 0 ? completed : undefined,
@@ -398,7 +404,7 @@ export default function GrowthPage() {
     const completed = mPreviews.filter((p) => p.result && !p.cancelled).map((p) => toStoredMedia(p.result!, { visibleTo: p.visibleTo }));
     await api.milestonesCrud.update(editingMilestone.id, {
       type: mType,
-      title: mTitle || milestoneLabels[mType],
+      title: mTitle || uiMilestoneLabel(mType, t),
       occurredAt: new Date(mDate).toISOString(),
       description: mDesc || undefined,
       images: completed,
@@ -411,10 +417,10 @@ export default function GrowthPage() {
   const deleteMilestone = async (id: string) => {
     try {
       await api.milestonesCrud.delete(id);
-      toast('里程碑已删除', 'success');
+      toast(t('growth.deleted'), 'success');
       loadData(true);
     } catch {
-      toast('删除失败', 'error');
+      toast(t('growth.deleteFailed'), 'error');
     }
     setDeletingMilestoneId(null);
   };
@@ -561,7 +567,7 @@ export default function GrowthPage() {
       const baby = babyPoints.find((b) => b.days === days);
       return {
         days,
-        label: days < 90 ? `${days}天` : `${+(days / 30.44).toFixed(1)}月`,
+        label: days < 90 ? t('age.days', { n: days }) : t('age.monthsShort', { n: +(days / 30.44).toFixed(1) }),
         p3: interpolatePercentile(days, 'p3'),
         p15: interpolatePercentile(days, 'p15'),
         p50: interpolatePercentile(days, 'p50'),
@@ -570,18 +576,18 @@ export default function GrowthPage() {
         value: baby?.value ?? null,
       };
     });
-  }, [growthRecords, activeChart, gender, birthDate]);
+  }, [growthRecords, activeChart, gender, birthDate, t]);
 
   const chartConfig = {
-    weight: { label: '体重(kg)', color: '#f19232', key: 'value' },
-    height: { label: '身高(cm)', color: '#10b981', key: 'value' },
-    head: { label: '头围(cm)', color: '#6366f1', key: 'head' },
+    weight: { label: t('growth.weight'), color: '#f19232', key: 'value' },
+    height: { label: t('growth.height'), color: '#10b981', key: 'value' },
+    head: { label: t('growth.head'), color: '#6366f1', key: 'head' },
   };
 
   if (loading && growthRecords.length === 0 && milestones.length === 0) {
     return (
       <div className="space-y-6">
-        <h2 className="text-xl font-semibold dark:text-gray-100">成长记录</h2>
+        <h2 className="text-xl font-semibold dark:text-gray-100">{t('growth.title')}</h2>
         <GrowthSkeleton />
       </div>
     );
@@ -589,7 +595,7 @@ export default function GrowthPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold dark:text-gray-100">成长记录</h2>
+      <h2 className="text-xl font-semibold dark:text-gray-100">{t('growth.title')}</h2>
 
       {/* Growth Chart */}
       <Card>
@@ -616,8 +622,8 @@ export default function GrowthPage() {
                   type="number"
                   fontSize={11}
                   tick={{ fill: 'var(--chart-axis)' }}
-                  tickFormatter={(days: number) => days < 90 ? `${days}天` : `${Math.round(days / 30.44)}月`}
-                  label={{ value: activeChart === 'head' ? '日龄' : '日龄/月龄', position: 'insideBottom', offset: -10, fontSize: 11, fill: 'var(--chart-axis)' }}
+                  tickFormatter={(days: number) => days < 90 ? t('age.days', { n: days }) : t('age.monthsShort', { n: Math.round(days / 30.44) })}
+                  label={{ value: activeChart === 'head' ? t('growth.dayAge') : t('growth.dayMonthAge'), position: 'insideBottom', offset: -10, fontSize: 11, fill: 'var(--chart-axis)' }}
                   domain={[0, 'dataMax']}
                 />
                 <YAxis fontSize={12} domain={['dataMin - 1', 'dataMax + 1']} tick={{ fill: 'var(--chart-axis)' }} />
@@ -630,7 +636,7 @@ export default function GrowthPage() {
                   }}
                   labelFormatter={(days: number) => {
                     const months = +(days / 30.44).toFixed(1);
-                    return `${days}天 (${months}月)`;
+                    return t('age.daysMonths', { days, months });
                   }}
                 />
                 {activeChart !== 'head' && (
@@ -649,53 +655,53 @@ export default function GrowthPage() {
                   strokeWidth={2.5}
                   dot={{ r: 5, strokeWidth: 2 }}
                   connectNulls
-                  name="宝宝"
+                  name={t('growth.baby')}
                   animationDuration={300}
                 />
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-center text-gray-400 py-8">暂无数据</p>
+            <p className="text-center text-gray-400 py-8">{t('growth.noData')}</p>
           )}
 
           <div className="flex gap-2 mt-4">
             {growthRecords.length > 0 && (
               <Button variant="outline" className="flex-1" asChild>
-                <Link to="/growth/history">历史 ({growthRecords.length})</Link>
+                <Link to="/growth/history">{t('common.history')} ({growthRecords.length})</Link>
               </Button>
             )}
             <Dialog open={showGrowthForm} onOpenChange={setShowGrowthForm}>
               {!isViewer && (
               <DialogTrigger asChild>
                 <Button variant="outline" className="flex-1">
-                  <Plus size={16} /> 记录数据
+                  <Plus size={16} /> {t('growth.recordData')}
                 </Button>
               </DialogTrigger>
               )}
             <DialogContent className="max-w-sm">
               <DialogHeader>
-                <DialogTitle>记录生理数据</DialogTitle>
+                <DialogTitle>{t('growth.recordVitals')}</DialogTitle>
               </DialogHeader>
               <form onSubmit={addGrowth} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">日期</label>
-                  <DatePicker value={gDate} onChange={setGDate} placeholder="选择日期" />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.date')}</label>
+                  <DatePicker value={gDate} onChange={setGDate} placeholder={t('growth.pickDate')} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">体重(kg)</label>
-                  <Input type="number" value={gWeight} onChange={(e) => setGWeight(e.target.value)} step="0.1" placeholder="如：3.5" />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('growth.weight')}</label>
+                  <Input type="number" value={gWeight} onChange={(e) => setGWeight(e.target.value)} step="0.1" placeholder={t('growth.placeholderWeight')} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">身高(cm)</label>
-                  <Input type="number" value={gHeight} onChange={(e) => setGHeight(e.target.value)} step="0.1" placeholder="如：50" />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('growth.height')}</label>
+                  <Input type="number" value={gHeight} onChange={(e) => setGHeight(e.target.value)} step="0.1" placeholder={t('growth.placeholderHeight')} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">头围(cm)</label>
-                  <Input type="number" value={gHead} onChange={(e) => setGHead(e.target.value)} step="0.1" placeholder="如：34" />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('growth.head')}</label>
+                  <Input type="number" value={gHead} onChange={(e) => setGHead(e.target.value)} step="0.1" placeholder={t('growth.placeholderHead')} />
                 </div>
                 <div className="flex gap-3">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => setShowGrowthForm(false)}>取消</Button>
-                  <Button type="submit" className="flex-1">保存</Button>
+                  <Button type="button" variant="outline" className="flex-1" onClick={() => setShowGrowthForm(false)}>{t('common.cancel')}</Button>
+                  <Button type="submit" className="flex-1">{t('common.save')}</Button>
                 </div>
               </form>
             </DialogContent>
@@ -710,7 +716,7 @@ export default function GrowthPage() {
         milestones={milestones}
         onRecord={(std) => {
           setMType(std.type);
-          setMTitle(std.label);
+          setMTitle(uiMilestoneLabel(std.type, t, std.label));
           setMDate(dayjs().format('YYYY-MM-DD'));
           setMDesc('');
           setMPreviews([]);
@@ -722,47 +728,47 @@ export default function GrowthPage() {
       {/* Milestones */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-lg dark:text-gray-100">里程碑</h3>
+          <h3 className="font-semibold text-lg dark:text-gray-100">{t('growth.milestones')}</h3>
           <Dialog open={showMilestoneForm} onOpenChange={setShowMilestoneForm}>
             {!isViewer && (
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm">
-                <Plus size={14} /> 添加
+                <Plus size={14} /> {t('common.add')}
               </Button>
             </DialogTrigger>
             )}
             <DialogContent className="max-w-sm">
               <DialogHeader>
-                <DialogTitle>记录里程碑</DialogTitle>
+                <DialogTitle>{t('growth.addMilestone')}</DialogTitle>
               </DialogHeader>
               <form onSubmit={addMilestone} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">类型</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.type')}</label>
                   <Select value={mType} onValueChange={setMType}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(milestoneLabels).map(([k, v]) => (
-                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      {milestoneTypes.map((k) => (
+                        <SelectItem key={k} value={k}>{uiMilestoneLabel(k, t)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">标题</label>
-                  <Input value={mTitle} onChange={(e) => setMTitle(e.target.value)} placeholder="留空则使用类型名称" />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.title')}</label>
+                  <Input value={mTitle} onChange={(e) => setMTitle(e.target.value)} placeholder={t('growth.titlePlaceholder')} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">日期</label>
-                  <DatePicker value={mDate} onChange={setMDate} placeholder="选择日期" />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.date')}</label>
+                  <DatePicker value={mDate} onChange={setMDate} placeholder={t('growth.pickDate')} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">描述</label>
-                  <Textarea value={mDesc} onChange={(e) => setMDesc(e.target.value)} placeholder="可选..." />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.description')}</label>
+                  <Textarea value={mDesc} onChange={(e) => setMDesc(e.target.value)} placeholder={t('growth.descPlaceholder')} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">图片 / 视频</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.photosVideos')}</label>
                   <div className="flex flex-wrap gap-2">
                     {mPreviews.map((p, idx) => p.cancelled ? null : (
                       <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden glass-media-thumb">
@@ -785,13 +791,13 @@ export default function GrowthPage() {
                     ))}
                     <label className="w-16 h-16 rounded-lg glass-upload-zone flex items-center justify-center cursor-pointer transition-colors">
                       <input type="file" accept="image/*,video/*" className="hidden" multiple disabled={mUploading} onChange={(e) => { handleMilestoneUpload(e.target.files); e.target.value = ''; }} />
-                      {mUploading && mUploadingCount > 0 ? <span className="text-[10px] text-gray-400 animate-pulse">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
+                      {mUploading && mUploadingCount > 0 ? <span className="text-[10px] text-gray-400 animate-pulse">{t('common.uploading')}</span> : <ImagePlus size={16} className="text-gray-400" />}
                     </label>
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowMilestoneForm(false); setMPreviews([]); }}>取消</Button>
-                  <Button type="submit" className="flex-1" disabled={mUploading}>保存</Button>
+                  <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowMilestoneForm(false); setMPreviews([]); }}>{t('common.cancel')}</Button>
+                  <Button type="submit" className="flex-1" disabled={mUploading}>{t('common.save')}</Button>
                 </div>
               </form>
             </DialogContent>
@@ -799,7 +805,7 @@ export default function GrowthPage() {
         </div>
 
         {milestones.length === 0 ? (
-          <p className="text-center text-gray-400 py-6">暂无里程碑记录</p>
+          <p className="text-center text-gray-400 py-6">{t('growth.noMilestones')}</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {milestones.map((m) => {
@@ -807,11 +813,11 @@ export default function GrowthPage() {
               const achievedAge = birthDate ? dayjs(m.occurredAt).diff(dayjs(birthDate), 'month', true) : null;
               const timing = std && achievedAge !== null ? evaluateMilestoneTiming(std, achievedAge, 0) : null;
               const timingBadge = timing === 'early'
-                ? { text: '偏早', cls: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' }
+                ? { text: t('growth.timing.earlyShort'), cls: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' }
                 : timing === 'on_time'
-                ? { text: '正常', cls: 'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-300' }
+                ? { text: t('growth.timing.normalShort'), cls: 'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-300' }
                 : timing === 'late'
-                ? { text: '偏晚', cls: 'bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-300' }
+                ? { text: t('growth.timing.lateShort'), cls: 'bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-300' }
                 : null;
               return (
               <Card key={m.id}>
@@ -828,11 +834,19 @@ export default function GrowthPage() {
                     </div>
                     <p className="text-sm text-gray-400 dark:text-gray-500">
                       {dayjs(m.occurredAt).format('YYYY-MM-DD')}
-                      {achievedAge !== null && <span className="ml-1.5">({achievedAge < 1 ? `${Math.round(achievedAge * 30)}天` : `${achievedAge.toFixed(1)}月龄`})</span>}
+                      {achievedAge !== null && (
+                        <span className="ml-1.5">
+                          {achievedAge < 1
+                            ? t('growth.achievedAgeDays', { n: Math.round(achievedAge * 30) })
+                            : t('growth.achievedAgeMonths', { n: achievedAge.toFixed(1) })}
+                        </span>
+                      )}
                     </p>
                     {std && (
                       <p className="text-[11px] text-gray-400 dark:text-gray-500">
-                        {std.whoSource ? 'WHO' : ''} 参考：{formatMonthRange(std.earliestMonth, std.latestMonth)}
+                        {std.whoSource
+                          ? t('growth.whoRef', { range: formatMonthRange(std.earliestMonth, std.latestMonth, t) })
+                          : t('growth.ref', { range: formatMonthRange(std.earliestMonth, std.latestMonth, t) })}
                       </p>
                     )}
                     {m.description && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{m.description}</p>}
@@ -879,7 +893,7 @@ export default function GrowthPage() {
         )}
         {!milestoneHasMore && milestones.length > 0 && !milestoneLoadingMore && (
           <div className="py-4 text-center text-xs text-gray-300 dark:text-gray-600">
-            已加载全部里程碑
+            {t('growth.loadedAll')}
           </div>
         )}
 
@@ -887,36 +901,36 @@ export default function GrowthPage() {
         <Dialog open={!!editingMilestone} onOpenChange={(open) => { if (!open) setEditingMilestone(null); }}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
-              <DialogTitle>编辑里程碑</DialogTitle>
+              <DialogTitle>{t('growth.editMilestone')}</DialogTitle>
             </DialogHeader>
             <form onSubmit={saveMilestone} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">类型</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.type')}</label>
                 <Select value={mType} onValueChange={setMType}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(milestoneLabels).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>{v}</SelectItem>
+                    {milestoneTypes.map((k) => (
+                      <SelectItem key={k} value={k}>{uiMilestoneLabel(k, t)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">标题</label>
-                <Input value={mTitle} onChange={(e) => setMTitle(e.target.value)} placeholder="留空则使用类型名称" />
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.title')}</label>
+                <Input value={mTitle} onChange={(e) => setMTitle(e.target.value)} placeholder={t('growth.titlePlaceholder')} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">日期</label>
-                <DatePicker value={mDate} onChange={setMDate} placeholder="选择日期" />
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.date')}</label>
+                <DatePicker value={mDate} onChange={setMDate} placeholder={t('growth.pickDate')} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">描述</label>
-                <Textarea value={mDesc} onChange={(e) => setMDesc(e.target.value)} placeholder="可选..." />
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.description')}</label>
+                <Textarea value={mDesc} onChange={(e) => setMDesc(e.target.value)} placeholder={t('growth.descPlaceholder')} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">图片 / 视频</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('common.photosVideos')}</label>
                 <div className="flex flex-wrap gap-2">
                   {mPreviews.map((p, idx) => p.cancelled ? null : (
                     <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden glass-media-thumb">
@@ -939,13 +953,13 @@ export default function GrowthPage() {
                   ))}
                   <label className="w-16 h-16 rounded-lg glass-upload-zone flex items-center justify-center cursor-pointer transition-colors">
                     <input type="file" accept="image/*,video/*" className="hidden" multiple disabled={mUploading} onChange={(e) => { handleMilestoneUpload(e.target.files); e.target.value = ''; }} />
-                    {mUploading && mUploadingCount > 0 ? <span className="text-[10px] text-gray-400 animate-pulse">上传中</span> : <ImagePlus size={16} className="text-gray-400" />}
+                    {mUploading && mUploadingCount > 0 ? <span className="text-[10px] text-gray-400 animate-pulse">{t('common.uploading')}</span> : <ImagePlus size={16} className="text-gray-400" />}
                   </label>
                 </div>
               </div>
               <div className="flex gap-3">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => { setEditingMilestone(null); setMPreviews([]); }}>取消</Button>
-                <Button type="submit" className="flex-1" disabled={mUploading}>保存</Button>
+                <Button type="button" variant="outline" className="flex-1" onClick={() => { setEditingMilestone(null); setMPreviews([]); }}>{t('common.cancel')}</Button>
+                <Button type="submit" className="flex-1" disabled={mUploading}>{t('common.save')}</Button>
               </div>
             </form>
           </DialogContent>
@@ -963,9 +977,9 @@ export default function GrowthPage() {
       <ConfirmDialog
         open={!!deletingMilestoneId}
         onOpenChange={(open) => { if (!open) setDeletingMilestoneId(null); }}
-        title="删除里程碑"
-        description="确定删除此里程碑？此操作不可撤销。"
-        confirmLabel="删除"
+        title={t('growth.deleteTitle')}
+        description={t('growth.deleteDesc')}
+        confirmLabel={t('common.delete')}
         variant="danger"
         onConfirm={() => deletingMilestoneId && deleteMilestone(deletingMilestoneId)}
       />

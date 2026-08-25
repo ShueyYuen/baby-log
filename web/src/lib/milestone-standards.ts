@@ -188,11 +188,13 @@ export function evaluateMilestoneTiming(
   return 'late';
 }
 
-export function formatMonthRange(earliest: number, latest: number): string {
+import { tZh, type TranslateFn } from '../i18n';
+
+export function formatMonthRange(earliest: number, latest: number, t: TranslateFn = tZh): string {
   const fmtMonth = (m: number) => {
-    if (m < 1) return `${Math.round(m * 30)}天`;
-    if (Number.isInteger(m)) return `${m}月`;
-    return `${m.toFixed(1)}月`;
+    if (m < 1) return t('growth.monthRangeDays', { n: Math.round(m * 30) });
+    if (Number.isInteger(m)) return t('growth.monthRangeMonths', { n: m });
+    return t('growth.monthRangeMonths', { n: m.toFixed(1) });
   };
   return `${fmtMonth(earliest)} ~ ${fmtMonth(latest)}`;
 }
