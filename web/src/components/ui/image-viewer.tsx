@@ -3,6 +3,10 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { KeepAliveActiveContext } from '../../hooks/useActivated';
 
+const VideoPlayer = React.lazy(() =>
+  import('./video-player').then((mod) => ({ default: mod.VideoPlayer })),
+);
+
 export interface ViewerImage {
   url: string;
   rawUrl?: string;
@@ -285,30 +289,61 @@ function ZoomableImage({ src, onSwipeLeft, onSwipeRight, onBackdropClick }: Zoom
   );
 }
 
+function isPlayerChrome(target: EventTarget | null) {
+  return (
+    target instanceof Element &&
+    !!target.closest(
+      '.art-bottom, .art-controls, .art-progress, .art-settings, .art-control, .art-mask, .art-lock-wrap, .art-volume, .art-selector',
+    )
+  );
+}
+
+function VideoFallback({ poster }: { poster?: string }) {
+  return (
+    <div className="absolute inset-0 bg-black" data-testid="video-player-fallback">
+      {poster ? (
+        <img src={poster} alt="" className="h-full w-full object-contain" />
+      ) : null}
+    </div>
+  );
+}
+
 function ViewerVideo({
   src,
+  poster,
   onSwipeLeft,
   onSwipeRight,
 }: {
   src: string;
+  poster?: string;
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
 }) {
   const touchStartX = React.useRef<number | null>(null);
   const touchEndX = React.useRef<number | null>(null);
+  const ignoreSwipe = React.useRef(false);
 
   return (
     <div
-      className="relative w-full h-full"
+      className="relative z-0 w-full h-full isolate"
       onTouchStart={(e) => {
+        ignoreSwipe.current = isPlayerChrome(e.target);
+        if (ignoreSwipe.current) {
+          touchStartX.current = null;
+          return;
+        }
         touchStartX.current = e.targetTouches[0].clientX;
         touchEndX.current = null;
       }}
       onTouchMove={(e) => {
+        if (ignoreSwipe.current) return;
         touchEndX.current = e.targetTouches[0].clientX;
       }}
       onTouchEnd={() => {
-        if (touchStartX.current === null || touchEndX.current === null) return;
+        if (ignoreSwipe.current || touchStartX.current === null || touchEndX.current === null) {
+          ignoreSwipe.current = false;
+          return;
+        }
         const delta = touchStartX.current - touchEndX.current;
         if (Math.abs(delta) > 60) {
           delta > 0 ? onSwipeLeft?.() : onSwipeRight?.();
@@ -317,14 +352,11 @@ function ViewerVideo({
         touchEndX.current = null;
       }}
     >
-      <video
-        key={src}
-        src={src}
-        controls
-        autoPlay
-        playsInline
-        className="absolute inset-0 w-full h-full object-contain"
-      />
+      <div className="absolute inset-0">
+        <React.Suspense fallback={<VideoFallback poster={poster} />}>
+          <VideoPlayer key={src} src={src} poster={poster} className="lightbox-video-player" />
+        </React.Suspense>
+      </div>
     </div>
   );
 }
@@ -466,7 +498,7 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
         >
           <DialogPrimitive.Title className="sr-only">查看媒体</DialogPrimitive.Title>
 
-          <div className="absolute top-4 left-0 right-0 z-10 flex items-center justify-between px-4">
+          <div className="lightbox-chrome absolute top-4 left-0 right-0 z-30 flex items-center justify-between px-4">
             {images.length > 1 ? (
               <span className="text-white/80 text-sm font-medium bg-black/40 px-3 py-1 rounded-full">
                 {currentIndex + 1} / {images.length}
@@ -503,7 +535,7 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
             <button
               type="button"
               onClick={() => goTo(currentIndex - 1)}
-              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+              className="lightbox-chrome absolute left-3 top-1/2 -translate-y-1/2 z-30 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors"
             >
               <ChevronLeft size={22} />
             </button>
@@ -513,7 +545,7 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
             <button
               type="button"
               onClick={() => goTo(currentIndex + 1)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+              className="lightbox-chrome absolute right-3 top-1/2 -translate-y-1/2 z-30 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors"
             >
               <ChevronRight size={22} />
             </button>
@@ -522,6 +554,7 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
           {video ? (
             <ViewerVideo
               src={current.url}
+              poster={current.posterUrl}
               onSwipeLeft={currentIndex < images.length - 1 ? () => goTo(currentIndex + 1) : undefined}
               onSwipeRight={currentIndex > 0 ? () => goTo(currentIndex - 1) : undefined}
             />

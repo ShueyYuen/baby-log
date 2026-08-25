@@ -1735,3 +1735,15 @@ body.lightbox-open * {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+
+.lightbox-video-player,
+.lightbox-video-player.art-video-player,
+.lightbox-video-player .art-video-player {
+  width: 100% !important;
+  height: 100% !important;
+  background: transparent;
+}
+
+.lightbox-content > .lightbox-chrome {
+  z-index: 30;
+}
