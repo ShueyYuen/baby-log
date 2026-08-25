@@ -11,7 +11,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
 import { Calendar, CheckCircle, Clock, Plus, CalendarPlus, List, ChevronLeft, ChevronRight, Syringe } from 'lucide-react';
-import { Button, Card, CardContent, Badge, ConfirmDialog, useToast, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ImageViewer, type ViewerImage } from '../components/ui';
+import { Button, Card, CardContent, Badge, ConfirmDialog, useToast, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, MediaThumbs, toViewerImages } from '../components/ui';
 import { addPlanToCalendar } from '../lib/calendar';
 import { PlansSkeleton } from '../components/ui/skeleton';
 import { generateIdempotencyKey } from '../lib/api';
@@ -153,19 +153,16 @@ interface PlanCardItemProps {
 function PlanCardItem({ plan, isViewer, onComplete, onCalendar }: PlanCardItemProps) {
   const navigate = useNavigate();
   const href = `/plan/${plan.id}/edit`;
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [viewerIdx, setViewerIdx] = useState(0);
+  const viewerImages = useMemo(
+    () => toViewerImages(plan.images || []),
+    [plan.images]
+  );
 
   const handleClick = (e: React.MouseEvent) => {
     if (isViewer) return;
-    if ((e.target as HTMLElement).closest('img')) return;
+    if ((e.target as HTMLElement).closest('img, button, [data-media-thumbs]')) return;
     navigate(href, { state: { plan } });
   };
-
-  const viewerImages: ViewerImage[] = useMemo(
-    () => (plan.images || []).map((img) => ({ url: img.url, rawUrl: img.rawUrl })),
-    [plan.images]
-  );
 
   return (
     <Card
@@ -187,18 +184,12 @@ function PlanCardItem({ plan, isViewer, onComplete, onCalendar }: PlanCardItemPr
             {plan.description && (
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{plan.description}</p>
             )}
-            {plan.images && plan.images.length > 0 && (
-              <div className="flex gap-1.5 mt-2 overflow-x-auto">
-                {plan.images.map((img, i) => (
-                  <img
-                    key={i}
-                    src={img.url}
-                    alt=""
-                    className="w-14 h-14 rounded-md object-cover flex-shrink-0 cursor-zoom-in"
-                    onClick={(e) => { e.stopPropagation(); setViewerIdx(i); setViewerOpen(true); }}
-                  />
-                ))}
-              </div>
+            {viewerImages.length > 0 && (
+              <MediaThumbs
+                images={viewerImages}
+                className="mt-2"
+                thumbClassName="w-14 h-14 rounded-md"
+              />
             )}
             <div className="flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 mt-2">
               <Calendar size={14} />
@@ -230,9 +221,6 @@ function PlanCardItem({ plan, isViewer, onComplete, onCalendar }: PlanCardItemPr
           )}
         </div>
       </CardContent>
-      {viewerImages.length > 0 && (
-        <ImageViewer images={viewerImages} initialIndex={viewerIdx} open={viewerOpen} onOpenChange={setViewerOpen} />
-      )}
     </Card>
   );
 }

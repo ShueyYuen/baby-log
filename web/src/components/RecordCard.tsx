@@ -1,32 +1,28 @@
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { Play } from 'lucide-react';
+import type { MouseEvent } from 'react';
 import type { TimelineRecord } from '../lib/api';
 import { formatRecordDetail, typeConfig } from '../lib/record-types';
-import type { ViewerImage } from './ui';
-
-function getViewerImages(images: TimelineRecord['images']): ViewerImage[] {
-  return (images ?? []).map((img) => ({ url: img.url, rawUrl: img.rawUrl }));
-}
+import { MediaThumbs, toViewerImages } from './ui';
 
 interface RecordCardProps {
   record: TimelineRecord;
   isViewer: boolean;
-  onImageClick: (images: ViewerImage[], index: number) => void;
 }
 
-export function RecordCard({ record, isViewer, onImageClick }: RecordCardProps) {
+export function RecordCard({ record, isViewer }: RecordCardProps) {
   const navigate = useNavigate();
   const href = `/record/${record.id}/edit`;
   const config = typeConfig[record.type] || typeConfig.other;
   const Icon = config.icon;
 
-  const handleClick = () => {
+  const handleClick = (e: MouseEvent) => {
     if (isViewer) return;
+    if ((e.target as HTMLElement).closest('[data-media-thumbs]')) return;
     navigate(href, { state: { record } });
   };
 
-  const urls = getViewerImages(record.images);
+  const urls = toViewerImages(record.images ?? []);
 
   return (
     <div
@@ -50,32 +46,13 @@ export function RecordCard({ record, isViewer, onImageClick }: RecordCardProps) 
           <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">{record.user.displayName}</p>
         )}
       </div>
-      {record.images && record.images.length > 0 && (
-        <div className="flex gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-          {record.images.slice(0, 2).map((img, i) => (
-            img.mediaType === 'video' ? (
-              <div key={i} className="w-11 h-11 rounded-lg glass-media-thumb flex items-center justify-center">
-                <Play size={14} className="text-gray-500" />
-              </div>
-            ) : (
-              <img
-                key={i}
-                src={img.url}
-                alt=""
-                className="w-11 h-11 rounded-lg object-cover cursor-zoom-in"
-                onClick={() => onImageClick(urls, i)}
-              />
-            )
-          ))}
-          {record.images.length > 2 && (
-            <span
-              className="w-11 h-11 rounded-lg glass-info-strip flex items-center justify-center text-xs text-gray-500 cursor-zoom-in"
-              onClick={() => onImageClick(urls, 2)}
-            >
-              +{record.images.length - 2}
-            </span>
-          )}
-        </div>
+      {urls.length > 0 && (
+        <MediaThumbs
+          images={urls}
+          max={2}
+          className="flex-shrink-0 overflow-visible"
+          thumbClassName="w-11 h-11 rounded-lg"
+        />
       )}
     </div>
   );

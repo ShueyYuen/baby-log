@@ -10,7 +10,7 @@ import { useActivated } from '../hooks/useActivated';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Plus, Star, Pencil, Trash2, ImagePlus, Play, X, AlertCircle, Check, Clock, ChevronDown, ChevronUp, Info } from 'lucide-react';
-import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DatePicker, ConfirmDialog, useToast } from '../components/ui';
+import { Button, Input, Card, CardContent, CardHeader, CardTitle, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DatePicker, ConfirmDialog, MediaThumbs, ImageViewer, toViewerImages, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import { Textarea } from '../components/ui';
 import { GrowthSkeleton } from '../components/ui/skeleton';
@@ -253,6 +253,8 @@ export default function GrowthPage() {
   const [mDesc, setMDesc] = useState('');
   const [mPreviews, setMPreviews] = useState<MilestonePreview[]>([]);
   const [mUploading, setMUploading] = useState(false);
+  const [mViewerOpen, setMViewerOpen] = useState(false);
+  const [mViewerIdx, setMViewerIdx] = useState(0);
   const mCancelledRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
@@ -487,6 +489,15 @@ export default function GrowthPage() {
   const mUploadingCount = mPreviews.filter(
     (p) => p.file && !p.result && !p.error && !p.cancelled,
   ).length;
+
+  const openMPreview = (p: MilestonePreview) => {
+    const viewable = mPreviews.filter((x) => !x.cancelled && x.url);
+    const idx = viewable.findIndex((x) => x === p);
+    if (idx >= 0) {
+      setMViewerIdx(idx);
+      setMViewerOpen(true);
+    }
+  };
 
   useEffect(() => {
     if (mUploading && mUploadingCount === 0) {
@@ -756,9 +767,9 @@ export default function GrowthPage() {
                     {mPreviews.map((p, idx) => p.cancelled ? null : (
                       <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden glass-media-thumb">
                         {!p.url ? null : p.type === 'video' ? (
-                          <div className="w-full h-full glass-media-thumb flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
+                          <div className="w-full h-full glass-media-thumb flex items-center justify-center cursor-zoom-in" onClick={() => openMPreview(p)}><Play size={16} className="text-gray-500" /></div>
                         ) : (
-                          <img src={p.url} alt="" className="w-full h-full object-cover" decoding="async" loading="lazy" />
+                          <img src={p.url} alt="" className="w-full h-full object-cover cursor-zoom-in" decoding="async" loading="lazy" onClick={() => openMPreview(p)} />
                         )}
                         {p.file && !p.result && <MUploadRing progress={p.progress ?? 0} error={p.error} />}
                         <button type="button" onClick={() => removeMPreview(idx)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center">
@@ -828,18 +839,12 @@ export default function GrowthPage() {
                     )}
                     {m.description && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{m.description}</p>}
                     {m.images && m.images.length > 0 && (
-                      <div className="flex gap-1 mt-1.5">
-                        {m.images.slice(0, 3).map((img, i) => (
-                          img.mediaType === 'video' ? (
-                            <div key={i} className="w-10 h-10 rounded glass-media-thumb flex items-center justify-center"><Play size={12} className="text-gray-500" /></div>
-                          ) : (
-                            <img key={i} src={img.url} alt="" className="w-10 h-10 rounded object-cover" />
-                          )
-                        ))}
-                        {m.images.length > 3 && (
-                          <span className="w-10 h-10 rounded glass-info-strip flex items-center justify-center text-xs text-gray-500">+{m.images.length - 3}</span>
-                        )}
-                      </div>
+                      <MediaThumbs
+                        images={toViewerImages(m.images)}
+                        className="mt-1.5"
+                        thumbClassName="w-10 h-10 rounded"
+                        max={3}
+                      />
                     )}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -918,9 +923,9 @@ export default function GrowthPage() {
                   {mPreviews.map((p, idx) => p.cancelled ? null : (
                     <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden glass-media-thumb">
                       {!p.url ? null : p.type === 'video' ? (
-                        <div className="w-full h-full glass-media-thumb flex items-center justify-center"><Play size={16} className="text-gray-500" /></div>
+                        <div className="w-full h-full glass-media-thumb flex items-center justify-center cursor-zoom-in" onClick={() => openMPreview(p)}><Play size={16} className="text-gray-500" /></div>
                       ) : (
-                        <img src={p.url} alt="" className="w-full h-full object-cover" decoding="async" loading="lazy" />
+                        <img src={p.url} alt="" className="w-full h-full object-cover cursor-zoom-in" decoding="async" loading="lazy" onClick={() => openMPreview(p)} />
                       )}
                       {p.file && !p.result && <MUploadRing progress={p.progress ?? 0} error={p.error} />}
                       <button type="button" onClick={() => removeMPreview(idx)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center">
@@ -951,6 +956,14 @@ export default function GrowthPage() {
         </Dialog>
       </div>
 
+      <ImageViewer
+        images={mPreviews
+          .filter((p) => !p.cancelled && p.url)
+          .map((p) => ({ url: p.result?.url || p.url, rawUrl: p.result?.rawUrl, mediaType: p.type }))}
+        initialIndex={mViewerIdx}
+        open={mViewerOpen}
+        onOpenChange={setMViewerOpen}
+      />
       <ConfirmDialog
         open={!!deletingMilestoneId}
         onOpenChange={(open) => { if (!open) setDeletingMilestoneId(null); }}

@@ -3,9 +3,6 @@ import "dayjs/locale/zh-cn";
 import relativeTime from "dayjs/plugin/relativeTime";
 import {
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Download,
   Edit2,
   Heart,
   ImagePlus,
@@ -17,7 +14,6 @@ import {
   X,
 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useRefreshHandler } from "../hooks/usePullRefresh";
 import { useServerEvent } from "../hooks/useServerEvents";
 import { useActivated } from "../hooks/useActivated";
@@ -28,6 +24,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  ImageViewer,
+  toViewerImages,
 } from "../components/ui";
 import { MomentsSkeleton } from "../components/ui/skeleton";
 import { VisibilityPicker } from "../components/ui/visibility-picker";
@@ -202,153 +200,6 @@ function MediaGrid({
           </div>
         );
       })}
-    </div>
-  );
-}
-
-// ── Light-box ────────────────────────────────────────────────────────────────
-
-function Lightbox({
-  items,
-  startIndex,
-  onClose,
-}: {
-  items: MediaItemDisplay[];
-  startIndex: number;
-  onClose: () => void;
-}) {
-  const [current, setCurrent] = useState(startIndex);
-  const touchStartX = useRef<number | null>(null);
-  const touchEndX = useRef<number | null>(null);
-  const SWIPE_THRESHOLD = 50;
-
-  const prev = () => setCurrent((i) => Math.max(0, i - 1));
-  const next = () => setCurrent((i) => Math.min(items.length - 1, i + 1));
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowLeft") prev();
-      if (e.key === "ArrowRight") next();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [items.length, onClose]);
-
-  const item = items[current];
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-black/95 flex flex-col"
-      onClick={onClose}
-    >
-      {/* Header */}
-      <div
-        className="flex items-center justify-between px-4 py-3"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <span className="text-white/60 text-sm">
-          {current + 1} / {items.length}
-        </span>
-        <div className="flex items-center gap-3">
-          {item?.rawUrl && (
-            <a
-              href={item.rawUrl}
-              download
-              className="flex items-center gap-1 text-white/70 hover:text-white text-sm"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Download size={16} />
-              <span>原图</span>
-            </a>
-          )}
-          <button onClick={onClose} className="text-white/70 hover:text-white">
-            <X size={22} />
-          </button>
-        </div>
-      </div>
-
-      {/* Media area: swipe on mobile, arrows on desktop */}
-      <div
-        className="flex-1 relative flex items-center justify-center px-4 pb-4"
-        onClick={(e) => e.stopPropagation()}
-        onTouchStart={(e) => {
-          touchStartX.current = e.targetTouches[0].clientX;
-          touchEndX.current = null;
-        }}
-        onTouchMove={(e) => {
-          touchEndX.current = e.targetTouches[0].clientX;
-        }}
-        onTouchEnd={() => {
-          if (touchStartX.current === null || touchEndX.current === null)
-            return;
-          const delta = touchStartX.current - touchEndX.current;
-          if (Math.abs(delta) > SWIPE_THRESHOLD) {
-            delta > 0 ? next() : prev();
-          }
-          touchStartX.current = null;
-          touchEndX.current = null;
-        }}
-      >
-        {/* Left arrow — desktop only */}
-        {current > 0 && (
-          <button
-            className="flex absolute left-2 top-1/2 -translate-y-1/2 items-center justify-center w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors z-10"
-            onClick={(e) => {
-              e.stopPropagation();
-              prev();
-            }}
-          >
-            <ChevronLeft size={24} />
-          </button>
-        )}
-
-        {/* Media */}
-        {item?.mediaType === "video" ? (
-          <video
-            src={item.url}
-            controls
-            autoPlay
-            className="max-h-full max-w-full rounded-lg"
-          />
-        ) : (
-          <img
-            src={item.url}
-            alt=""
-            className="max-h-full max-w-full object-contain rounded-lg select-none"
-            draggable={false}
-          />
-        )}
-
-        {/* Right arrow — desktop only */}
-        {current < items.length - 1 && (
-          <button
-            className="flex absolute right-2 top-1/2 -translate-y-1/2 items-center justify-center w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors z-10"
-            onClick={(e) => {
-              e.stopPropagation();
-              next();
-            }}
-          >
-            <ChevronRight size={24} />
-          </button>
-        )}
-      </div>
-
-      {/* Dot indicators */}
-      {items.length > 1 && (
-        <div
-          className="flex justify-center gap-1.5 pb-4"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {items.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrent(i)}
-              className={`w-1.5 h-1.5 rounded-full transition-all ${i === current ? "bg-white scale-125" : "bg-white/40"}`}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -573,14 +424,12 @@ function MomentCard({
       />
 
       {/* Lightbox — portal to body to escape backdrop-filter containing block */}
-      {lightboxIdx !== null && createPortal(
-        <Lightbox
-          items={moment.mediaItems}
-          startIndex={lightboxIdx}
-          onClose={() => setLightboxIdx(null)}
-        />,
-        document.body
-      )}
+      <ImageViewer
+        images={toViewerImages(moment.mediaItems)}
+        initialIndex={lightboxIdx ?? 0}
+        open={lightboxIdx !== null}
+        onOpenChange={(open) => { if (!open) setLightboxIdx(null); }}
+      />
     </div>
   );
 }
@@ -652,10 +501,12 @@ function UploadProgressRing({
 const PreviewItem = React.memo(function PreviewItem({
   preview,
   onRemove,
+  onPreview,
   onVisibilityChange,
 }: {
   preview: MediaPreview;
   onRemove: () => void;
+  onPreview: () => void;
   onVisibilityChange: (vt: string[] | undefined) => void;
 }) {
   const p = preview;
@@ -664,24 +515,27 @@ const PreviewItem = React.memo(function PreviewItem({
       {!p.url ? null : p.type === "video" ? (
         <video
           src={p.url}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover cursor-zoom-in"
           muted
           playsInline
           preload="metadata"
+          onClick={onPreview}
         />
       ) : (
         <img
           src={p.url}
           alt=""
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover cursor-zoom-in"
           decoding="async"
           loading="lazy"
+          onClick={onPreview}
         />
       )}
       {p.file && !p.result && (
         <UploadProgressRing progress={p.progress ?? 0} error={p.error} />
       )}
       <button
+        type="button"
         onClick={onRemove}
         className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black/80"
       >
@@ -711,6 +565,8 @@ function MomentFormDialog({
   const [previews, setPreviews] = useState<MediaPreview[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIdx, setViewerIdx] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const cancelledRef = useRef<Set<number>>(new Set());
 
@@ -889,6 +745,7 @@ function MomentFormDialog({
   }, [uploading, uploadingCount]);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
         className={[
@@ -922,6 +779,14 @@ function MomentFormDialog({
                   key={idx}
                   preview={p}
                   onRemove={() => removePreview(idx)}
+                  onPreview={() => {
+                    const viewable = previews.filter((x) => !x.cancelled && x.url);
+                    const i = viewable.findIndex((x) => x === p);
+                    if (i >= 0) {
+                      setViewerIdx(i);
+                      setViewerOpen(true);
+                    }
+                  }}
                   onVisibilityChange={(vt) => {
                     setPreviews((prev) =>
                       prev.map((item, i) =>
@@ -998,6 +863,19 @@ function MomentFormDialog({
         </div>
       </DialogContent>
     </Dialog>
+      <ImageViewer
+        images={previews
+          .filter((p) => !p.cancelled && p.url)
+          .map((p) => ({
+            url: p.result?.url || p.url,
+            rawUrl: p.result?.rawUrl,
+            mediaType: p.type,
+          }))}
+        initialIndex={viewerIdx}
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+      />
+    </>
   );
 }
 

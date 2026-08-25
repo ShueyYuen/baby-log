@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { api, generateIdempotencyKey, type UploadMomentResult, type RecordImage } from '../lib/api';
 import { cacheRead } from '../lib/queryCache';
 import { ArrowLeft, Bell, ImagePlus, X, AlertCircle } from 'lucide-react';
-import { Button, Input, Textarea, DateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, useToast } from '../components/ui';
+import { Button, Input, Textarea, DateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ImageViewer, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import dayjs from 'dayjs';
 
@@ -71,6 +71,8 @@ export default function PlanFormPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [imagePreviews, setImagePreviews] = useState<ImagePreview[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIdx, setViewerIdx] = useState(0);
   const imageCancelledRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
@@ -303,7 +305,19 @@ export default function PlanFormPage() {
             {imagePreviews.map((p, i) => p.cancelled ? null : (
               <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden glass-media-thumb flex-shrink-0">
                 {p.url ? (
-                  <img src={p.url} alt="" className="w-full h-full object-cover" />
+                  <img
+                    src={p.url}
+                    alt=""
+                    className="w-full h-full object-cover cursor-zoom-in"
+                    onClick={() => {
+                      const viewable = imagePreviews.filter((x) => !x.cancelled && x.url);
+                      const idx = viewable.findIndex((x) => x === p);
+                      if (idx >= 0) {
+                        setViewerIdx(idx);
+                        setViewerOpen(true);
+                      }
+                    }}
+                  />
                 ) : (
                   <div className="w-full h-full glass-media-thumb animate-pulse" />
                 )}
@@ -417,6 +431,14 @@ export default function PlanFormPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <ImageViewer
+        images={imagePreviews
+          .filter((p) => !p.cancelled && p.url)
+          .map((p) => ({ url: p.result?.url || p.url, rawUrl: p.result?.rawUrl }))}
+        initialIndex={viewerIdx}
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+      />
     </div>
   );
 }

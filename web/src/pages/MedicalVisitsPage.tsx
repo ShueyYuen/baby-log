@@ -309,6 +309,8 @@ function VisitForm() {
   const [saving, setSaving] = useState(false);
   const [loadingVisit, setLoadingVisit] = useState(isEdit);
   const [ocrRunning, setOcrRunning] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIdx, setViewerIdx] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -632,14 +634,16 @@ function VisitForm() {
             图片（处方、化验单等）
           </label>
           <div className="grid grid-cols-4 gap-2">
-            {existingImages.map((img) => (
+            {existingImages.map((img, i) => (
               <div key={img.key} className="relative aspect-square">
                 <img
                   src={img.url}
                   alt=""
-                  className="w-full h-full object-cover rounded-lg"
+                  className="w-full h-full object-cover rounded-lg cursor-zoom-in"
+                  onClick={() => { setViewerIdx(i); setViewerOpen(true); }}
                 />
                 <button
+                  type="button"
                   onClick={() => removeExistingImage(img.key)}
                   className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"
                 >
@@ -647,12 +651,13 @@ function VisitForm() {
                 </button>
               </div>
             ))}
-            {uploads.map((up) => (
+            {uploads.map((up, i) => (
               <div key={up.id} className="relative aspect-square">
                 <img
                   src={up.previewUrl}
                   alt=""
-                  className="w-full h-full object-cover rounded-lg"
+                  className="w-full h-full object-cover rounded-lg cursor-zoom-in"
+                  onClick={() => { setViewerIdx(existingImages.length + i); setViewerOpen(true); }}
                 />
                 {up.progress < 100 && (
                   <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center">
@@ -787,6 +792,15 @@ function VisitForm() {
           </div>
         )}
       </div>
+      <ImageViewer
+        images={[
+          ...existingImages.map((img) => ({ url: img.rawUrl || img.url || '', rawUrl: img.rawUrl })),
+          ...uploads.map((up) => ({ url: up.previewUrl, rawUrl: up.result?.rawUrl })),
+        ]}
+        initialIndex={viewerIdx}
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+      />
     </div>
   );
 }

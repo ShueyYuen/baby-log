@@ -1,34 +1,41 @@
 import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { KeepAliveActiveContext } from '../../hooks/useActivated';
 
 export interface ViewerImage {
   url: string;
   rawUrl?: string;
-}
-
-interface ImageViewerProps {
-  images: (string | ViewerImage)[];
-  initialIndex?: number;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  mediaType?: string;
 }
 
 function resolveImage(img: string | ViewerImage): ViewerImage {
   return typeof img === 'string' ? { url: img } : img;
 }
 
+function isVideo(img: ViewerImage): boolean {
+  if (img.mediaType === 'video') return true;
+  if (img.mediaType === 'image') return false;
+  const src = img.url.split('?')[0].toLowerCase();
+  return /\.(mp4|webm|mov|m4v|ogg)$/.test(src);
+}
+
 function clamp(val: number, min: number, max: number) {
   return Math.min(Math.max(val, min), max);
+}
+
+function stopBubble(e: React.SyntheticEvent) {
+  e.stopPropagation();
 }
 
 interface ZoomableImageProps {
   src: string;
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
+  onBackdropClick?: () => void;
 }
 
-function ZoomableImage({ src, onSwipeLeft, onSwipeRight }: ZoomableImageProps) {
+function ZoomableImage({ src, onSwipeLeft, onSwipeRight, onBackdropClick }: ZoomableImageProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const imgRef = React.useRef<HTMLImageElement>(null);
 
@@ -40,13 +47,11 @@ function ZoomableImage({ src, onSwipeLeft, onSwipeRight }: ZoomableImageProps) {
   scaleRef.current = scale;
   translateRef.current = translate;
 
-  // Reset on image change
   React.useEffect(() => {
     setScale(1);
     setTranslate({ x: 0, y: 0 });
   }, [src]);
 
-  // --- Mouse wheel zoom ---
   React.useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -76,7 +81,6 @@ function ZoomableImage({ src, onSwipeLeft, onSwipeRight }: ZoomableImageProps) {
     return () => el.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // --- Mouse drag pan ---
   const dragging = React.useRef(false);
   const dragStart = React.useRef({ x: 0, y: 0 });
   const dragTranslateStart = React.useRef({ x: 0, y: 0 });
@@ -110,7 +114,6 @@ function ZoomableImage({ src, onSwipeLeft, onSwipeRight }: ZoomableImageProps) {
     };
   }, []);
 
-  // --- Touch: pinch zoom + pan + swipe ---
   const touchState = React.useRef<{
     startTouches: { x: number; y: number }[];
     startScale: number;
@@ -230,7 +233,6 @@ function ZoomableImage({ src, onSwipeLeft, onSwipeRight }: ZoomableImageProps) {
         else if (ts.singleDeltaX < -60 && onSwipeLeft) onSwipeLeft();
       }
 
-      // Double-tap to zoom
       const now = Date.now();
       if (now - ts.lastTapTime < 300) {
         if (scaleRef.current > 1) {
@@ -262,6 +264,9 @@ function ZoomableImage({ src, onSwipeLeft, onSwipeRight }: ZoomableImageProps) {
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && scale <= 1) onBackdropClick?.();
+      }}
       style={{ cursor: scale > 1 ? 'grab' : 'default' }}
     >
       <img
@@ -279,12 +284,146 @@ function ZoomableImage({ src, onSwipeLeft, onSwipeRight }: ZoomableImageProps) {
   );
 }
 
+function ViewerVideo({
+  src,
+  onSwipeLeft,
+  onSwipeRight,
+}: {
+  src: string;
+  onSwipeLeft?: () => void;
+  onSwipeRight?: () => void;
+}) {
+  const touchStartX = React.useRef<number | null>(null);
+  const touchEndX = React.useRef<number | null>(null);
+
+  return (
+    <div
+      className="relative w-full h-full"
+      onTouchStart={(e) => {
+        touchStartX.current = e.targetTouches[0].clientX;
+        touchEndX.current = null;
+      }}
+      onTouchMove={(e) => {
+        touchEndX.current = e.targetTouches[0].clientX;
+      }}
+      onTouchEnd={() => {
+        if (touchStartX.current === null || touchEndX.current === null) return;
+        const delta = touchStartX.current - touchEndX.current;
+        if (Math.abs(delta) > 60) {
+          delta > 0 ? onSwipeLeft?.() : onSwipeRight?.();
+        }
+        touchStartX.current = null;
+        touchEndX.current = null;
+      }}
+    >
+      <video
+        key={src}
+        src={src}
+        controls
+        autoPlay
+        playsInline
+        className="absolute inset-0 w-full h-full object-contain"
+      />
+    </div>
+  );
+}
+
+const VIEWER_HISTORY_KEY = '__blImageViewer';
+
+function historyHasViewer(): boolean {
+  const state = window.history.state;
+  return !!state && typeof state === 'object' && VIEWER_HISTORY_KEY in state;
+}
+
+function pushViewerHistory() {
+  const prev = window.history.state;
+  window.history.pushState(
+    { ...(prev && typeof prev === 'object' ? prev : {}), [VIEWER_HISTORY_KEY]: Date.now() },
+    '',
+  );
+}
+
+function popViewerHistory() {
+  if (historyHasViewer()) window.history.back();
+}
+
+function swallowClicks(ms = 400) {
+  const started = Date.now();
+  const swallow = (e: Event) => {
+    if (Date.now() - started < ms) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  };
+  document.addEventListener('click', swallow, true);
+  window.setTimeout(() => document.removeEventListener('click', swallow, true), ms);
+}
+
+interface ImageViewerProps {
+  images: (string | ViewerImage)[];
+  initialIndex?: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
 export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: ImageViewerProps) {
   const [currentIndex, setCurrentIndex] = React.useState(initialIndex);
+  const keepAliveActive = React.useContext(KeepAliveActiveContext);
+  const onOpenChangeRef = React.useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+  const dummyOpenRef = React.useRef(false);
+  const popListenerRef = React.useRef<((e: PopStateEvent) => void) | null>(null);
+
+  const detachPopListener = React.useCallback(() => {
+    if (!popListenerRef.current) return;
+    window.removeEventListener('popstate', popListenerRef.current, true);
+    popListenerRef.current = null;
+  }, []);
+
+  const close = React.useCallback(() => {
+    const shouldPopDummy = dummyOpenRef.current && historyHasViewer();
+    dummyOpenRef.current = false;
+    detachPopListener();
+    onOpenChangeRef.current(false);
+    swallowClicks();
+    if (shouldPopDummy) popViewerHistory();
+  }, [detachPopListener]);
 
   React.useEffect(() => {
     if (open) setCurrentIndex(initialIndex);
   }, [open, initialIndex]);
+
+  React.useEffect(() => {
+    document.body.classList.toggle('lightbox-open', open);
+    return () => document.body.classList.remove('lightbox-open');
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
+
+    dummyOpenRef.current = true;
+    pushViewerHistory();
+
+    const onPop = () => {
+      dummyOpenRef.current = false;
+      popListenerRef.current = null;
+      onOpenChangeRef.current(false);
+      swallowClicks();
+    };
+    popListenerRef.current = onPop;
+    window.addEventListener('popstate', onPop, true);
+    return () => {
+      detachPopListener();
+      if (dummyOpenRef.current) {
+        dummyOpenRef.current = false;
+        popViewerHistory();
+      }
+    };
+  }, [open, detachPopListener]);
+
+  React.useEffect(() => {
+    if (open && !keepAliveActive) close();
+  }, [keepAliveActive, open, close]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -302,18 +441,30 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
 
   if (images.length === 0) return null;
 
-  const current = resolveImage(images[currentIndex]);
+  const current = resolveImage(images[currentIndex] ?? images[0]);
+  const video = isVideo(current);
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    <DialogPrimitive.Root open={open} onOpenChange={(next) => { if (!next) close(); else onOpenChange(true); }} modal>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/90 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Overlay
+          className="lightbox-overlay fixed inset-0 z-[200] bg-black/90"
+          onPointerDown={stopBubble}
+          onClick={stopBubble}
+          onMouseDown={stopBubble}
+        />
         <DialogPrimitive.Content
-          className="fixed inset-0 z-[100] flex items-center justify-center outline-none"
+          className="lightbox-content fixed inset-0 z-[200] flex items-center justify-center outline-none"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          onClick={stopBubble}
+          onPointerDown={stopBubble}
+          onMouseDown={stopBubble}
         >
-          <DialogPrimitive.Title className="sr-only">查看图片</DialogPrimitive.Title>
+          <DialogPrimitive.Title className="sr-only">查看媒体</DialogPrimitive.Title>
 
-          {/* Top bar */}
           <div className="absolute top-4 left-0 right-0 z-10 flex items-center justify-between px-4">
             {images.length > 1 ? (
               <span className="text-white/80 text-sm font-medium bg-black/40 px-3 py-1 rounded-full">
@@ -329,21 +480,27 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
                   href={current.rawUrl}
                   download
                   className="flex items-center gap-1 text-white/70 hover:text-white text-sm bg-black/40 px-3 py-1.5 rounded-full transition-colors"
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={stopBubble}
+                  onPointerDown={stopBubble}
                 >
                   <Download size={14} />
                   <span>原图</span>
                 </a>
               )}
-              <DialogPrimitive.Close className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors">
+              <DialogPrimitive.Close
+                className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                onClick={stopBubble}
+                onPointerDown={stopBubble}
+                onMouseDown={stopBubble}
+              >
                 <X size={20} />
               </DialogPrimitive.Close>
             </div>
           </div>
 
-          {/* Prev */}
           {images.length > 1 && currentIndex > 0 && (
             <button
+              type="button"
               onClick={() => goTo(currentIndex - 1)}
               className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors"
             >
@@ -351,9 +508,9 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
             </button>
           )}
 
-          {/* Next */}
           {images.length > 1 && currentIndex < images.length - 1 && (
             <button
+              type="button"
               onClick={() => goTo(currentIndex + 1)}
               className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center text-white hover:bg-black/70 transition-colors"
             >
@@ -361,12 +518,20 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
             </button>
           )}
 
-          {/* Zoomable Image */}
-          <ZoomableImage
-            src={current.url}
-            onSwipeLeft={currentIndex < images.length - 1 ? () => goTo(currentIndex + 1) : undefined}
-            onSwipeRight={currentIndex > 0 ? () => goTo(currentIndex - 1) : undefined}
-          />
+          {video ? (
+            <ViewerVideo
+              src={current.url}
+              onSwipeLeft={currentIndex < images.length - 1 ? () => goTo(currentIndex + 1) : undefined}
+              onSwipeRight={currentIndex > 0 ? () => goTo(currentIndex - 1) : undefined}
+            />
+          ) : (
+            <ZoomableImage
+              src={current.url}
+              onSwipeLeft={currentIndex < images.length - 1 ? () => goTo(currentIndex + 1) : undefined}
+              onSwipeRight={currentIndex > 0 ? () => goTo(currentIndex - 1) : undefined}
+              onBackdropClick={close}
+            />
+          )}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

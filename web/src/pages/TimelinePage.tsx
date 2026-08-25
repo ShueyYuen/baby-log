@@ -1,6 +1,13 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import dayjs from "dayjs";
-import { BarChart3, Plus, Refrigerator, Search, SlidersHorizontal, X } from "lucide-react";
+import {
+  BarChart3,
+  Plus,
+  Refrigerator,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -16,14 +23,12 @@ import { TwoPhaseTypeButton } from "../components/TwoPhaseTypeButton";
 import {
   Button,
   DatePicker,
-  ImageViewer,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
   useToast,
-  type ViewerImage,
 } from "../components/ui";
 import { TimelineSkeleton } from "../components/ui/skeleton";
 import { useAuth } from "../contexts/AuthContext";
@@ -73,9 +78,6 @@ export default function TimelinePage() {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const loadIdRef = useRef(0);
   const [showTypePanel, setShowTypePanel] = useState(false);
-  const [viewerImages, setViewerImages] = useState<ViewerImage[]>([]);
-  const [viewerIndex, setViewerIndex] = useState(0);
-  const [viewerOpen, setViewerOpen] = useState(false);
 
   const hasOngoing = records.some((r) => r.data?.ongoing);
   const now = useNowTicker(hasOngoing);
@@ -345,12 +347,6 @@ export default function TimelinePage() {
     return () => el.removeEventListener("scroll", handleScroll);
   }, [hasMore, loadingMore, records.length]);
 
-  const onImageClickCb = useCallback((images: ViewerImage[], index: number) => {
-    setViewerImages(images);
-    setViewerIndex(index);
-    setViewerOpen(true);
-  }, []);
-
   const subtypeOptions = allRecordTypes.filter(
     (t) => filter === "all" || t.category === filter,
   );
@@ -451,7 +447,7 @@ export default function TimelinePage() {
             <input
               type="text"
               placeholder="搜索备注、内容..."
-              className="glass-input-ui w-full h-10 px-3 text-sm rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none"
+              className="glass-input-ui w-full h-10 pl-9 pr-3 text-sm rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none"
               onChange={(e) => {
                 const val = e.target.value;
                 if (searchTimerRef.current)
@@ -605,11 +601,7 @@ export default function TimelinePage() {
                       </h3>
                     ) : (
                       <div className="pb-2.5">
-                        <RecordCard
-                          record={row.record}
-                          isViewer={isViewer}
-                          onImageClick={onImageClickCb}
-                        />
+                        <RecordCard record={row.record} isViewer={isViewer} />
                       </div>
                     )}
                   </div>
@@ -640,76 +632,70 @@ export default function TimelinePage() {
         </Button>
       )}
 
-      {showTypePanel && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/40 dark:bg-black/60 animate-[dialog-overlay-in_200ms_ease-out]"
-            onClick={() => setShowTypePanel(false)}
-          />
-          <div className="glass-type-panel relative w-full max-w-sm rounded-t-2xl md:rounded-2xl p-6 pb-10 animate-slide-up">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-semibold dark:text-gray-100">
-                添加记录
-              </h3>
-              <button
-                onClick={() => setShowTypePanel(false)}
-                className="p-1 text-gray-400"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <p className="text-sm text-gray-400 mb-3">
-              短按填写详情 · 按住睡眠/洗澡/玩耍约 0.5 秒可直接开始
-            </p>
-            <div className="grid grid-cols-4 gap-3">
-              {sortedTypes.map((item) => {
-                const Icon = item.icon;
-                if (twoPhaseTypes.includes(item.type)) {
+      {showTypePanel &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/40 dark:bg-black/60 animate-[dialog-overlay-in_200ms_ease-out]"
+              onClick={() => setShowTypePanel(false)}
+            />
+            <div className="glass-type-panel relative w-full max-w-sm rounded-t-2xl md:rounded-2xl p-6 pb-10 animate-slide-up">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-semibold dark:text-gray-100">
+                  添加记录
+                </h3>
+                <button
+                  onClick={() => setShowTypePanel(false)}
+                  className="p-1 text-gray-400"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <p className="text-sm text-gray-400 mb-3">
+                短按填写详情 · 按住睡眠/洗澡/玩耍约 0.5 秒可直接开始
+              </p>
+              <div className="grid grid-cols-4 gap-3">
+                {sortedTypes.map((item) => {
+                  const Icon = item.icon;
+                  if (twoPhaseTypes.includes(item.type)) {
+                    return (
+                      <TwoPhaseTypeButton
+                        key={item.type}
+                        label={item.label}
+                        icon={Icon}
+                        color={`${item.color} bg-white/50 dark:bg-white/[0.06]`}
+                        onShortPress={() =>
+                          handleAddType(item.type, item.category)
+                        }
+                        onLongPress={() =>
+                          handleStartOngoing(item.type, item.category)
+                        }
+                      />
+                    );
+                  }
                   return (
-                    <TwoPhaseTypeButton
+                    <button
                       key={item.type}
-                      label={item.label}
-                      icon={Icon}
-                      color={`${item.color} bg-white/50 dark:bg-white/[0.06]`}
-                      onShortPress={() =>
-                        handleAddType(item.type, item.category)
-                      }
-                      onLongPress={() =>
-                        handleStartOngoing(item.type, item.category)
-                      }
-                    />
-                  );
-                }
-                return (
-                  <button
-                    key={item.type}
-                    type="button"
-                    onClick={() => handleAddType(item.type, item.category)}
-                    className="relative flex flex-col items-center gap-2 p-3 rounded-xl glass-icon-btn transition-colors"
-                  >
-                    <div
-                      className={`w-13 h-13 rounded-full flex items-center justify-center ${item.color} bg-white/50 dark:bg-white/[0.06]`}
+                      type="button"
+                      onClick={() => handleAddType(item.type, item.category)}
+                      className="relative flex flex-col items-center gap-2 p-3 rounded-xl glass-icon-btn transition-colors"
                     >
-                      <Icon size={24} />
-                    </div>
-                    <span className="text-sm text-gray-700 dark:text-gray-300">
-                      {item.label}
-                    </span>
-                  </button>
-                );
-              })}
+                      <div
+                        className={`w-13 h-13 rounded-full flex items-center justify-center ${item.color} bg-white/50 dark:bg-white/[0.06]`}
+                      >
+                        <Icon size={24} />
+                      </div>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">
+                        {item.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </div>,
-        document.body,
-      )}
-
-      <ImageViewer
-        images={viewerImages}
-        initialIndex={viewerIndex}
-        open={viewerOpen}
-        onOpenChange={setViewerOpen}
-      />
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
