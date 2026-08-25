@@ -28,6 +28,9 @@ func TestNormalizeMomentMIME(t *testing.T) {
 		{"clip.mp4", "application/octet-stream", "video/mp4"},
 		{"photo.JPG", "application/octet-stream", "image/jpeg"},
 		{"clip.mp4", "video/mp4; codecs=avc1", "video/mp4"},
+		{"IMG_0001.HEIC", "image/heic", "image/heic"},
+		{"IMG_0001.HEIC", "", "image/heic"},
+		{"photo.jpg", "image/jpg", "image/jpeg"},
 	}
 	for _, tc := range cases {
 		got := normalizeMomentMIME(tc.filename, tc.contentType)

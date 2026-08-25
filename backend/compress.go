@@ -6,6 +6,7 @@ import (
 	"image/jpeg"
 	_ "image/gif"
 	_ "image/png"
+	"log"
 	"strings"
 
 	"golang.org/x/image/draw"
@@ -17,8 +18,9 @@ const (
 	jpegQuality       = 85
 )
 
-// compressSem limits concurrent image compression to prevent OOM/CPU saturation.
-var compressSem = make(chan struct{}, 2)
+// compressSem limits concurrent image compression to prevent OOM/CPU saturation
+// on small servers (phone photos decode to tens of MB of RGBA).
+var compressSem = make(chan struct{}, 1)
 
 func isImageMIME(contentType string) bool {
 	return strings.HasPrefix(contentType, "image/")
@@ -34,6 +36,8 @@ func mimeToExt(contentType string) string {
 		return ".gif"
 	case "image/webp":
 		return ".webp"
+	case "image/heic", "image/heif":
+		return ".heic"
 	case "video/mp4":
 		return ".mp4"
 	case "video/quicktime":
@@ -42,6 +46,8 @@ func mimeToExt(contentType string) string {
 		return ".webm"
 	case "video/x-msvideo":
 		return ".avi"
+	case "video/3gpp":
+		return ".3gp"
 	default:
 		return ".bin"
 	}
@@ -53,6 +59,20 @@ func mimeToExt(contentType string) string {
 func compressImage(data []byte, contentType string) (out []byte, outMIME string) {
 	compressSem <- struct{}{}
 	defer func() { <-compressSem }()
+
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return data, contentType
+	}
+	if cfg.Width <= 0 || cfg.Height <= 0 {
+		return data, contentType
+	}
+	// 48MP phone photos decode to ~200MB RGBA; skip resize and keep the
+	// already-compressed original to avoid OOM on 2GB hosts.
+	if int64(cfg.Width)*int64(cfg.Height) > 20_000_000 {
+		log.Printf("[Compress] skip huge image %dx%d", cfg.Width, cfg.Height)
+		return data, contentType
+	}
 
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {

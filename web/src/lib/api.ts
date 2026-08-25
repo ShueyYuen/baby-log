@@ -1,4 +1,4 @@
-import { isLargeFile, uploadLargeFile } from './chunked-upload';
+import { isLargeFile, toUploadableFile, uploadLargeFile } from './chunked-upload';
 
 const API_BASE = '/api/v1';
 
@@ -343,15 +343,16 @@ export interface Baby {
 function createUploader(endpoint: string) {
   const prefix = endpoint.replace(/^\/upload\//, '');
 
-  return (file: File, onProgress?: (percent: number) => void): Promise<UploadMomentResult> => {
-    if (isLargeFile(file)) {
-      return uploadLargeFile(file, prefix, onProgress);
+  return async (file: File, onProgress?: (percent: number) => void): Promise<UploadMomentResult> => {
+    const prepared = await toUploadableFile(file);
+    if (isLargeFile(prepared)) {
+      return uploadLargeFile(prepared, prefix, onProgress);
     }
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const formData = new FormData();
-      formData.append('files', file);
+      formData.append('files', prepared);
 
       if (onProgress) {
         xhr.upload.addEventListener('progress', (e) => {

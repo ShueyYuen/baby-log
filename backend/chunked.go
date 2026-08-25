@@ -63,7 +63,7 @@ func handleChunkedInit(w http.ResponseWriter, r *http.Request) {
 
 	req.ContentType = normalizeMomentMIME(req.Filename, req.ContentType)
 	if !momentAllowedMimeTypes[req.ContentType] {
-		writeErr(w, http.StatusBadRequest, "不支持的文件类型")
+		rejectUnsupportedMIME(w, req.Filename, req.ContentType)
 		return
 	}
 	if req.FileSize <= 0 {
@@ -71,7 +71,10 @@ func handleChunkedInit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.ChunkSize <= 0 {
-		req.ChunkSize = 50 * 1024 * 1024
+		req.ChunkSize = 2 * 1024 * 1024
+	}
+	if req.ChunkSize > 16*1024*1024 {
+		req.ChunkSize = 16 * 1024 * 1024
 	}
 
 	uid := uuid.NewString()
@@ -129,6 +132,8 @@ func handleChunkedInit(w http.ResponseWriter, r *http.Request) {
 	chunkedUploads.Store(uploadID, state)
 
 	trackUploadedFile(key, "")
+	log.Printf("[Chunked] Init: uploadId=%s key=%s size=%d parts=%d chunk=%d",
+		uploadID, key, req.FileSize, totalParts, req.ChunkSize)
 
 	writeOK(w, chunkedInitResponse{
 		UploadID:   uploadID,
@@ -189,7 +194,7 @@ func handleChunkedPart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	written, err := io.Copy(f, r.Body)
+	written, err := io.Copy(f, io.LimitReader(r.Body, state.ChunkSize+4096))
 	if err != nil {
 		log.Printf("[Chunked] Failed to write chunk: %v", err)
 		writeErr(w, http.StatusInternalServerError, "failed to write chunk")

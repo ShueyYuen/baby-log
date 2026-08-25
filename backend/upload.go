@@ -51,10 +51,18 @@ var momentAllowedMimeTypes = map[string]bool{
 	"image/png":       true,
 	"image/gif":       true,
 	"image/webp":      true,
+	"image/heic":      true,
+	"image/heif":      true,
 	"video/mp4":       true,
 	"video/quicktime": true,
 	"video/webm":      true,
 	"video/x-msvideo": true,
+	"video/3gpp":      true,
+}
+
+func rejectUnsupportedMIME(w http.ResponseWriter, filename, contentType string) {
+	log.Printf("[Upload] rejected unsupported type file=%s type=%s", filename, contentType)
+	writeErr(w, http.StatusBadRequest, "不支持的文件类型")
 }
 
 // normalizeMomentMIME maps empty / octet-stream types (common on iOS) to a
@@ -63,6 +71,12 @@ func normalizeMomentMIME(filename, contentType string) string {
 	ct := strings.ToLower(strings.TrimSpace(contentType))
 	if i := strings.IndexByte(ct, ';'); i >= 0 {
 		ct = strings.TrimSpace(ct[:i])
+	}
+	switch ct {
+	case "image/jpg":
+		ct = "image/jpeg"
+	case "video/x-quicktime":
+		ct = "video/quicktime"
 	}
 	if momentAllowedMimeTypes[ct] {
 		return ct
@@ -76,6 +90,8 @@ func normalizeMomentMIME(filename, contentType string) string {
 		return "video/webm"
 	case ".avi":
 		return "video/x-msvideo"
+	case ".3gp":
+		return "video/3gpp"
 	case ".jpg", ".jpeg":
 		return "image/jpeg"
 	case ".png":
@@ -84,6 +100,10 @@ func normalizeMomentMIME(filename, contentType string) string {
 		return "image/gif"
 	case ".webp":
 		return "image/webp"
+	case ".heic":
+		return "image/heic"
+	case ".heif":
+		return "image/heif"
 	default:
 		return ct
 	}
@@ -176,7 +196,7 @@ func handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 		contentType := normalizeMomentMIME(header.Filename, header.Header.Get("Content-Type"))
 		if !momentAllowedMimeTypes[contentType] {
 			f.Close()
-			writeErr(w, http.StatusBadRequest, "不支持的文件类型")
+			rejectUnsupportedMIME(w, header.Filename, contentType)
 			return
 		}
 
@@ -260,7 +280,7 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 		contentType := normalizeMomentMIME(filename, part.Header.Get("Content-Type"))
 		if !momentAllowedMimeTypes[contentType] {
 			part.Close()
-			writeErr(w, http.StatusBadRequest, "不支持的文件类型")
+			rejectUnsupportedMIME(w, filename, contentType)
 			return
 		}
 
@@ -271,17 +291,7 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 		}
 
 		isImage := isImageMIME(contentType)
-		compExt := origExt
-		if isImage {
-			compExt = ".jpg"
-		}
-		compKey := prefix + "/" + uid + compExt
-		var rawKey string
-		if isImage {
-			rawKey = prefix + "/raw/" + uid + origExt
-		}
-
-		result := &uploadResult{Key: compKey}
+		result := &uploadResult{}
 
 		if isImage {
 			data, readErr := io.ReadAll(io.LimitReader(part, maxMomentUploadSize+1))
@@ -294,30 +304,36 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 				writeErr(w, http.StatusBadRequest, "文件内容与声明的类型不匹配")
 				return
 			}
-			result.MediaType = "image"
-			rawOK := true
-			if err := putToS3(rawKey, contentType, bytes.NewReader(data)); err != nil {
-				log.Printf("[Storage] S3 %s raw upload failed (non-fatal): %v", prefix, err)
-				rawOK = false
-			}
 			compData, compMIME := compressImage(data, contentType)
-			if err := putToS3(compKey, compMIME, bytes.NewReader(compData)); err != nil {
-				log.Printf("[Storage] S3 %s compressed upload failed: %v", prefix, err)
+			compExt := origExt
+			if compMIME == "image/jpeg" {
+				compExt = ".jpg"
+			}
+			compKey := prefix + "/" + uid + compExt
+			rawKey := prefix + "/raw/" + uid + origExt
+			result.Key = compKey
+			result.MediaType = "image"
+			if err := writeLocalBytes(compKey, compData); err != nil {
+				log.Printf("[Upload] write local %s: %v", compKey, err)
 				writeErr(w, http.StatusInternalServerError, "Upload failed")
 				return
 			}
-			if rawOK {
+			localComp := filepath.Join(cfg.uploadDir, filepath.FromSlash(compKey))
+			go syncFileToS3(localComp, compKey, "image")
+			if err := writeLocalBytes(rawKey, data); err != nil {
+				log.Printf("[Storage] local raw write failed (non-fatal): %v", err)
+			} else {
 				result.RawKey = rawKey
-				if cfg.s3.publicURL != "" {
-					result.RawURL = buildPublicURL(cfg.s3, rawKey)
-				} else {
-					result.RawURL, _ = getSignedDownloadURL(rawKey, 86400)
-				}
-				if prefix == "medical" && isOCRAvailable() {
-					ocrEnqueueBackground(rawKey, data)
-				}
+				result.RawURL = "/api/v1/uploads/" + rawKey
+				localRaw := filepath.Join(cfg.uploadDir, filepath.FromSlash(rawKey))
+				go syncFileToS3(localRaw, rawKey, "image")
+			}
+			if prefix == "medical" && isOCRAvailable() {
+				ocrEnqueueBackground(rawKey, data)
 			}
 		} else {
+			compKey := prefix + "/" + uid + origExt
+			result.Key = compKey
 			_, err := saveLocalPrefixedVideoToKey(compKey, part, maxMomentUploadSize)
 			part.Close()
 			if err != nil {
@@ -336,15 +352,9 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 			go syncFileToS3(localPath, compKey, "video")
 		}
 
-		if cfg.s3.publicURL != "" {
-			result.URL = buildPublicURL(cfg.s3, compKey)
-		} else if result.MediaType == "video" {
-			result.URL = "/api/v1/uploads/" + compKey
-		} else {
-			result.URL, _ = getSignedDownloadURL(compKey, 3600)
-		}
+		result.URL = "/api/v1/uploads/" + result.Key
 
-		trackUploadedFile(compKey, result.RawKey)
+		trackUploadedFile(result.Key, result.RawKey)
 		results = append(results, result)
 	}
 
@@ -355,6 +365,15 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 
 	log.Printf("[Upload] %s media streaming: count=%d", prefix, len(results))
 	writeOK(w, results)
+}
+
+func writeLocalBytes(key string, data []byte) error {
+	cfg := getStorageConfig()
+	dest := filepath.Join(cfg.uploadDir, filepath.FromSlash(key))
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(dest, data, 0o644)
 }
 
 func saveLocalPrefixedVideo(prefix, filename, contentType string, src io.Reader, maxSize int64) (*uploadResult, error) {

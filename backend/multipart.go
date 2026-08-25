@@ -263,6 +263,10 @@ func mimeFromExt(ext string) string {
 		return "video/webm"
 	case ".avi":
 		return "video/x-msvideo"
+	case ".heic", ".heif":
+		return "image/heic"
+	case ".3gp":
+		return "video/3gpp"
 	default:
 		return "application/octet-stream"
 	}

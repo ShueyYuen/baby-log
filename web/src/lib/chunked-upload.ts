@@ -2,13 +2,13 @@ import type { UploadMomentResult } from './api';
 
 const API_BASE = '/api/v1';
 
-const DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024; // 8MB
-const MIN_CHUNK_SIZE = 4 * 1024 * 1024; // 4MB
-const MAX_CHUNK_SIZE = 50 * 1024 * 1024; // 50MB
-const LARGE_FILE_THRESHOLD = 8 * 1024 * 1024; // videos and files > 8MB use chunked
-const MAX_CONCURRENT = 4;
+const DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024; // 2MB — stays under common nginx body limits
+const MIN_CHUNK_SIZE = 1 * 1024 * 1024; // 1MB
+const MAX_CHUNK_SIZE = 8 * 1024 * 1024; // 8MB
+const LARGE_FILE_THRESHOLD = 32 * 1024 * 1024; // only very large files use chunked
+const MAX_CONCURRENT = 3;
 const MAX_RETRIES = 3;
-const VIDEO_EXT = /\.(mp4|mov|webm|avi|m4v|3gp|mkv)$/i;
+const HEIC_EXT = /\.hei[cf]$/i;
 
 function getToken(): string | null {
   return localStorage.getItem('token');
@@ -30,9 +30,43 @@ interface ChunkedInitResponse {
 }
 
 export function isLargeFile(file: File): boolean {
-  if (file.size > LARGE_FILE_THRESHOLD) return true;
-  if (file.type.startsWith('video/')) return true;
-  return VIDEO_EXT.test(file.name);
+  return file.size > LARGE_FILE_THRESHOLD;
+}
+
+export function isHeicFile(file: File): boolean {
+  const type = (file.type || '').toLowerCase();
+  if (type === 'image/heic' || type === 'image/heif') return true;
+  return HEIC_EXT.test(file.name);
+}
+
+/** Convert HEIC/HEIF to JPEG so iPhone photos can be stored and displayed everywhere. */
+export async function toUploadableFile(file: File): Promise<File> {
+  if (!isHeicFile(file)) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      bitmap.close();
+      return file;
+    }
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error('HEIC conversion failed'))),
+        'image/jpeg',
+        0.9,
+      );
+    });
+    const name = file.name.replace(HEIC_EXT, '.jpg') || 'photo.jpg';
+    return new File([blob], name, { type: 'image/jpeg', lastModified: file.lastModified });
+  } catch (e) {
+    console.warn('[Upload] HEIC conversion failed, uploading original', e);
+    return file;
+  }
 }
 
 function guessContentType(file: File): string {
@@ -51,6 +85,9 @@ function guessContentType(file: File): string {
     case 'jpg':
     case 'jpeg':
       return 'image/jpeg';
+    case 'heic':
+    case 'heif':
+      return 'image/heic';
     case 'png':
       return 'image/png';
     case 'gif':
@@ -335,9 +372,8 @@ async function validateSession(session: UploadSession): Promise<boolean> {
 }
 
 function selectInitialChunkSize(fileSize: number): number {
-  if (fileSize < 32 * 1024 * 1024) return 4 * 1024 * 1024;
-  if (fileSize < 200 * 1024 * 1024) return 8 * 1024 * 1024;
-  if (fileSize < 500 * 1024 * 1024) return DEFAULT_CHUNK_SIZE;
-  if (fileSize < 2 * 1024 * 1024 * 1024) return 20 * 1024 * 1024;
-  return 50 * 1024 * 1024;
+  if (fileSize < 64 * 1024 * 1024) return MIN_CHUNK_SIZE;
+  if (fileSize < 200 * 1024 * 1024) return DEFAULT_CHUNK_SIZE;
+  if (fileSize < 500 * 1024 * 1024) return 4 * 1024 * 1024;
+  return MAX_CHUNK_SIZE;
 }
