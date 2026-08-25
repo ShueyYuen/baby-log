@@ -289,9 +289,8 @@ func handleChunkedComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	if state.MediaType == "video" {
 		attachPosterToResult(result)
-	}
-
-	if cfg.typ == storageS3 && cfg.s3 != nil {
+		enqueueVideoPrepareAndSync(finalPath, state.Key)
+	} else if cfg.typ == storageS3 && cfg.s3 != nil {
 		go syncFileToS3(finalPath, state.Key, state.MediaType)
 	}
 

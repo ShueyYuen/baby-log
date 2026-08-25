@@ -120,16 +120,16 @@ export default function Layout({ children }: LayoutProps) {
   const mobileNav = [
     { path: "/", icon: Home, label: "记录" },
     { path: "/plans", icon: Calendar, label: "计划" },
-    { path: "/moments", icon: Images, label: "朋友圈" },
     { path: "/growth", icon: TrendingUp, label: "成长" },
+    { path: "/moments", icon: Images, label: "朋友圈" },
     { path: "/me", icon: User, label: "我的" },
   ];
 
   const desktopNav = [
     { path: "/", icon: Home, label: "记录" },
     { path: "/plans", icon: Calendar, label: "计划" },
-    { path: "/moments", icon: Images, label: "朋友圈" },
     { path: "/growth", icon: TrendingUp, label: "成长" },
+    { path: "/moments", icon: Images, label: "朋友圈" },
     { path: "/me", icon: User, label: "我的" },
     { path: "/health", icon: Activity, label: "健康" },
     ...(isAdmin ? [{ path: "/admin", icon: Users, label: "管理" }] : []),

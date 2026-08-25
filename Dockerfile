@@ -17,7 +17,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" -o /out/babylog
 
 # ---- Final production image ----
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates && update-ca-certificates
+# ffmpeg/ffprobe: background H.264 transcode + JPEG posters (1-at-a-time on small hosts)
+RUN apk add --no-cache ca-certificates ffmpeg && update-ca-certificates
 WORKDIR /app
 
 COPY --from=go-build /out/babylog-server /app/babylog-server

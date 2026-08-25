@@ -720,6 +720,7 @@ export function MomentFormDialog({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
         className={[
+          "glass-dialog-sheet",
           "w-full max-w-none bottom-0 left-0 right-0 top-auto translate-x-0 translate-y-0",
           "rounded-t-2xl rounded-b-none h-[80svh] pb-0 flex flex-col overflow-hidden",
           "sm:h-auto sm:max-h-[80svh] sm:w-[calc(100%-2rem)] sm:max-w-lg",

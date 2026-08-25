@@ -244,15 +244,15 @@ func handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		trackUploadedFile(result.Key, result.RawKey)
+		localPath := filepath.Join(getStorageConfig().uploadDir, filepath.FromSlash(result.Key))
+		enqueueVideoPrepareAndSync(localPath, result.Key)
 		results = append(results, result)
 	}
 	writeOK(w, results)
 }
 
-// handleUploadMediaStreamingS3 reads each multipart part and uploads to S3
-// with a known Content-Length. Videos are written to local disk first and
-// synced to S3 in the background so the HTTP request can return immediately
-// (the previous io.Pipe PutObject had no Content-Length and hung on OSS).
+// handleUploadMediaStreamingS3 reads each multipart part and writes it locally.
+// Videos are transcoded (1-at-a-time) and synced to S3 in the background.
 func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix string, cfg storageConfig) {
 	mr, err := r.MultipartReader()
 	if err != nil {
@@ -350,7 +350,7 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 			result.MediaType = "video"
 			localPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(compKey))
 			attachPosterToResult(result)
-			go syncFileToS3(localPath, compKey, "video")
+			enqueueVideoPrepareAndSync(localPath, compKey)
 		}
 
 		result.URL = "/api/v1/uploads/" + result.Key
@@ -433,6 +433,9 @@ func saveLocalPrefixedVideoToKey(key string, src io.Reader, maxSize int64) (*upl
 }
 
 func trackUploadedFile(key, rawKey string) {
+	if db == nil {
+		return
+	}
 	now := int64(nowMillis())
 	_, err := db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used") VALUES (?, ?, ?, 0)`,
 		key, rawKey, now)

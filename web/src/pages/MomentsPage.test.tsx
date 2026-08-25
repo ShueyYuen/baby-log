@@ -54,6 +54,14 @@ describe('MomentFormDialog', () => {
     expect(screen.getByText('点击添加照片 / 视频')).toBeInTheDocument();
   });
 
+  it('uses a bottom-sheet animation class on the dialog content', () => {
+    render(
+      <MomentFormDialog open onClose={() => {}} onSave={async () => {}} />,
+    );
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.className).toContain('glass-dialog-sheet');
+  });
+
   it('restores the upload zone after all existing photos are removed', async () => {
     const user = userEvent.setup();
     render(

@@ -201,6 +201,10 @@ func handleMultipartComplete(w http.ResponseWriter, r *http.Request) {
 	if isImageMIME(mimeFromExt(filepath.Ext(req.Key))) {
 		result.MediaType = "image"
 	}
+	if result.MediaType == "video" {
+		attachPosterToResult(result)
+		enqueueS3VideoPrepare(req.Key)
+	}
 
 	log.Printf("[Multipart] Upload completed: key=%s parts=%d", req.Key, len(req.Parts))
 	writeOK(w, []*uploadResult{result})

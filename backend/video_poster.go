@@ -39,8 +39,8 @@ func resolvePosterURL(mediaType, videoKey, posterKey string) string {
 	return url
 }
 
-// attachPosterToResult fills the poster key/URL the client will upload to.
-// The server does not generate covers (ffmpeg is too heavy for this host).
+// attachPosterToResult fills the poster key/URL. The client may still upload a
+// cover; ffmpeg also writes one in the background after transcode when available.
 func attachPosterToResult(result *uploadResult) {
 	if result == nil || result.MediaType != "video" || result.Key == "" {
 		return

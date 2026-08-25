@@ -510,6 +510,33 @@ a.glass-card-ui:hover,
   animation: dialog-content-out 150ms ease-in forwards;
 }
 
+/* Bottom sheet (mobile): slide up like the record type panel.
+   Desktop (sm+) keeps the centered dialog motion. */
+@keyframes dialog-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes dialog-sheet-out {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+
+.glass-dialog-content.glass-dialog-sheet[data-state="open"] {
+  animation: dialog-sheet-in 0.25s ease-out;
+}
+.glass-dialog-content.glass-dialog-sheet[data-state="closed"] {
+  animation: dialog-sheet-out 0.2s ease-in forwards;
+}
+
+@media (min-width: 640px) {
+  .glass-dialog-content.glass-dialog-sheet[data-state="open"] {
+    animation: dialog-content-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .glass-dialog-content.glass-dialog-sheet[data-state="closed"] {
+    animation: dialog-content-out 150ms ease-in forwards;
+  }
+}
+
 @keyframes lightbox-overlay-in {
   from { opacity: 0; }
   to { opacity: 1; }

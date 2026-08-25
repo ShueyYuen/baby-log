@@ -191,6 +191,20 @@ volumes:
 
 ---
 
+## 视频转码（ffmpeg）
+
+生产镜像已包含 ffmpeg。非 Docker 部署需自行安装 `ffmpeg` / `ffprobe`（如 `apt install ffmpeg`）。上传的视频在后台排队处理（同时只跑 1 路），避免 2C4G 机器被打满。默认：x264 `veryfast`、CRF 28、单线程、`nice 19`、最长边 1280、超过 30fps 降到 30，并生成 `.poster.jpg`。转码失败或超时会保留原片。
+
+| 变量名 | 必填 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `VIDEO_TRANSCODE` | 否 | 有 ffmpeg 则开启 | 设为 `0` / `false` 关闭转码 |
+| `VIDEO_TRANSCODE_PRESET` | 否 | `veryfast` | x264 preset（`ultrafast` 更省 CPU） |
+| `VIDEO_TRANSCODE_CRF` | 否 | `28` | 18–35，越大体积越小、画质越低 |
+| `VIDEO_TRANSCODE_MAX_EDGE` | 否 | `1280` | 转码时长边像素上限 |
+| `VIDEO_TRANSCODE_TIMEOUT_SEC` | 否 | `480` | 单文件超时秒数，超时保留原片 |
+
+---
+
 ## 宝塔面板部署配置
 
 如果通过宝塔面板部署，可以在项目根目录创建 `.env` 文件：

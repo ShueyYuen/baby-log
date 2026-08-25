@@ -28,6 +28,12 @@ services:
       # - S3_SECRET_ACCESS_KEY=your-secret-key
       # - S3_PUBLIC_URL=https://your-bucket.oss-cn-hangzhou.aliyuncs.com
       # - S3_FORCE_PATH_STYLE=false
+      # 视频转码（镜像已含 ffmpeg；2C4G 默认单路、单线程，一般无需改）
+      # - VIDEO_TRANSCODE=0
+      # - VIDEO_TRANSCODE_PRESET=veryfast
+      # - VIDEO_TRANSCODE_CRF=28
+      # - VIDEO_TRANSCODE_MAX_EDGE=1280
+      # - VIDEO_TRANSCODE_TIMEOUT_SEC=480
 
 volumes:
   baby-log-data:

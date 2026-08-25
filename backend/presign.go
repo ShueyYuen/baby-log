@@ -169,6 +169,10 @@ func handlePresignComplete(w http.ResponseWriter, r *http.Request) {
 			result.RawURL, _ = toDisplayURL(req.RawKey, 86400)
 		}
 	}
+	if result.MediaType == "video" {
+		attachPosterToResult(result)
+		enqueueS3VideoPrepare(req.Key)
+	}
 
 	writeOK(w, []*uploadResult{result})
 }

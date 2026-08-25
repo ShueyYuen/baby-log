@@ -49,6 +49,8 @@ type testServer struct {
 func newTestServer(t *testing.T) *testServer {
 	t.Helper()
 	setupTestDB(t)
+	// Unrelated tests must not spawn ffmpeg against dummy bytes.
+	t.Setenv("VIDEO_TRANSCODE", "0")
 	return &testServer{t: t, handler: buildRouter(t.TempDir(), "")}
 }
 
