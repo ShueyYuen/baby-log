@@ -22,14 +22,15 @@ type MediaItem struct {
 
 // MediaItemDisplay extends MediaItem with resolved display URLs.
 type MediaItemDisplay struct {
-	Key       string   `json:"key"`
-	RawKey    string   `json:"rawKey,omitempty"`
-	PosterKey string   `json:"posterKey,omitempty"`
-	MediaType string   `json:"mediaType"`
-	URL       string   `json:"url"`
-	RawURL    string   `json:"rawUrl,omitempty"`
-	PosterURL string   `json:"posterUrl,omitempty"`
-	VisibleTo []string `json:"visibleTo,omitempty"`
+	Key        string   `json:"key"`
+	RawKey     string   `json:"rawKey,omitempty"`
+	PosterKey  string   `json:"posterKey,omitempty"`
+	MediaType  string   `json:"mediaType"`
+	URL        string   `json:"url"`
+	RawURL     string   `json:"rawUrl,omitempty"`
+	PosterURL  string   `json:"posterUrl,omitempty"`
+	VisibleTo  []string `json:"visibleTo,omitempty"`
+	Processing bool     `json:"processing,omitempty"`
 }
 
 type momentCommentOut struct {
@@ -81,6 +82,11 @@ func mediaItemKeys(items []MediaItem) []string {
 }
 
 func mediaItemsToDisplay(items []MediaItem, currentUserID string, isAdmin bool, createdBy string) []MediaItemDisplay {
+	keys := make([]string, 0, len(items))
+	for _, item := range items {
+		keys = append(keys, item.Key)
+	}
+	unready := unreadyVideoSet(keys)
 	out := make([]MediaItemDisplay, 0, len(items))
 	for _, item := range items {
 		if !isImageVisibleTo(item.VisibleTo, currentUserID, isAdmin, createdBy) {
@@ -99,6 +105,7 @@ func mediaItemsToDisplay(items []MediaItem, currentUserID string, isAdmin bool, 
 		if item.RawKey != "" {
 			d.RawURL, _ = toDisplayURL(item.RawKey, 86400)
 		}
+		d.URL, d.Processing = gateVideoURL(item.MediaType, item.Key, d.URL, unready)
 		d.PosterURL = resolvePosterURL(item.MediaType, item.Key, item.PosterKey)
 		out = append(out, d)
 	}

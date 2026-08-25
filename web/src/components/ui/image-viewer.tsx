@@ -12,6 +12,7 @@ export interface ViewerImage {
   rawUrl?: string;
   mediaType?: string;
   posterUrl?: string;
+  processing?: boolean;
 }
 
 function resolveImage(img: string | ViewerImage): ViewerImage {
@@ -551,7 +552,14 @@ export function ImageViewer({ images, initialIndex = 0, open, onOpenChange }: Im
             </button>
           )}
 
-          {video ? (
+          {video && (current.processing || !current.url) ? (
+            <div className="relative z-0 w-full h-full bg-black flex flex-col items-center justify-center gap-3" data-testid="video-processing">
+              {current.posterUrl ? (
+                <img src={current.posterUrl} alt="" className="max-h-[70%] max-w-full object-contain opacity-70" />
+              ) : null}
+              <span className="text-white/90 text-sm bg-black/50 px-3 py-1.5 rounded-full">视频处理中，请稍后再看</span>
+            </div>
+          ) : video ? (
             <ViewerVideo
               src={current.url}
               poster={current.posterUrl}

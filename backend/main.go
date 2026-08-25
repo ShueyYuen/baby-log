@@ -43,6 +43,7 @@ func main() {
 
 	startReminderScheduler()
 	startCleanupScheduler()
+	recoverPendingVideoJobs()
 
 	addr := ":" + port
 	log.Printf("Server running on http://localhost:%s", port)

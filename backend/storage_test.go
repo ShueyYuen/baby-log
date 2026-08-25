@@ -186,6 +186,65 @@ func TestServeUploadLocalFile(t *testing.T) {
 	}
 }
 
+func TestServeUploadBlocksUnreadyVideo(t *testing.T) {
+	setupTestDB(t)
+	dir := t.TempDir()
+	t.Setenv("UPLOAD_DIR", dir)
+	key := "moments/pending.mp4"
+	full := filepath.Join(dir, filepath.FromSlash(key))
+	if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(full, []byte("fake-mp4"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO "UploadedFile" ("key", "createdAt", "used", "ready") VALUES (?, ?, 0, 0)`, key, nowMillis()); err != nil {
+		t.Fatal(err)
+	}
+	s := &testServer{t: t, handler: buildRouter(dir, "")}
+	token := insertUser(t, "u1", "U1", "user")
+	resp := s.do(http.MethodGet, "/uploads/"+key, token, nil)
+	if resp.status != 404 {
+		t.Fatalf("unready video should 404, got %d", resp.status)
+	}
+}
+
+func TestDeleteFileRemovesPoster(t *testing.T) {
+	setupTestDB(t)
+	dir := t.TempDir()
+	t.Setenv("UPLOAD_DIR", dir)
+	key := "moments/clip.mp4"
+	pk := "moments/clip.poster.jpg"
+	for _, name := range []string{key, pk} {
+		full := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec(`INSERT INTO "UploadedFile" ("key", "createdAt", "used") VALUES (?, ?, 0)`, pk, nowMillis()); err != nil {
+		t.Fatal(err)
+	}
+	if err := deleteFile(key); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(key))); !os.IsNotExist(err) {
+		t.Fatal("video should be gone")
+	}
+	if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(pk))); !os.IsNotExist(err) {
+		t.Fatal("poster should be gone")
+	}
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM "UploadedFile" WHERE "key" = ?`, pk).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatal("poster tracking row should be deleted")
+	}
+}
+
 func TestSanitizeStorageKeyRejectsTraversal(t *testing.T) {
 	if _, err := sanitizeStorageKey("../etc/passwd"); err == nil {
 		t.Fatal("expected error for .. traversal")
@@ -221,5 +280,24 @@ func TestValidateUploadKeysAcceptsDisplayURL(t *testing.T) {
 	registerUploadKey(t, key)
 	if err := validateUploadKeys([]string{"/api/v1/uploads/" + key}); err != nil {
 		t.Fatalf("display URL key should validate: %v", err)
+	}
+}
+
+func TestValidateUploadKeysAllowsDerivedPosterForTrackedVideo(t *testing.T) {
+	setupTestDB(t)
+	video := "moments/clip.mp4"
+	poster := "moments/clip.poster.jpg"
+	registerUploadKey(t, video)
+	if _, err := db.Exec(`UPDATE "UploadedFile" SET "ready" = 0 WHERE "key" = ?`, video); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateUploadKeys([]string{video, poster}); err != nil {
+		t.Fatalf("processing video + derived poster should validate: %v", err)
+	}
+	if err := validateUploadKeys([]string{poster}); err != nil {
+		t.Fatalf("poster of a tracked video should validate: %v", err)
+	}
+	if err := validateUploadKeys([]string{"moments/missing.poster.jpg"}); err == nil {
+		t.Fatal("unknown poster should fail")
 	}
 }

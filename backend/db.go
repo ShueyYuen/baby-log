@@ -70,6 +70,7 @@ func runMigrations() {
 		`ALTER TABLE "HealthEntry" ADD COLUMN "annotations" TEXT`,
 		`ALTER TABLE "Plan" ADD COLUMN "images" TEXT`,
 		`ALTER TABLE "MedicalVisit" ADD COLUMN "ocrData" TEXT NOT NULL DEFAULT '[]'`,
+		`ALTER TABLE "UploadedFile" ADD COLUMN "ready" INTEGER NOT NULL DEFAULT 1`,
 	}
 	for _, m := range migrations {
 		if _, err := db.Exec(m); err != nil {
@@ -254,7 +255,8 @@ CREATE TABLE IF NOT EXISTS "UploadedFile" (
     "key" TEXT NOT NULL PRIMARY KEY,
     "rawKey" TEXT,
     "createdAt" INTEGER NOT NULL,
-    "used" INTEGER NOT NULL DEFAULT 0
+    "used" INTEGER NOT NULL DEFAULT 0,
+    "ready" INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS "UploadedFile_used_createdAt_idx" ON "UploadedFile"("used", "createdAt");
 

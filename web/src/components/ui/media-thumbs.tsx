@@ -4,13 +4,14 @@ import { ImageViewer, type ViewerImage } from './image-viewer';
 import { MediaCover } from './media-cover';
 
 export function toViewerImages(
-  items: Array<{ url: string; rawUrl?: string; mediaType?: string; posterUrl?: string }>,
+  items: Array<{ url: string; rawUrl?: string; mediaType?: string; posterUrl?: string; processing?: boolean }>,
 ): ViewerImage[] {
   return items.map((img) => ({
     url: img.url,
     rawUrl: img.rawUrl,
     mediaType: img.mediaType,
     posterUrl: img.posterUrl,
+    processing: img.processing,
   }));
 }
 
@@ -36,6 +37,7 @@ export function MediaThumbs({
   const overflow = max != null ? Math.max(0, images.length - max) : 0;
 
   const openAt = (i: number) => {
+    if (images[i]?.processing) return;
     setIndex(i);
     setOpen(true);
   };
@@ -62,6 +64,7 @@ export function MediaThumbs({
               src={img.url}
               mediaType={img.mediaType}
               posterSrc={img.posterUrl}
+              processing={img.processing}
               playSize={14}
             />
           </button>

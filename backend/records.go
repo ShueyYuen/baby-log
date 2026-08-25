@@ -129,6 +129,11 @@ func unmarkRemovedImages(oldJSON sql.NullString, keepKeys []string) {
 }
 
 func recordImagesToDisplay(items []RecordImageStore, currentUserID string, isAdmin bool, createdBy string) []RecordImageDisplay {
+	keys := make([]string, 0, len(items))
+	for _, item := range items {
+		keys = append(keys, item.Key)
+	}
+	unready := unreadyVideoSet(keys)
 	out := make([]RecordImageDisplay, 0, len(items))
 	for _, item := range items {
 		if !isImageVisibleTo(item.VisibleTo, currentUserID, isAdmin, createdBy) {
@@ -141,6 +146,7 @@ func recordImagesToDisplay(items []RecordImageStore, currentUserID string, isAdm
 		if item.RawKey != "" {
 			d.RawURL, _ = toDisplayURL(item.RawKey, 86400)
 		}
+		d.URL, d.Processing = gateVideoURL(item.MediaType, item.Key, d.URL, unready)
 		d.PosterURL = resolvePosterURL(item.MediaType, item.Key, item.PosterKey)
 		out = append(out, d)
 	}
@@ -257,13 +263,13 @@ func handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 	userID := getUserID(r)
 
 	var body struct {
-		BabyID     string            `json:"babyId"`
-		Category   string            `json:"category"`
-		Type       string            `json:"type"`
-		Data       json.RawMessage   `json:"data"`
-		OccurredAt string            `json:"occurredAt"`
-		Note       *string           `json:"note"`
-		Images     json.RawMessage   `json:"images"`
+		BabyID     string          `json:"babyId"`
+		Category   string          `json:"category"`
+		Type       string          `json:"type"`
+		Data       json.RawMessage `json:"data"`
+		OccurredAt string          `json:"occurredAt"`
+		Note       *string         `json:"note"`
+		Images     json.RawMessage `json:"images"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, http.StatusBadRequest, "Invalid input")

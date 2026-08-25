@@ -422,6 +422,32 @@ func prepareVideoForWeb(localPath, key string) (action string, err error) {
 	return action, nil
 }
 
+// videoReadyForS3 is true only when the object at localPath is the version we
+// want CDN to pin. Originals that still need transcode must not be uploaded.
+func videoReadyForS3(transcodeEnabled bool, prepareErr error) bool {
+	if !transcodeEnabled {
+		return true
+	}
+	return prepareErr == nil
+}
+
+func syncPreparedVideoToS3(localPath, key string, rewroteMP4 bool) error {
+	if pk := posterKeyFromVideoKey(key); pk != "" {
+		posterPath := filepath.Join(getStorageConfig().uploadDir, filepath.FromSlash(pk))
+		if st, err := os.Stat(posterPath); err == nil && st.Size() > 0 {
+			syncFileToS3(posterPath, pk, "image")
+		}
+	}
+	if _, err := os.Stat(localPath); err != nil {
+		return err
+	}
+	ct := mimeFromExt(filepath.Ext(key))
+	if rewroteMP4 {
+		ct = "video/mp4"
+	}
+	return syncFileToS3Typed(localPath, key, ct)
+}
+
 func enqueueVideoPrepareAndSync(localPath, key string) {
 	if localPath == "" || key == "" {
 		return
@@ -435,48 +461,40 @@ func enqueueVideoPrepareAndSync(localPath, key string) {
 		return
 	}
 	go func() {
-		// Publish the original first so S3 playback is not blocked by the transcode queue.
-		if needS3 {
-			if _, err := os.Stat(localPath); err == nil {
-				syncFileToS3Typed(localPath, key, mimeFromExt(filepath.Ext(key)))
-			}
+		if enabled {
+			transcodeSem <- struct{}{}
+			defer func() { <-transcodeSem }()
 		}
-		if !enabled {
-			return
-		}
-
-		transcodeSem <- struct{}{}
-		defer func() { <-transcodeSem }()
-
 		if _, err := os.Stat(localPath); err != nil {
 			return
 		}
 
 		rewroteMP4 := false
-		action, err := prepareVideoForWeb(localPath, key)
-		if err != nil {
-			log.Printf("[Video] prepare %s (%s): %v — keeping original", key, action, err)
-		} else if action == "transcode" || action == "remux" {
-			rewroteMP4 = true
-			log.Printf("[Video] %s %s", action, key)
-		}
-
-		if !needS3 {
-			return
-		}
-		if pk := posterKeyFromVideoKey(key); pk != "" {
-			posterPath := filepath.Join(getStorageConfig().uploadDir, filepath.FromSlash(pk))
-			if st, err := os.Stat(posterPath); err == nil && st.Size() > 0 {
-				syncFileToS3(posterPath, pk, "image")
+		var prepareErr error
+		if enabled {
+			var action string
+			action, prepareErr = prepareVideoForWeb(localPath, key)
+			if prepareErr != nil {
+				log.Printf("[Video] prepare %s (%s): %v — keeping original locally, not uploading to S3", key, action, prepareErr)
+			} else if action == "transcode" || action == "remux" {
+				rewroteMP4 = true
+				log.Printf("[Video] %s %s", action, key)
 			}
 		}
-		if !rewroteMP4 {
+		if !needS3 {
+			if prepareErr == nil {
+				markUploadReady(key)
+			}
 			return
 		}
-		if _, err := os.Stat(localPath); err != nil {
+		if !videoReadyForS3(enabled, prepareErr) {
 			return
 		}
-		syncFileToS3Typed(localPath, key, "video/mp4")
+		if err := syncPreparedVideoToS3(localPath, key, rewroteMP4); err != nil {
+			log.Printf("[Video] S3 sync %s: %v — will retry after restart", key, err)
+			return
+		}
+		markUploadReady(key)
 	}()
 }
 
@@ -506,25 +524,25 @@ func enqueueS3VideoPrepare(key string) {
 				return
 			}
 		}
-		rewroteMP4 := false
-		action, err := prepareVideoForWeb(localPath, key)
-		if err != nil {
-			log.Printf("[Video] prepare %s (%s): %v", key, action, err)
-		} else if action == "transcode" || action == "remux" {
-			rewroteMP4 = true
+		// Drop the client-uploaded original so CDN cannot pin HEVC/non-faststart.
+		// Use deleteStoredObject so a sibling poster is not removed.
+		if err := deleteStoredObject(key); err != nil {
+			log.Printf("[Video] delete pending S3 original %s: %v", key, err)
+		}
+		action, prepareErr := prepareVideoForWeb(localPath, key)
+		if prepareErr != nil {
+			log.Printf("[Video] prepare %s (%s): %v — keeping original locally, not uploading to S3", key, action, prepareErr)
+			return
+		}
+		rewroteMP4 := action == "transcode" || action == "remux"
+		if rewroteMP4 {
 			log.Printf("[Video] %s %s", action, key)
 		}
-		if pk := posterKeyFromVideoKey(key); pk != "" {
-			posterPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(pk))
-			if st, err := os.Stat(posterPath); err == nil && st.Size() > 0 {
-				syncFileToS3(posterPath, pk, "image")
-			}
+		if err := syncPreparedVideoToS3(localPath, key, rewroteMP4); err != nil {
+			log.Printf("[Video] S3 sync %s: %v — will retry after restart", key, err)
+			return
 		}
-		ct := mimeFromExt(filepath.Ext(key))
-		if rewroteMP4 {
-			ct = "video/mp4"
-		}
-		syncFileToS3Typed(localPath, key, ct)
+		markUploadReady(key)
 	}()
 }
 
@@ -553,26 +571,74 @@ func downloadS3ToFile(key, dest string) error {
 	return err
 }
 
-func syncFileToS3Typed(localPath, key, contentType string) {
+func syncFileToS3Typed(localPath, key, contentType string) error {
 	cfg := getStorageConfig()
 	if cfg.s3 == nil {
-		return
+		return fmt.Errorf("s3 not configured")
 	}
 	f, err := os.Open(localPath)
 	if err != nil {
-		log.Printf("[S3Sync] Failed to open local file %s: %v", localPath, err)
-		return
+		return err
 	}
 	defer f.Close()
 	if contentType == "" {
 		contentType = mimeFromExt(filepath.Ext(key))
 	}
 	if err := putToS3(key, contentType, f); err != nil {
-		log.Printf("[S3Sync] Failed to upload %s to S3: %v", key, err)
-		return
+		return err
 	}
 	log.Printf("[S3Sync] Successfully synced %s to S3", key)
 	if err := os.Remove(localPath); err != nil {
 		log.Printf("[S3Sync] Failed to remove local file %s: %v", localPath, err)
+	}
+	return nil
+}
+
+func recoverPendingVideoJobs() {
+	if db == nil {
+		return
+	}
+	if !videoTranscodeEnabled() {
+		if _, err := db.Exec(`UPDATE "UploadedFile" SET "ready" = 1 WHERE "ready" = 0`); err != nil {
+			log.Printf("[Video] recover mark-ready: %v", err)
+		}
+		return
+	}
+	rows, err := db.Query(`SELECT "key" FROM "UploadedFile" WHERE "ready" = 0`)
+	if err != nil {
+		log.Printf("[Video] recover query: %v", err)
+		return
+	}
+	var keys []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err == nil && key != "" {
+			keys = append(keys, key)
+		}
+	}
+	rows.Close()
+	cfg := getStorageConfig()
+	n := 0
+	for _, key := range keys {
+		if mediaTypeFromKey(key) != "video" {
+			markUploadReady(key)
+			continue
+		}
+		localPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(key))
+		_ = os.Remove(localPath + ".web.mp4")
+		if _, err := os.Stat(localPath); err != nil {
+			if cfg.typ == storageS3 && cfg.s3 != nil {
+				enqueueS3VideoPrepare(key)
+				n++
+				continue
+			}
+			log.Printf("[Video] pending %s missing on disk; left unready", key)
+			continue
+		}
+		enqueueVideoPrepareAndSync(localPath, key)
+		n++
+	}
+	if n > 0 {
+		log.Printf("[Video] resumed %d pending transcode(s)", n)
 	}
 }

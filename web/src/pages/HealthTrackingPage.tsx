@@ -561,13 +561,14 @@ export default function HealthTrackingPage() {
                         type="button"
                         className="w-20 h-20 rounded-lg overflow-hidden glass-media-thumb p-0 border-0 cursor-zoom-in"
                         onClick={() => {
+                          if (vid.processing) return;
                           const all = toViewerImages(entry.images || []);
                           setViewerImages(all);
                           setViewerIndex(Math.max(0, (entry.images || []).indexOf(vid)));
                           setViewerOpen(true);
                         }}
                       >
-                        <MediaCover src={vid.url} mediaType="video" posterSrc={vid.posterUrl} playSize={16} />
+                        <MediaCover src={vid.url} mediaType="video" posterSrc={vid.posterUrl} processing={vid.processing} playSize={16} />
                       </button>
                     ))}
                   </div>

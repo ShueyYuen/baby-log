@@ -204,13 +204,14 @@ func bodyWithLength(body io.Reader) (io.Reader, int64, error) {
 
 // uploadResult holds the display URL, storage key, and optional raw file info.
 type uploadResult struct {
-	URL       string `json:"url"`
-	Key       string `json:"key"`
-	RawURL    string `json:"rawUrl,omitempty"`
-	RawKey    string `json:"rawKey,omitempty"`
-	PosterURL string `json:"posterUrl,omitempty"`
-	PosterKey string `json:"posterKey,omitempty"`
-	MediaType string `json:"mediaType,omitempty"`
+	URL        string `json:"url"`
+	Key        string `json:"key"`
+	RawURL     string `json:"rawUrl,omitempty"`
+	RawKey     string `json:"rawKey,omitempty"`
+	PosterURL  string `json:"posterUrl,omitempty"`
+	PosterKey  string `json:"posterKey,omitempty"`
+	MediaType  string `json:"mediaType,omitempty"`
+	Processing bool   `json:"processing,omitempty"`
 }
 
 func buildPublicURL(cfg *s3Config, s3Key string) string {
@@ -487,7 +488,10 @@ func uploadPrefixedFile(prefix, filename, contentType string, data []byte) (*upl
 	return result, nil
 }
 
-func deleteFile(key string) error {
+func deleteStoredObject(key string) error {
+	if key == "" {
+		return nil
+	}
 	cfg := getStorageConfig()
 	if cfg.typ == storageS3 && cfg.s3 != nil {
 		client := getS3Client()
@@ -497,12 +501,28 @@ func deleteFile(key string) error {
 		})
 		return err
 	}
-	// Local: key can be "uuid.ext" (flat) or "subdir/uuid.ext" (with subdirectory)
 	filePath := filepath.Join(cfg.uploadDir, filepath.FromSlash(key))
 	if _, err := os.Stat(filePath); err == nil {
+		_ = os.Remove(filePath + ".web.mp4")
 		return os.Remove(filePath)
 	}
+	_ = os.Remove(filePath + ".web.mp4")
 	return nil
+}
+
+func deleteFile(key string) error {
+	err := deleteStoredObject(key)
+	if pk := posterKeyFromVideoKey(key); pk != "" && pk != key {
+		if perr := deleteStoredObject(pk); perr != nil {
+			log.Printf("[Storage] Failed to delete poster %s: %v", pk, perr)
+		}
+		if db != nil {
+			if _, derr := db.Exec(`DELETE FROM "UploadedFile" WHERE "key" = ?`, pk); derr != nil {
+				log.Printf("[Storage] Failed to drop poster tracking %s: %v", pk, derr)
+			}
+		}
+	}
+	return err
 }
 
 func getSignedDownloadURL(key string, expiresInSec int64) (string, error) {
@@ -663,6 +683,11 @@ func uploadFileHandler(uploadDir string) http.Handler {
 			return
 		}
 		key := strings.TrimPrefix(clean, "/")
+		if mediaTypeFromKey(key) == "video" && !isUploadReady(key) {
+			w.Header().Set("Cache-Control", "private, no-store")
+			http.NotFound(w, r)
+			return
+		}
 
 		absUpload, err := filepath.Abs(uploadDir)
 		if err != nil {
@@ -676,7 +701,11 @@ func uploadFileHandler(uploadDir string) http.Handler {
 			return
 		}
 		if st, err := os.Stat(absFile); err == nil && !st.IsDir() {
-			w.Header().Set("Cache-Control", s3CacheControl)
+			if mediaTypeFromKey(key) == "video" {
+				w.Header().Set("Cache-Control", "private, no-store")
+			} else {
+				w.Header().Set("Cache-Control", s3CacheControl)
+			}
 			http.ServeFile(w, r, absFile)
 			return
 		}

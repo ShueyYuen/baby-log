@@ -37,6 +37,18 @@ describe('ImageViewer', () => {
     expect(document.querySelector('video')).toBeNull();
   });
 
+  it('does not create a player for a processing video', () => {
+    render(
+      <ImageViewer
+        open
+        onOpenChange={() => {}}
+        images={[{ url: '', mediaType: 'video', posterUrl: '/clip.poster.jpg', processing: true }]}
+      />,
+    );
+    expect(screen.getByTestId('video-processing')).toBeInTheDocument();
+    expect(screen.queryByTestId('video-player')).toBeNull();
+  });
+
   it('keeps close and nav buttons above the video player', async () => {
     render(
       <ImageViewer

@@ -8,10 +8,12 @@ describe('toViewerImages', () => {
       toViewerImages([
         { url: '/a.jpg', rawUrl: '/a-raw.jpg', mediaType: 'image' },
         { url: '/b.mp4', mediaType: 'video', posterUrl: '/b.poster.jpg' },
+        { url: '', mediaType: 'video', posterUrl: '/c.poster.jpg', processing: true },
       ]),
     ).toEqual([
-      { url: '/a.jpg', rawUrl: '/a-raw.jpg', mediaType: 'image', posterUrl: undefined },
-      { url: '/b.mp4', rawUrl: undefined, mediaType: 'video', posterUrl: '/b.poster.jpg' },
+      { url: '/a.jpg', rawUrl: '/a-raw.jpg', mediaType: 'image', posterUrl: undefined, processing: undefined },
+      { url: '/b.mp4', rawUrl: undefined, mediaType: 'video', posterUrl: '/b.poster.jpg', processing: undefined },
+      { url: '', rawUrl: undefined, mediaType: 'video', posterUrl: '/c.poster.jpg', processing: true },
     ]);
   });
 });

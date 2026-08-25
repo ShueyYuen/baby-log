@@ -29,4 +29,12 @@ describe('MediaCover', () => {
     expect(container.querySelector('video')).toBeNull();
     expect(container.querySelector('svg')).toBeTruthy();
   });
+
+  it('shows a processing badge and no play button', () => {
+    const { container, getByText } = render(
+      <MediaCover src="" mediaType="video" posterSrc="/d.poster.jpg" processing />,
+    );
+    expect(getByText('处理中')).toBeTruthy();
+    expect(container.querySelector('svg')).toBeNull();
+  });
 });

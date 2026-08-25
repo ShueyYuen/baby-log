@@ -116,3 +116,34 @@ func TestMomentRejectsEmptyAndSupportsLikeUpdateDelete(t *testing.T) {
 		t.Fatalf("expected 0 moments after delete, got %d", page.Total)
 	}
 }
+
+func TestUpdateMomentWithProcessingVideoPoster(t *testing.T) {
+	s := newTestServer(t)
+	uid := insertUser(t, "u", "U", "user")
+	video := "moments/pending-clip.mp4"
+	poster := posterKeyFromVideoKey(video)
+	registerUploadKey(t, video)
+	if _, err := db.Exec(`UPDATE "UploadedFile" SET "ready" = 0 WHERE "key" = ?`, video); err != nil {
+		t.Fatal(err)
+	}
+
+	created := s.do(http.MethodPost, "/moments", uid, map[string]interface{}{
+		"content": "processing",
+		"mediaItems": []map[string]string{
+			{"key": video, "mediaType": "video", "posterKey": poster},
+		},
+	})
+	e := mustOK(t, created)
+	var m momentOut
+	if err := json.Unmarshal(e.Data, &m); err != nil {
+		t.Fatal(err)
+	}
+
+	upd := s.do(http.MethodPut, "/moments/"+m.ID, uid, map[string]interface{}{
+		"content": "updated caption",
+		"mediaItems": []map[string]string{
+			{"key": video, "mediaType": "video", "posterKey": poster},
+		},
+	})
+	mustOK(t, upd)
+}

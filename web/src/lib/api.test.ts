@@ -94,4 +94,20 @@ describe('toStoredMedia', () => {
       visibleTo: undefined,
     });
   });
+
+  it('strips upload display URLs down to storage keys', () => {
+    expect(
+      toStoredMedia({
+        key: '/api/v1/uploads/moments/a.mp4',
+        mediaType: 'video',
+        posterKey: '/api/v1/uploads/moments/a.poster.jpg',
+      }),
+    ).toEqual({
+      key: 'moments/a.mp4',
+      rawKey: undefined,
+      mediaType: 'video',
+      posterKey: 'moments/a.poster.jpg',
+      visibleTo: undefined,
+    });
+  });
 });

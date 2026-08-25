@@ -41,6 +41,7 @@ export interface MediaCoverProps {
   posterSrc?: string;
   className?: string;
   playSize?: number;
+  processing?: boolean;
   onClick?: () => void;
 }
 
@@ -50,6 +51,7 @@ export function MediaCover({
   posterSrc,
   className,
   playSize = 18,
+  processing = false,
   onClick,
 }: MediaCoverProps) {
   const video = isVideoMedia(mediaType, src);
@@ -66,9 +68,9 @@ export function MediaCover({
 
   return (
     <div
-      className={cn('relative w-full h-full overflow-hidden', onClick && 'cursor-pointer', className)}
-      onClick={onClick}
-      role={onClick ? 'button' : undefined}
+      className={cn('relative w-full h-full overflow-hidden', onClick && !processing && 'cursor-pointer', className)}
+      onClick={processing ? undefined : onClick}
+      role={onClick && !processing ? 'button' : undefined}
     >
       {!video ? (
         <img
@@ -92,7 +94,12 @@ export function MediaCover({
       ) : (
         <div className="w-full h-full glass-media-thumb" />
       )}
-      {video && (
+      {video && processing && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/45 pointer-events-none">
+          <span className="text-white text-[11px] font-medium bg-black/55 px-2 py-1 rounded-full">处理中</span>
+        </div>
+      )}
+      {video && !processing && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
           <div
             className="rounded-full bg-white/80 flex items-center justify-center"

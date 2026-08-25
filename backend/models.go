@@ -45,44 +45,45 @@ type RecordImageStore struct {
 
 // RecordImageDisplay is the API response shape with resolved URLs.
 type RecordImageDisplay struct {
-	Key       string   `json:"key"`
-	RawKey    string   `json:"rawKey,omitempty"`
-	PosterKey string   `json:"posterKey,omitempty"`
-	MediaType string   `json:"mediaType,omitempty"`
-	URL       string   `json:"url"`
-	RawURL    string   `json:"rawUrl,omitempty"`
-	PosterURL string   `json:"posterUrl,omitempty"`
-	VisibleTo []string `json:"visibleTo,omitempty"`
+	Key        string   `json:"key"`
+	RawKey     string   `json:"rawKey,omitempty"`
+	PosterKey  string   `json:"posterKey,omitempty"`
+	MediaType  string   `json:"mediaType,omitempty"`
+	URL        string   `json:"url"`
+	RawURL     string   `json:"rawUrl,omitempty"`
+	PosterURL  string   `json:"posterUrl,omitempty"`
+	VisibleTo  []string `json:"visibleTo,omitempty"`
+	Processing bool     `json:"processing,omitempty"`
 }
 
 type recordOut struct {
-	ID         string              `json:"id"`
-	BabyID     string              `json:"babyId"`
-	Category   string              `json:"category"`
-	Type       string              `json:"type"`
-	Data       json.RawMessage     `json:"data"`
-	OccurredAt Millis              `json:"occurredAt"`
-	Note       *string             `json:"note"`
+	ID         string               `json:"id"`
+	BabyID     string               `json:"babyId"`
+	Category   string               `json:"category"`
+	Type       string               `json:"type"`
+	Data       json.RawMessage      `json:"data"`
+	OccurredAt Millis               `json:"occurredAt"`
+	Note       *string              `json:"note"`
 	Images     []RecordImageDisplay `json:"images"`
-	CreatedBy  string              `json:"createdBy"`
-	CreatedAt  Millis              `json:"createdAt"`
-	UpdatedAt  Millis              `json:"updatedAt"`
-	User       *memberUser         `json:"user,omitempty"`
+	CreatedBy  string               `json:"createdBy"`
+	CreatedAt  Millis               `json:"createdAt"`
+	UpdatedAt  Millis               `json:"updatedAt"`
+	User       *memberUser          `json:"user,omitempty"`
 }
 
 type planOut struct {
-	ID          string        `json:"id"`
-	BabyID      string        `json:"babyId"`
-	Title       string        `json:"title"`
-	Type        string        `json:"type"`
-	ScheduledAt Millis        `json:"scheduledAt"`
-	Description *string       `json:"description"`
-	Reminder    *string       `json:"reminder"`
-	Repeat      string        `json:"repeat"`
-	Status      string        `json:"status"`
-	CreatedBy   string        `json:"createdBy"`
-	CreatedAt   Millis        `json:"createdAt"`
-	UpdatedAt   Millis        `json:"updatedAt"`
+	ID          string               `json:"id"`
+	BabyID      string               `json:"babyId"`
+	Title       string               `json:"title"`
+	Type        string               `json:"type"`
+	ScheduledAt Millis               `json:"scheduledAt"`
+	Description *string              `json:"description"`
+	Reminder    *string              `json:"reminder"`
+	Repeat      string               `json:"repeat"`
+	Status      string               `json:"status"`
+	CreatedBy   string               `json:"createdBy"`
+	CreatedAt   Millis               `json:"createdAt"`
+	UpdatedAt   Millis               `json:"updatedAt"`
 	Images      []RecordImageDisplay `json:"images"`
 }
 
@@ -99,15 +100,15 @@ type growthOut struct {
 }
 
 type milestoneOut struct {
-	ID          string              `json:"id"`
-	BabyID      string              `json:"babyId"`
-	Type        string              `json:"type"`
-	Title       string              `json:"title"`
-	OccurredAt  Millis              `json:"occurredAt"`
-	Description *string             `json:"description"`
+	ID          string               `json:"id"`
+	BabyID      string               `json:"babyId"`
+	Type        string               `json:"type"`
+	Title       string               `json:"title"`
+	OccurredAt  Millis               `json:"occurredAt"`
+	Description *string              `json:"description"`
 	Images      []RecordImageDisplay `json:"images"`
-	CreatedAt   Millis              `json:"createdAt"`
-	UpdatedAt   Millis              `json:"updatedAt"`
+	CreatedAt   Millis               `json:"createdAt"`
+	UpdatedAt   Millis               `json:"updatedAt"`
 }
 
 type reminderOut struct {
@@ -135,13 +136,13 @@ type healthConditionOut struct {
 }
 
 type healthEntryOut struct {
-	ID          string              `json:"id"`
-	ConditionID string              `json:"conditionId"`
-	Date        Millis              `json:"date"`
-	Note        *string             `json:"note"`
+	ID          string               `json:"id"`
+	ConditionID string               `json:"conditionId"`
+	Date        Millis               `json:"date"`
+	Note        *string              `json:"note"`
 	Images      []RecordImageDisplay `json:"images"`
-	Annotations json.RawMessage     `json:"annotations,omitempty"`
-	CreatedBy   string              `json:"createdBy"`
-	CreatedAt   Millis              `json:"createdAt"`
-	UpdatedAt   Millis              `json:"updatedAt"`
+	Annotations json.RawMessage      `json:"annotations,omitempty"`
+	CreatedBy   string               `json:"createdBy"`
+	CreatedAt   Millis               `json:"createdAt"`
+	UpdatedAt   Millis               `json:"updatedAt"`
 }

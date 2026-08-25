@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseFPS(t *testing.T) {
@@ -89,6 +90,18 @@ func TestVideoTranscodeDisabledByEnv(t *testing.T) {
 	t.Setenv("VIDEO_TRANSCODE", "0")
 	if videoTranscodeEnabled() {
 		t.Fatal("expected disabled")
+	}
+}
+
+func TestVideoReadyForS3(t *testing.T) {
+	if !videoReadyForS3(false, nil) {
+		t.Fatal("transcode off: originals may go to S3")
+	}
+	if !videoReadyForS3(true, nil) {
+		t.Fatal("prepare ok: upload transcoded/web-safe file")
+	}
+	if videoReadyForS3(true, os.ErrInvalid) {
+		t.Fatal("prepare failed: must not upload original to S3")
 	}
 }
 
@@ -177,4 +190,57 @@ func TestPrepareVideoRemuxesH264(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "moments", "ok.poster.jpg")); err != nil {
 		t.Fatalf("poster: %v", err)
 	}
+}
+
+func TestMediaItemsToDisplayOmitsUnreadyVideoURL(t *testing.T) {
+	setupTestDB(t)
+	key := "moments/pending.mp4"
+	if _, err := db.Exec(`INSERT INTO "UploadedFile" ("key", "createdAt", "used", "ready") VALUES (?, ?, 0, 0)`, key, nowMillis()); err != nil {
+		t.Fatal(err)
+	}
+	out := mediaItemsToDisplay([]MediaItem{
+		{Key: key, MediaType: "video"},
+		{Key: "moments/pic.jpg", MediaType: "image"},
+	}, "u1", true, "u1")
+	if len(out) != 2 {
+		t.Fatalf("len=%d", len(out))
+	}
+	if !out[0].Processing || out[0].URL != "" {
+		t.Fatalf("unready video: %+v", out[0])
+	}
+	if out[0].PosterURL == "" {
+		t.Fatal("poster url should remain")
+	}
+	if out[1].Processing || out[1].URL == "" {
+		t.Fatalf("image should stay playable: %+v", out[1])
+	}
+}
+
+func TestRecoverPendingVideoJobs(t *testing.T) {
+	if !haveFFmpeg() {
+		t.Skip("ffmpeg not installed")
+	}
+	setupTestDB(t)
+	dir := t.TempDir()
+	t.Setenv("UPLOAD_DIR", dir)
+	t.Setenv("VIDEO_TRANSCODE", "1")
+	t.Setenv("STORAGE_TYPE", "local")
+	key := "moments/resume.mp4"
+	src := filepath.Join(dir, filepath.FromSlash(key))
+	if err := os.MkdirAll(filepath.Dir(src), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ffmpegGen(t, src, "libx264", false)
+	if _, err := db.Exec(`INSERT INTO "UploadedFile" ("key", "createdAt", "used", "ready") VALUES (?, ?, 0, 0)`, key, nowMillis()); err != nil {
+		t.Fatal(err)
+	}
+	recoverPendingVideoJobs()
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		if isUploadReady(key) {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("pending transcode was not resumed")
 }

@@ -54,6 +54,7 @@ export interface RecordImage {
   rawUrl?: string;
   posterUrl?: string;
   visibleTo?: string[];
+  processing?: boolean;
 }
 
 // ─── Moments types ────────────────────────────────────────────────────────────
@@ -70,6 +71,7 @@ export interface MediaItemDisplay extends MediaItem {
   url: string;
   rawUrl?: string;
   posterUrl?: string;
+  processing?: boolean;
 }
 
 export interface MomentComment {
@@ -113,6 +115,7 @@ export interface UploadMomentResult {
   posterKey?: string;
   posterUrl?: string;
   mediaType: 'image' | 'video';
+  processing?: boolean;
 }
 
 export function toStoredMedia(
@@ -120,12 +123,29 @@ export function toStoredMedia(
   extra?: { visibleTo?: string[] },
 ) {
   return {
-    key: result.key,
-    rawKey: result.rawKey,
+    key: toStorageKey(result.key) || result.key,
+    rawKey: result.rawKey ? toStorageKey(result.rawKey) : result.rawKey,
     mediaType: result.mediaType,
-    posterKey: result.posterKey,
+    posterKey: result.posterKey ? toStorageKey(result.posterKey) : result.posterKey,
     visibleTo: extra?.visibleTo?.length ? extra.visibleTo : undefined,
   };
+}
+
+function toStorageKey(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return trimmed;
+  const prefix = '/api/v1/uploads/';
+  if (trimmed.startsWith(prefix)) return trimmed.slice(prefix.length);
+  try {
+    const u = new URL(trimmed);
+    const path = u.pathname.replace(/^\/+/, '');
+    const uploads = 'api/v1/uploads/';
+    const idx = path.indexOf(uploads);
+    if (idx >= 0) return path.slice(idx + uploads.length);
+    return path;
+  } catch {
+    return trimmed.replace(/^\/+/, '');
+  }
 }
 
 // ─── Timeline types ──────────────────────────────────────────────────────────

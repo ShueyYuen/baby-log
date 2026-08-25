@@ -350,6 +350,7 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 			result.MediaType = "video"
 			localPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(compKey))
 			attachPosterToResult(result)
+			markResultProcessing(result)
 			enqueueVideoPrepareAndSync(localPath, compKey)
 		}
 
@@ -429,6 +430,7 @@ func saveLocalPrefixedVideoToKey(key string, src io.Reader, maxSize int64) (*upl
 		MediaType: "video",
 	}
 	attachPosterToResult(result)
+	markResultProcessing(result)
 	return result, nil
 }
 
@@ -437,16 +439,137 @@ func trackUploadedFile(key, rawKey string) {
 		return
 	}
 	now := int64(nowMillis())
-	_, err := db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used") VALUES (?, ?, ?, 0)`,
-		key, rawKey, now)
+	ready := 1
+	if mediaTypeFromKey(key) == "video" && videoTranscodeEnabled() {
+		ready = 0
+	}
+	_, err := db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used", "ready") VALUES (?, ?, ?, 0, ?)`,
+		key, rawKey, now, ready)
 	if err != nil {
 		log.Printf("[Upload] Failed to track uploaded file %s: %v", key, err)
+		return
+	}
+	if ready == 0 {
+		_, _ = db.Exec(`UPDATE "UploadedFile" SET "ready" = 0 WHERE "key" = ? AND "ready" = 1`, key)
+	}
+	if mediaTypeFromKey(key) == "video" {
+		if pk := posterKeyFromVideoKey(key); pk != "" {
+			if _, err := db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used", "ready") VALUES (?, ?, ?, 0, 1)`,
+				pk, "", now); err != nil {
+				log.Printf("[Upload] Failed to track poster %s: %v", pk, err)
+			}
+		}
 	}
 }
 
+func markUploadReady(key string) {
+	if db == nil || key == "" {
+		return
+	}
+	if _, err := db.Exec(`UPDATE "UploadedFile" SET "ready" = 1 WHERE "key" = ?`, key); err != nil {
+		log.Printf("[Upload] Failed to mark ready %s: %v", key, err)
+	}
+}
+
+func isUploadReady(key string) bool {
+	if key == "" || db == nil {
+		return true
+	}
+	var ready int
+	err := db.QueryRow(`SELECT "ready" FROM "UploadedFile" WHERE "key" = ?`, key).Scan(&ready)
+	if err != nil {
+		return true
+	}
+	return ready != 0
+}
+
+func unreadyVideoSet(keys []string) map[string]bool {
+	out := map[string]bool{}
+	if db == nil || len(keys) == 0 {
+		return out
+	}
+	seen := map[string]bool{}
+	var args []interface{}
+	var ph []string
+	for _, key := range keys {
+		key = toStorageKey(key)
+		if key == "" || seen[key] || mediaTypeFromKey(key) != "video" {
+			continue
+		}
+		seen[key] = true
+		args = append(args, key)
+		ph = append(ph, "?")
+	}
+	if len(args) == 0 {
+		return out
+	}
+	q := `SELECT "key" FROM "UploadedFile" WHERE "ready" = 0 AND "key" IN (` + strings.Join(ph, ",") + `)`
+	rows, err := db.Query(q, args...)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err == nil {
+			out[key] = true
+		}
+	}
+	return out
+}
+
+func gateVideoURL(mediaType, key, url string, unready map[string]bool) (gated string, processing bool) {
+	if mediaType == "video" && key != "" && unready[key] {
+		return "", true
+	}
+	return url, false
+}
+
+func markResultProcessing(result *uploadResult) {
+	if result == nil || result.MediaType != "video" || !videoTranscodeEnabled() {
+		return
+	}
+	result.Processing = true
+	result.URL = ""
+}
+
+func uploadKeyExists(key string) bool {
+	if db == nil || key == "" {
+		return false
+	}
+	var n int
+	err := db.QueryRow(`SELECT COUNT(*) FROM "UploadedFile" WHERE "key" = ? OR "rawKey" = ?`, key, key).Scan(&n)
+	return err == nil && n > 0
+}
+
+func posterBelongsToTrackedVideo(posterKey string, videoKeys []string) bool {
+	if posterKey == "" {
+		return false
+	}
+	for _, v := range videoKeys {
+		if posterKeyFromVideoKey(v) == posterKey && uploadKeyExists(v) {
+			return true
+		}
+	}
+	if !strings.HasSuffix(posterKey, posterSuffix) {
+		return false
+	}
+	stem := strings.TrimSuffix(posterKey, posterSuffix)
+	if stem == "" {
+		return false
+	}
+	var n int
+	err := db.QueryRow(`SELECT COUNT(*) FROM "UploadedFile" WHERE "key" LIKE ?`, stem+".%").Scan(&n)
+	return err == nil && n > 0
+}
+
 // validateUploadKeys ensures all referenced keys exist in UploadedFile table.
-// Returns error with the first invalid key, or nil if all are valid.
+// Derived video posters are allowed when the parent video is tracked, even if
+// the .poster.jpg row has not been written yet (transcode still running).
 func validateUploadKeys(keys []string) error {
+	type item struct{ orig, norm string }
+	var list []item
+	var videos []string
 	for _, key := range keys {
 		normalized, err := sanitizeStorageKey(key)
 		if err != nil {
@@ -455,10 +578,19 @@ func validateUploadKeys(keys []string) error {
 		if normalized == "" {
 			continue
 		}
-		var exists bool
-		if err := db.QueryRow(`SELECT COUNT(*) > 0 FROM "UploadedFile" WHERE "key" = ? OR "rawKey" = ?`, normalized, normalized).Scan(&exists); err != nil || !exists {
-			return fmt.Errorf("invalid file key: %s", key)
+		list = append(list, item{key, normalized})
+		if mediaTypeFromKey(normalized) == "video" {
+			videos = append(videos, normalized)
 		}
+	}
+	for _, it := range list {
+		if uploadKeyExists(it.norm) {
+			continue
+		}
+		if posterBelongsToTrackedVideo(it.norm, videos) {
+			continue
+		}
+		return fmt.Errorf("invalid file key: %s", it.orig)
 	}
 	return nil
 }

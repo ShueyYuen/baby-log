@@ -171,6 +171,7 @@ func handlePresignComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	if result.MediaType == "video" {
 		attachPosterToResult(result)
+		markResultProcessing(result)
 		enqueueS3VideoPrepare(req.Key)
 	}
 

@@ -160,7 +160,8 @@ function MediaGrid({
               src={item.url}
               mediaType={item.mediaType}
               posterSrc={item.posterUrl}
-              className="w-full h-full cursor-pointer"
+              processing={item.processing}
+              className="w-full h-full"
               playSize={visible.length === 1 ? 22 : 18}
               onClick={() => onClickImage(idx)}
             />
@@ -493,12 +494,13 @@ const PreviewItem = React.memo(function PreviewItem({
   const p = preview;
   return (
     <div className="relative w-[calc(33.333%-0.375rem)] aspect-square rounded-lg overflow-hidden glass-media-thumb">
-      {!p.url ? null : (
+      {!p.url && !p.result?.posterUrl ? null : (
         <MediaCover
-          src={p.url}
+          src={p.url || p.result?.posterUrl || ""}
           mediaType={p.type}
           posterSrc={p.result?.posterUrl}
-          className="w-full h-full cursor-zoom-in"
+          processing={!!p.result?.processing && !p.file}
+          className="w-full h-full"
           playSize={16}
           onClick={onPreview}
         />
@@ -840,11 +842,13 @@ export function MomentFormDialog({
     </Dialog>
       <ImageViewer
         images={previews
-          .filter((p) => !p.cancelled && p.url)
+          .filter((p) => !p.cancelled && (p.url || p.result?.posterUrl))
           .map((p) => ({
-            url: p.result?.url || p.url,
+            url: p.url || p.result?.url || "",
             rawUrl: p.result?.rawUrl,
             mediaType: p.type,
+            posterUrl: p.result?.posterUrl,
+            processing: !p.url && !!p.result?.processing,
           }))}
         initialIndex={viewerIdx}
         open={viewerOpen}
@@ -898,6 +902,15 @@ export default function MomentsPage() {
   useRefreshHandler(useCallback(async () => { await fetchMoments(1, true); }, [fetchMoments]));
 
   useServerEvent('moment.change', useCallback(() => { fetchMoments(1, true); }, [fetchMoments]));
+
+  const hasProcessing = moments.some((m) => m.mediaItems.some((item) => item.processing));
+  useEffect(() => {
+    if (!hasProcessing) return;
+    const timer = window.setInterval(() => {
+      fetchMoments(1, true);
+    }, 8000);
+    return () => window.clearInterval(timer);
+  }, [hasProcessing, fetchMoments]);
 
   // Auto-load more when sentinel enters viewport
   useEffect(() => {
