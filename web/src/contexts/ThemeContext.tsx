@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 
-type Theme = 'light' | 'dark' | 'system';
+export type Theme = 'light' | 'dark' | 'system' | 'night';
 
 interface ThemeContextValue {
   theme: Theme;
@@ -15,17 +15,22 @@ function getSystemDark(): boolean {
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
-function applyTheme(dark: boolean) {
+function applyTheme(theme: Theme, dark: boolean) {
   const root = document.documentElement;
-  if (dark) {
+  if (theme === 'night' || dark) {
     root.classList.add('dark');
   } else {
     root.classList.remove('dark');
   }
+  if (theme === 'night') {
+    root.classList.add('night');
+  } else {
+    root.classList.remove('night');
+  }
 }
 
 function resolveIsDark(theme: Theme): boolean {
-  if (theme === 'dark') return true;
+  if (theme === 'dark' || theme === 'night') return true;
   if (theme === 'light') return false;
   return getSystemDark();
 }
@@ -33,30 +38,26 @@ function resolveIsDark(theme: Theme): boolean {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     const saved = localStorage.getItem('theme') as Theme | null;
-    return saved && ['light', 'dark', 'system'].includes(saved) ? saved : 'system';
+    return saved && ['light', 'dark', 'system', 'night'].includes(saved) ? saved : 'system';
   });
 
   const [isDark, setIsDark] = useState(() => resolveIsDark(theme));
 
-  const updateDark = useCallback((dark: boolean) => {
+  const updateDark = useCallback((t: Theme, dark: boolean) => {
     setIsDark(dark);
-    applyTheme(dark);
+    applyTheme(t, dark);
   }, []);
 
-  // Apply theme whenever theme selection changes
   useEffect(() => {
-    updateDark(resolveIsDark(theme));
+    updateDark(theme, resolveIsDark(theme));
   }, [theme, updateDark]);
 
-  // Listen for system preference changes when in 'system' mode
   useEffect(() => {
     if (theme !== 'system') return;
-
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = (e: MediaQueryListEvent) => {
-      updateDark(e.matches);
+      updateDark(theme, e.matches);
     };
-
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, [theme, updateDark]);

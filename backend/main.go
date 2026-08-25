@@ -67,6 +67,7 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 			r.Group(func(r chi.Router) {
 				r.Use(authMiddleware)
 				r.Get("/me", handleMe)
+				r.Post("/change-password", handleChangePassword)
 				r.Get("/members", handleListMembers)
 				r.Post("/users", handleCreateUser)
 				r.Get("/users", handleListUsers)
@@ -185,6 +186,7 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 			})
 
 			r.Get("/timeline", handleTimeline)
+			r.Get("/export", handleExport)
 
 			r.Route("/upload", func(r chi.Router) {
 				r.Post("/", handleUploadSingle)

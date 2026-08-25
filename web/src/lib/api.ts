@@ -130,7 +130,19 @@ export interface TimelineRecord {
   occurredAt: string;
   note?: string;
   images?: RecordImage[];
-  user?: { displayName: string };
+  createdBy?: string;
+  user?: { id?: string; displayName: string };
+}
+
+export interface DailySummary {
+  date: string;
+  feedingCount: number;
+  diaperCount: number;
+  peeCount: number;
+  poopCount: number;
+  sleepMinutes: number;
+  bottleAmountMl?: number;
+  feedingDetails: { breastfeed: number; bottle: number; solid: number };
 }
 
 export interface TimelineResponse {
@@ -535,11 +547,26 @@ export const api = {
   },
 
   timeline: {
-    list: (babyId: string, opts?: { pageSize?: number; before?: number; category?: string; search?: string }) => {
+    list: (babyId: string, opts?: {
+      pageSize?: number;
+      before?: number;
+      category?: string;
+      type?: string;
+      search?: string;
+      hasImages?: boolean;
+      createdBy?: string;
+      startDate?: string;
+      endDate?: string;
+    }) => {
       const params = new URLSearchParams({ babyId, pageSize: String(opts?.pageSize ?? 50) });
       if (opts?.before) params.set('before', String(opts.before));
       if (opts?.category && opts.category !== 'all') params.set('category', opts.category);
+      if (opts?.type && opts.type !== 'all') params.set('type', opts.type);
       if (opts?.search) params.set('search', opts.search);
+      if (opts?.hasImages) params.set('hasImages', 'true');
+      if (opts?.createdBy) params.set('createdBy', opts.createdBy);
+      if (opts?.startDate) params.set('startDate', opts.startDate);
+      if (opts?.endDate) params.set('endDate', opts.endDate);
       return api.get<{ success: boolean; data: TimelineResponse }>(`/timeline?${params}`);
     },
   },
@@ -612,6 +639,8 @@ export const api = {
     login: (username: string, password: string) =>
       api.post<{ success: boolean; data: { token: string; user: { id: string; username: string; displayName: string; role: string; avatar?: string | null } } }>('/auth/login', { username, password }),
     logout: () => api.post<{ success: boolean }>('/auth/logout', {}),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      api.post<{ success: boolean }>('/auth/change-password', { currentPassword, newPassword }),
     listUsers: () => api.get<{ success: boolean; data: UserItem[] }>('/auth/users'),
     createUser: (data: { username: string; displayName: string; role: string }) =>
       api.post<{ success: boolean; data: { id: string; generatedPassword: string } }>('/auth/users', data),
@@ -634,6 +663,13 @@ export const api = {
   stats: {
     range: (babyId: string, startDate: string, endDate: string, tz: number) =>
       api.get<{ success: boolean; data: unknown[] }>(`/stats/range?babyId=${babyId}&startDate=${startDate}&endDate=${endDate}&tz=${tz}`),
+    daily: (babyId: string, date: string, tz: number) =>
+      api.get<{ success: boolean; data: DailySummary }>(`/stats/daily?babyId=${babyId}&date=${date}&tz=${tz}`),
+  },
+
+  export: {
+    baby: (babyId: string) =>
+      api.get<{ success: boolean; data: { exportedAt: string; baby: Baby; records: TimelineRecord[]; plans: PlanItem[]; growth: GrowthItem[]; milestones: MilestoneItem[] } }>(`/export?babyId=${babyId}`),
   },
 
   push: {

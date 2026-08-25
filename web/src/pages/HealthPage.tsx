@@ -44,7 +44,7 @@ export default function HealthPage() {
       cacheWrite(cKey, res);
       setConditions(res.data);
     } catch {
-      toast('加载病症失败', 'error');
+      toast('加载失败', 'error');
     }
   }, [currentBaby, toast]);
 
@@ -104,7 +104,7 @@ export default function HealthPage() {
       setDesc('');
       if (currentBaby) cacheInvalidate(`/health-conditions?babyId=${currentBaby.id}`);
       loadConditions();
-      toast('病症追踪已创建', 'success');
+      toast('追踪已创建', 'success');
     } catch {
       toast('创建失败', 'error');
     }
@@ -142,7 +142,7 @@ export default function HealthPage() {
     <div className="space-y-6 pb-8">
       {/* Health Conditions Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold dark:text-gray-100">病症追踪</h2>
+        <h2 className="text-xl font-bold dark:text-gray-100">健康</h2>
         {!isViewer && (
           <Dialog open={showForm} onOpenChange={setShowForm}>
             <DialogTrigger asChild>
@@ -152,7 +152,7 @@ export default function HealthPage() {
             </DialogTrigger>
             <DialogContent className="max-w-sm">
               <DialogHeader>
-                <DialogTitle>新增病症追踪</DialogTitle>
+                <DialogTitle>新增健康追踪</DialogTitle>
               </DialogHeader>
               <form onSubmit={createCondition} className="space-y-4">
                 <div>

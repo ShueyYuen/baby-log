@@ -13,6 +13,7 @@ import PlansPage from './pages/PlansPage';
 import GrowthPage from './pages/GrowthPage';
 import HealthPage from './pages/HealthPage';
 import MomentsPage from './pages/MomentsPage';
+import MePage from './pages/MePage';
 import AdminPage from './pages/AdminPage';
 
 const RecordFormPage = lazy(() => import('./pages/RecordFormPage'));
@@ -89,9 +90,10 @@ function KeepAliveRoutes() {
   useServerEventsConnection(true);
 
   const keepAlivePages = useMemo(() => [
-    { path: '/', key: 'timeline', Component: TimelinePage },
-    { path: '/plans', key: 'plans', Component: PlansPage },
+    { path: '/', key: 'today', Component: TimelinePage },
     { path: '/growth', key: 'growth', Component: GrowthPage },
+    { path: '/me', key: 'me', Component: MePage },
+    { path: '/plans', key: 'plans', Component: PlansPage },
     { path: '/health', key: 'health', Component: HealthPage },
     { path: '/moments', key: 'moments', Component: MomentsPage },
     { path: '/admin', key: 'admin', Component: AdminPage, guard: () => isAdmin },
@@ -135,6 +137,7 @@ function KeepAliveRoutes() {
           <div className="max-w-4xl mx-auto">
             <Suspense fallback={<PageFallback />}>
               <Routes location={location}>
+                <Route path="/records" element={<Navigate to="/" replace />} />
                 <Route path="/record/new" element={<RecordFormPage />} />
                 <Route path="/record/:id/edit" element={<RecordFormPage />} />
                 <Route path="/plan/new" element={<PlanFormPage />} />

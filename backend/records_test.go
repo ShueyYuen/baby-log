@@ -177,3 +177,30 @@ func TestDeleteRecord(t *testing.T) {
 		t.Fatalf("delete again expected 404, got %d", nf.status)
 	}
 }
+
+func TestTimelineTypeAndCreatedByFilter(t *testing.T) {
+	s := newTestServer(t)
+	uid := insertUser(t, "u", "U", "user")
+	bid := createBabyFor(t, uid, "宝宝")
+	createRecord(t, s, uid, bid, "feeding", "bottle", map[string]interface{}{"amountMl": 100}, "2025-06-01T08:00:00.000Z")
+	createRecord(t, s, uid, bid, "nursing", "diaper", map[string]interface{}{"type": "wet"}, "2025-06-01T12:00:00.000Z")
+
+	e := mustOK(t, s.do(http.MethodGet, "/timeline?babyId="+bid+"&type=diaper", uid, nil))
+	var data struct {
+		Records []recordOut `json:"records"`
+	}
+	jsonUnmarshal(e.Data, &data)
+	if len(data.Records) != 1 || data.Records[0].Type != "diaper" {
+		t.Fatalf("type filter expected 1 diaper, got %+v", data.Records)
+	}
+
+	e2 := mustOK(t, s.do(http.MethodGet, "/timeline?babyId="+bid+"&createdBy="+tokenToUserID(uid), uid, nil))
+	var data2 struct {
+		Records []recordOut `json:"records"`
+	}
+	jsonUnmarshal(e2.Data, &data2)
+	if len(data2.Records) != 2 {
+		t.Fatalf("createdBy filter expected 2, got %d", len(data2.Records))
+	}
+}
+

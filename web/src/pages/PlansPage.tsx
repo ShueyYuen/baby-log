@@ -62,6 +62,7 @@ const statusConfig: Record<string, { label: string; variant: 'warning' | 'succes
 };
 
 const LINKABLE_PLAN_TYPES = new Set(['vaccine', 'medicine', 'checkup', 'doctor']);
+const MEDICAL_PLAN_TYPES = new Set(['vaccine', 'doctor', 'checkup']);
 
 const recordCategoryLabels: Record<string, string> = {
   feeding: '喂养',
@@ -549,16 +550,30 @@ export default function PlansPage() {
 
   const createLinkedRecord = async () => {
     if (!linkRecordPlan || !currentBaby) return;
-    const mapping = getLinkedRecordMapping(linkRecordPlan.type);
-    if (!mapping) return;
     setCreatingRecord(true);
     try {
-      await api.recordsCrud.create({
-        babyId: currentBaby.id,
-        ...buildLinkedRecordPayload(linkRecordPlan, mapping),
-      });
-      cacheInvalidate('/timeline');
-      toast('记录已创建', 'success');
+      if (MEDICAL_PLAN_TYPES.has(linkRecordPlan.type)) {
+        await api.medicalVisits.create(
+          {
+            babyId: currentBaby.id,
+            visitDate: new Date(linkRecordPlan.scheduledAt).toISOString(),
+            department: linkRecordPlan.type === 'vaccine' ? '预防接种' : '',
+            diagnosis: linkRecordPlan.title,
+            notes: linkRecordPlan.description || '',
+          },
+          generateIdempotencyKey(),
+        );
+        toast('就诊记录已创建', 'success');
+      } else {
+        const mapping = getLinkedRecordMapping(linkRecordPlan.type);
+        if (!mapping) return;
+        await api.recordsCrud.create({
+          babyId: currentBaby.id,
+          ...buildLinkedRecordPayload(linkRecordPlan, mapping),
+        });
+        cacheInvalidate('/timeline');
+        toast('记录已创建', 'success');
+      }
       setLinkRecordPlan(null);
     } catch {
       toast('创建记录失败', 'error');
@@ -748,7 +763,7 @@ export default function PlansPage() {
           <DialogHeader>
             <DialogTitle>同步创建记录</DialogTitle>
             <DialogDescription>
-              计划「{linkRecordPlan?.title}」已完成，是否创建对应记录？
+              计划「{linkRecordPlan?.title}」已完成，是否创建对应{linkRecordPlan && MEDICAL_PLAN_TYPES.has(linkRecordPlan.type) ? '就诊记录' : '日常记录'}？
             </DialogDescription>
           </DialogHeader>
           {linkRecordPlan && (() => {
@@ -757,7 +772,7 @@ export default function PlansPage() {
             return (
               <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1.5 py-2">
                 <p>计划类型：{typeLabels[linkRecordPlan.type] || linkRecordPlan.type}</p>
-                <p>记录类型：{recordTypeLabels[mapping.type]}（{recordCategoryLabels[mapping.category]}）</p>
+                <p>将创建：{MEDICAL_PLAN_TYPES.has(linkRecordPlan.type) ? '就诊记录' : `${recordTypeLabels[mapping.type]}（${recordCategoryLabels[mapping.category]}）`}</p>
                 <p>标题：{linkRecordPlan.title}</p>
                 <p>时间：{dayjs(linkRecordPlan.scheduledAt).format('YYYY-MM-DD HH:mm')}</p>
               </div>

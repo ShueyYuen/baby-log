@@ -1,14 +1,24 @@
-import { ReactNode, useState, useCallback, useRef } from 'react';
+import { ReactNode, useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { hapticTap } from '../lib/haptic';
-import { Clock, Calendar, TrendingUp, Activity, Sun, Moon, Monitor, Users, Images, Camera } from 'lucide-react';
+import {
+  Activity,
+  Calendar,
+  Camera,
+  Home,
+  Images,
+  TrendingUp,
+  User,
+  Users,
+} from 'lucide-react';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
 import { api } from '../lib/api';
 import { cropAndResizeAvatar } from '../lib/avatar-crop';
+import { formatBabyAge } from '../lib/baby-age';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Button, Input, DateTimePicker, useToast } from './ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui';
+import { BabySwitcher } from './BabySwitcher';
 import dayjs from 'dayjs';
 
 interface LayoutProps {
@@ -18,11 +28,11 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const { currentBaby, loading: babyLoading, refreshBabies } = useBaby();
-  const { user, logout, isAdmin, isViewer } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const { user, logout, isAdmin } = useAuth();
   const { toast } = useToast();
 
   const [showBabyEdit, setShowBabyEdit] = useState(false);
+  const [showSwitcher, setShowSwitcher] = useState(false);
   const [editName, setEditName] = useState('');
   const [editGender, setEditGender] = useState<string>('male');
   const [editBirthDate, setEditBirthDate] = useState('');
@@ -80,26 +90,91 @@ export default function Layout({ children }: LayoutProps) {
 
   const isSecondaryPage = /^\/(record|plan\/new|plan\/[^/]+\/edit|growth\/history|health\/[^/]+|milk-inventory|medical-visits\/|stats)/.test(location.pathname);
 
-  const navItems = [
-    { path: '/', icon: Clock, label: '时间线' },
+  const mobileNav = [
+    { path: '/', icon: Home, label: '今天' },
     { path: '/plans', icon: Calendar, label: '计划' },
-    { path: '/growth', icon: TrendingUp, label: '成长' },
-    { path: '/health', icon: Activity, label: '病症' },
     { path: '/moments', icon: Images, label: '朋友圈' },
+    { path: '/growth', icon: TrendingUp, label: '成长' },
+    { path: '/me', icon: User, label: '我的' },
+  ];
+
+  const desktopNav = [
+    { path: '/', icon: Home, label: '今天' },
+    { path: '/plans', icon: Calendar, label: '计划' },
+    { path: '/moments', icon: Images, label: '朋友圈' },
+    { path: '/growth', icon: TrendingUp, label: '成长' },
+    { path: '/me', icon: User, label: '我的' },
+    { path: '/health', icon: Activity, label: '健康' },
     ...(isAdmin ? [{ path: '/admin', icon: Users, label: '管理' }] : []),
   ];
 
-  const themeOptions = [
-    { value: 'light' as const, icon: Sun, label: '浅色' },
-    { value: 'dark' as const, icon: Moon, label: '深色' },
-    { value: 'system' as const, icon: Monitor, label: '跟随系统' },
-  ];
+  const isActive = (path: string) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
 
+  const babyAge = formatBabyAge(currentBaby?.birthDate);
   const babyNameLabel = babyLoading ? '…' : currentBaby?.name;
+
+  const babyButton = (size: 'sm' | 'md') => (
+    currentBaby ? (
+      <button
+        onClick={() => setShowSwitcher(true)}
+        className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors text-left"
+      >
+        {currentBaby.avatar ? (
+          <img src={currentBaby.avatar} alt="" className={`${size === 'md' ? 'w-7 h-7' : 'w-6 h-6'} rounded-full object-cover flex-shrink-0`} />
+        ) : (
+          <span className={`${size === 'md' ? 'w-7 h-7 text-xs' : 'w-6 h-6 text-[10px]'} rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-600 font-medium flex items-center justify-center flex-shrink-0`}>
+            {currentBaby.name.slice(0, 1)}
+          </span>
+        )}
+        <span className="min-w-0">
+          <span className="block truncate">{babyNameLabel}</span>
+          {babyAge && <span className="block text-[11px] text-gray-400 leading-tight">{babyAge}</span>}
+        </span>
+      </button>
+    ) : babyLoading ? (
+      <span className="text-sm text-gray-400">…</span>
+    ) : (
+      <Link to="/baby/setup" className="text-sm text-primary-500 hover:text-primary-600">添加宝宝</Link>
+    )
+  );
+
+  const renderNav = (items: typeof desktopNav, variant: 'side' | 'bottom') =>
+    items.map((item) => {
+      const active = isActive(item.path);
+      if (variant === 'side') {
+        return (
+          <Link
+            key={item.path}
+            to={item.path}
+            className={`glass-nav-item flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              active ? 'bg-primary-50 text-primary-600 glass-nav-item-active' : 'text-gray-600 dark:text-gray-300 hover:bg-white/40'
+            }`}
+          >
+            <item.icon size={20} />
+            <span className="font-medium">{item.label}</span>
+          </Link>
+        );
+      }
+      return (
+        <Link
+          key={item.path}
+          to={item.path}
+          onClick={hapticTap}
+          className={`flex-1 flex flex-col items-center py-2.5 transition-transform active:scale-90 ${
+            active ? 'text-primary-500' : 'text-gray-400 dark:text-gray-500'
+          }`}
+        >
+          <item.icon size={22} />
+          <span className="text-[11px] mt-1 font-medium">{item.label}</span>
+        </Link>
+      );
+    });
 
   return (
     <div className="h-screen overflow-hidden bg-transparent md:pl-64">
-      {/* Ambient glow orbs — visible through glass panels */}
       <div className="glass-ambient-orbs" aria-hidden="true">
         <div className="glass-ambient-orb glass-ambient-orb-1" />
         <div className="glass-ambient-orb glass-ambient-orb-2" />
@@ -107,72 +182,17 @@ export default function Layout({ children }: LayoutProps) {
         <div className="glass-ambient-orb glass-ambient-orb-4" />
       </div>
 
-      {/* Desktop Sidebar */}
       <aside className="glass-sidebar hidden md:flex fixed left-0 top-0 h-full w-64 border-r glass-divider flex-col z-50">
         <div className="p-6 border-b glass-divider">
           <h1 className="text-xl font-bold text-primary-600">宝宝日志</h1>
-          {currentBaby ? (
-              <button
-                onClick={openBabyEdit}
-                className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mt-1.5 hover:text-primary-600 dark:hover:text-primary-400 transition-colors cursor-pointer"
-              >
-                {currentBaby.avatar ? (
-                  <img src={currentBaby.avatar} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
-                ) : (
-                  <span className="w-7 h-7 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-600 text-xs font-medium flex items-center justify-center flex-shrink-0">
-                    {currentBaby.name.slice(0, 1)}
-                  </span>
-                )}
-                <span>{babyNameLabel}</span>
-              </button>
-          ) : babyLoading ? (
-            <span className="text-sm text-gray-400 mt-1">…</span>
-          ) : (
-            <Link to="/baby/setup" className="text-sm text-primary-500 hover:text-primary-600 mt-1 inline-block">
-              添加宝宝
-            </Link>
-          )}
+          <div className="mt-1.5">{babyButton('md')}</div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1">
-          {navItems.map((item) => {
-            const active = location.pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`glass-nav-item flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                  active
-                    ? 'bg-primary-50 text-primary-600 glass-nav-item-active'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-white/40 hover:backdrop-blur-sm'
-                }`}
-              >
-                <item.icon size={20} />
-                <span className="font-medium">{item.label}</span>
-              </Link>
-            );
-          })}
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          {renderNav(desktopNav.slice(0, 5), 'side')}
+          <div className="h-px bg-gray-200/60 dark:bg-white/10 my-3" />
+          {renderNav(desktopNav.slice(5), 'side')}
         </nav>
-
-        {/* Theme Toggle */}
-        <div className="p-4 border-t glass-divider">
-          <div className="flex items-center gap-1 glass-theme-toggle rounded-lg p-1">
-            {themeOptions.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setTheme(opt.value)}
-                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-xs transition-all ${
-                  theme === opt.value
-                    ? 'text-gray-800 shadow-sm glass-theme-btn-active dark:text-gray-100'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
-                }`}
-                title={opt.label}
-              >
-                <opt.icon size={14} />
-              </button>
-            ))}
-          </div>
-        </div>
 
         <div className="p-4 border-t glass-divider">
           <div className="flex items-center justify-between">
@@ -184,67 +204,21 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </aside>
 
-      {/* Mobile Header */}
-      <header className={`glass-topbar md:hidden fixed top-0 left-0 right-0 border-b glass-divider z-50 px-4 py-3.5 flex items-center justify-between ${isSecondaryPage ? 'hidden' : ''}`}>
+      <header className={`glass-topbar md:hidden fixed top-0 left-0 right-0 border-b glass-divider z-50 px-4 py-3 flex items-center justify-between ${isSecondaryPage ? 'hidden' : ''}`}>
         <h1 className="text-lg font-bold text-primary-600">宝宝日志</h1>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark')}
-            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-            title="切换主题"
-          >
-            {theme === 'dark' ? <Moon size={18} /> : theme === 'light' ? <Sun size={18} /> : <Monitor size={18} />}
-          </button>
-          {currentBaby ? (
-              <button
-                onClick={openBabyEdit}
-                className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-              >
-                {currentBaby.avatar ? (
-                  <img src={currentBaby.avatar} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
-                ) : (
-                  <span className="w-6 h-6 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-600 text-[10px] font-medium flex items-center justify-center flex-shrink-0">
-                    {currentBaby.name.slice(0, 1)}
-                  </span>
-                )}
-                <span>{babyNameLabel}</span>
-              </button>
-          ) : babyLoading ? (
-            <span className="text-sm text-gray-400">…</span>
-          ) : (
-            <Link to="/baby/setup" className="text-sm text-primary-500 hover:text-primary-600">
-              添加宝宝
-            </Link>
-          )}
-        </div>
+        {babyButton('sm')}
       </header>
 
-      {/* Main Content */}
       <main className="h-full overflow-hidden glass-main-area">
         {children}
       </main>
 
-      {/* Mobile Bottom Nav */}
       <nav className={`glass-bottomnav md:hidden fixed bottom-0 left-0 right-0 border-t glass-divider z-50 flex ${isSecondaryPage ? 'hidden' : ''}`}>
-        {navItems.map((item) => {
-          const active = location.pathname === item.path;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              onClick={hapticTap}
-              className={`flex-1 flex flex-col items-center py-2.5 transition-transform active:scale-90 ${
-                active ? 'text-primary-500' : 'text-gray-400 dark:text-gray-500'
-              }`}
-            >
-              <item.icon size={22} />
-              <span className="text-[11px] mt-1 font-medium">{item.label}</span>
-            </Link>
-          );
-        })}
+        {renderNav(mobileNav, 'bottom')}
       </nav>
 
-      {/* Baby Edit Dialog */}
+      <BabySwitcher open={showSwitcher} onOpenChange={setShowSwitcher} onEditCurrent={openBabyEdit} />
+
       <Dialog open={showBabyEdit} onOpenChange={setShowBabyEdit}>
         <DialogContent>
           <DialogHeader>
@@ -266,12 +240,7 @@ export default function Layout({ children }: LayoutProps) {
                     <Camera size={22} className="text-gray-400" />
                   )}
                 </button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={avatarUploading}
-                  onClick={() => babyAvatarInputRef.current?.click()}
-                >
+                <Button type="button" variant="secondary" disabled={avatarUploading} onClick={() => babyAvatarInputRef.current?.click()}>
                   {avatarUploading ? '上传中...' : editAvatarPreview ? '更换头像' : '选择图片'}
                 </Button>
                 <input

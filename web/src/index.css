@@ -1562,3 +1562,32 @@ a.glass-card-ui:hover,
     animation: none !important;
   }
 }
+
+/* Night care mode: higher contrast, less glass */
+html.night body {
+  background: #000 !important;
+}
+html.night .glass-ambient-orbs {
+  display: none;
+}
+html.night .card,
+html.night .card-interactive {
+  background: #161616 !important;
+  border-color: #2a2a2a !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+html.night .glass-topbar,
+html.night .glass-bottomnav,
+html.night .glass-sidebar {
+  background: #111 !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+html.night .glass-chip,
+html.night .glass-input-ui,
+html.night .glass-type-panel,
+html.night .glass-page-shell {
+  background: #1a1a1a !important;
+  backdrop-filter: none !important;
+}

@@ -290,3 +290,37 @@ func TestDeleteUserReassignsMoments(t *testing.T) {
 		t.Fatalf("moment owner %q, want admin %q", owner, adminID)
 	}
 }
+
+func TestChangePassword(t *testing.T) {
+	s := newTestServer(t)
+	uid := insertUser(t, "pwuser", "Pw User", "user")
+
+	badCurrent := s.do(http.MethodPost, "/auth/change-password", uid, map[string]string{
+		"currentPassword": "wrong", "newPassword": "Abcdef2!",
+	})
+	if badCurrent.status != http.StatusBadRequest {
+		t.Fatalf("wrong current password expected 400, got %d", badCurrent.status)
+	}
+
+	weak := s.do(http.MethodPost, "/auth/change-password", uid, map[string]string{
+		"currentPassword": "password123", "newPassword": "short",
+	})
+	if weak.status != http.StatusBadRequest {
+		t.Fatalf("weak password expected 400, got %d", weak.status)
+	}
+
+	mustOK(t, s.do(http.MethodPost, "/auth/change-password", uid, map[string]string{
+		"currentPassword": "password123", "newPassword": "Abcdef2!",
+	}))
+
+	loginOld := s.do(http.MethodPost, "/auth/login", "", map[string]string{
+		"username": "pwuser", "password": "password123",
+	})
+	if loginOld.status != http.StatusUnauthorized {
+		t.Fatalf("old password should fail, got %d", loginOld.status)
+	}
+	mustOK(t, s.do(http.MethodPost, "/auth/login", "", map[string]string{
+		"username": "pwuser", "password": "Abcdef2!",
+	}))
+}
+

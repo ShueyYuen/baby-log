@@ -21,6 +21,10 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
+        shortcuts: [
+          { name: '换尿布', short_name: '尿布', url: '/?quick=diaper', description: '快速记录换尿布' },
+          { name: '开始睡觉', short_name: '睡觉', url: '/?quick=sleep', description: '开始睡眠计时' },
+        ],
         categories: ['lifestyle', 'health'],
         icons: [
           { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },

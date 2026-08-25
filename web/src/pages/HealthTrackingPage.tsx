@@ -456,7 +456,7 @@ export default function HealthTrackingPage() {
           </button>
           <h2 className="text-xl font-semibold dark:text-gray-100">未找到</h2>
         </div>
-        <p className="text-center text-gray-400 py-8">病症追踪项目不存在</p>
+        <p className="text-center text-gray-400 py-8">追踪项目不存在</p>
       </div>
     );
   }
@@ -681,7 +681,7 @@ export default function HealthTrackingPage() {
       <Dialog open={showEditCondition} onOpenChange={setShowEditCondition}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>编辑病症信息</DialogTitle>
+            <DialogTitle>编辑追踪信息</DialogTitle>
           </DialogHeader>
           <form onSubmit={updateCondition} className="space-y-4">
             <div>
@@ -714,7 +714,7 @@ export default function HealthTrackingPage() {
         open={deletingCondition}
         onOpenChange={setDeletingCondition}
         title="删除追踪"
-        description="确定删除此病症追踪？所有相关记录都将被删除，此操作不可撤销。"
+        description="确定删除此追踪？所有相关记录都将被删除，此操作不可撤销。"
         confirmLabel="删除"
         variant="danger"
         onConfirm={deleteCondition}

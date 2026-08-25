@@ -28,7 +28,9 @@
           "PORT": "3001",
           "DATABASE_URL": "file:./dev.db",
           "STORAGE_TYPE": "local",
-          "UPLOAD_DIR": "uploads"
+          "UPLOAD_DIR": "uploads",
+          "ADMIN_USERNAME": "admin",
+          "ADMIN_PASSWORD": "123456@a"
         }
       },
       "group": "none",
@@ -116,7 +118,10 @@
     },
     {
       "label": "Full Stack: Dev",
-      "dependsOn": ["Backend: Run", "Frontend: Dev"],
+      "dependsOn": [
+        "Backend: Run",
+        "Frontend: Dev"
+      ],
       "dependsOrder": "parallel",
       "group": "none",
       "presentation": {

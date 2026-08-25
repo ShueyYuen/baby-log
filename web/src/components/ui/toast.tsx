@@ -5,15 +5,21 @@ import { hapticSuccess, hapticError } from '../../lib/haptic';
 
 type ToastVariant = 'success' | 'error' | 'info';
 
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface Toast {
   id: number;
   message: string;
   variant: ToastVariant;
   exiting?: boolean;
+  action?: ToastAction;
 }
 
 interface ToastContextType {
-  toast: (message: string, variant?: ToastVariant) => void;
+  toast: (message: string, variant?: ToastVariant, opts?: { action?: ToastAction; duration?: number }) => void;
 }
 
 const ToastContext = createContext<ToastContextType | null>(null);
@@ -45,6 +51,17 @@ function ToastItem({ toast: t, onRemove }: { toast: Toast; onRemove: (id: number
       {t.variant === 'error' && <AlertCircle size={16} className="shrink-0" />}
       {t.variant === 'info' && <Info size={16} className="shrink-0" />}
       <span className="flex-1">{t.message}</span>
+      {t.action && (
+        <button
+          onClick={() => {
+            t.action?.onClick();
+            onRemove(t.id);
+          }}
+          className="shrink-0 text-xs font-semibold underline underline-offset-2"
+        >
+          {t.action.label}
+        </button>
+      )}
       <button onClick={() => onRemove(t.id)} className="shrink-0 opacity-60 hover:opacity-100">
         <X size={14} />
       </button>
@@ -55,16 +72,17 @@ function ToastItem({ toast: t, onRemove }: { toast: Toast; onRemove: (id: number
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const addToast = useCallback((message: string, variant: ToastVariant = 'info') => {
+  const addToast = useCallback((message: string, variant: ToastVariant = 'info', opts?: { action?: ToastAction; duration?: number }) => {
     const id = nextId++;
-    setToasts((prev) => [...prev, { id, message, variant }]);
+    setToasts((prev) => [...prev, { id, message, variant, action: opts?.action }]);
 
     if (variant === 'success') hapticSuccess();
     else if (variant === 'error') hapticError();
 
+    const duration = opts?.duration ?? (opts?.action ? 5000 : 2800);
     setTimeout(() => {
       setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, exiting: true } : t)));
-    }, 2800);
+    }, duration);
   }, []);
 
   const removeToast = useCallback((id: number) => {

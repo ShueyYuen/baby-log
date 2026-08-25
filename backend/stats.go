@@ -460,17 +460,7 @@ func handleTimeline(w http.ResponseWriter, r *http.Request) {
 		pageSize = 100
 	}
 
-	where := `WHERE r.babyId = ?`
-	args := []interface{}{babyID}
-	if v := q.Get("category"); v != "" {
-		where += ` AND r.category = ?`
-		args = append(args, v)
-	}
-	if v := q.Get("search"); v != "" {
-		where += ` AND (r.note LIKE ? OR r.data LIKE ?)`
-		like := "%" + v + "%"
-		args = append(args, like, like)
-	}
+	where, args := appendRecordFilters(`WHERE r.babyId = ?`, []interface{}{babyID}, q)
 	if v := q.Get("before"); v != "" {
 		beforeMs, err := strconv.ParseInt(v, 10, 64)
 		if err == nil && beforeMs > 0 {

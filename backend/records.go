@@ -4,10 +4,57 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/google/uuid"
 )
+
+// appendRecordFilters adds shared list/timeline query filters onto a WHERE clause
+// that already contains `WHERE r.babyId = ?`.
+func appendRecordFilters(where string, args []interface{}, q url.Values) (string, []interface{}) {
+	if v := q.Get("category"); v != "" && v != "all" {
+		where += ` AND r.category = ?`
+		args = append(args, v)
+	}
+	if v := q.Get("type"); v != "" && v != "all" {
+		where += ` AND r.type = ?`
+		args = append(args, v)
+	}
+	if v := q.Get("createdBy"); v != "" {
+		where += ` AND r.createdBy = ?`
+		args = append(args, v)
+	}
+	if v := q.Get("startDate"); v != "" {
+		if m, err := millisFromInput(v); err == nil {
+			where += ` AND r.occurredAt >= ?`
+			args = append(args, int64(m))
+		}
+	}
+	if v := q.Get("endDate"); v != "" {
+		if m, err := millisFromInput(v); err == nil {
+			end := int64(m)
+			if len(v) <= 10 {
+				end += 24*60*60*1000 - 1
+			}
+			where += ` AND r.occurredAt <= ?`
+			args = append(args, end)
+		}
+	}
+	if q.Get("hasImages") == "true" {
+		where += ` AND r.images IS NOT NULL AND r.images != '' AND r.images != '[]'`
+	}
+	search := q.Get("search")
+	if search == "" {
+		search = q.Get("keyword")
+	}
+	if search != "" {
+		where += ` AND (r.note LIKE ? OR r.data LIKE ?)`
+		like := "%" + search + "%"
+		args = append(args, like, like)
+	}
+	return where, args
+}
 
 func parseIntDefault(s string, def int) int {
 	if s == "" {
@@ -140,35 +187,7 @@ func handleListRecords(w http.ResponseWriter, r *http.Request) {
 		pageSize = 100
 	}
 
-	where := `WHERE r.babyId = ?`
-	args := []interface{}{babyID}
-	if v := q.Get("category"); v != "" {
-		where += ` AND r.category = ?`
-		args = append(args, v)
-	}
-	if v := q.Get("type"); v != "" {
-		where += ` AND r.type = ?`
-		args = append(args, v)
-	}
-	if v := q.Get("startDate"); v != "" {
-		if m, err := millisFromInput(v); err == nil {
-			where += ` AND r.occurredAt >= ?`
-			args = append(args, int64(m))
-		}
-	}
-	if v := q.Get("endDate"); v != "" {
-		if m, err := millisFromInput(v); err == nil {
-			where += ` AND r.occurredAt <= ?`
-			args = append(args, int64(m))
-		}
-	}
-	if q.Get("hasImages") == "true" {
-		where += ` AND r.images IS NOT NULL`
-	}
-	if v := q.Get("keyword"); v != "" {
-		where += ` AND r.note LIKE ?`
-		args = append(args, "%"+v+"%")
-	}
+	where, args := appendRecordFilters(`WHERE r.babyId = ?`, []interface{}{babyID}, q)
 
 	// total
 	var total int

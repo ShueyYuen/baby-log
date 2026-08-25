@@ -247,6 +247,45 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// POST /auth/change-password — authenticated user updates their own password.
+func handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	userID := getUserID(r)
+	var body struct {
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, http.StatusBadRequest, "Invalid input")
+		return
+	}
+	if body.CurrentPassword == "" || body.NewPassword == "" {
+		writeErr(w, http.StatusBadRequest, "请填写当前密码和新密码")
+		return
+	}
+	if !validatePasswordStrength(body.NewPassword) {
+		writeErr(w, http.StatusBadRequest, "新密码至少 8 位，需包含大小写字母、数字和符号")
+		return
+	}
+
+	var storedHash string
+	if err := db.QueryRow(`SELECT password FROM "User" WHERE id = ?`, userID).Scan(&storedHash); err != nil {
+		writeErr(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	if !checkPassword(storedHash, body.CurrentPassword) {
+		writeErr(w, http.StatusBadRequest, "当前密码不正确")
+		return
+	}
+
+	now := nowMillis()
+	if _, err := db.Exec(`UPDATE "User" SET password = ?, updatedAt = ? WHERE id = ?`,
+		hashPassword(body.NewPassword), int64(now), userID); err != nil {
+		writeErr(w, http.StatusInternalServerError, "Server error")
+		return
+	}
+	writeSuccess(w)
+}
+
 // POST /auth/logout
 func handleLogout(w http.ResponseWriter, _ *http.Request) {
 	http.SetCookie(w, &http.Cookie{

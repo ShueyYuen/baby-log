@@ -32,6 +32,13 @@ import {
   type UploadMomentResult,
 } from "../lib/api";
 import { cacheInvalidate, cacheRead } from "../lib/queryCache";
+import {
+  getRecordDefaults,
+  getRecentNames,
+  patchRecordDefaults,
+  rememberName,
+  rememberRecentType,
+} from "../lib/record-defaults";
 
 interface MediaPreview {
   file?: File;
@@ -190,6 +197,7 @@ export default function RecordFormPage() {
   // Derive initial values from location state (passed when navigating from list) for instant render
   const _sr = isEditing ? (location.state as any)?.record : null;
   const _d = _sr?.data || {};
+  const _defaults = getRecordDefaults();
 
   const [category, setCategory] = useState<CategoryType>(
     _sr?.category || urlCategory || "feeding",
@@ -227,15 +235,15 @@ export default function RecordFormPage() {
   const idempotencyKeyRef = useRef(generateIdempotencyKey());
 
   // Dynamic form data — initialized from state record if available
-  const [leftMinutes, setLeftMinutes] = useState(_d.leftMinutes ?? 10);
-  const [rightMinutes, setRightMinutes] = useState(_d.rightMinutes ?? 10);
+  const [leftMinutes, setLeftMinutes] = useState(_d.leftMinutes ?? _defaults.breastfeed?.leftMinutes ?? 10);
+  const [rightMinutes, setRightMinutes] = useState(_d.rightMinutes ?? _defaults.breastfeed?.rightMinutes ?? 10);
   const [milkType, setMilkType] = useState<"breast_milk" | "formula">(
-    _d.milkType || "formula",
+    _d.milkType || _defaults.bottle?.milkType || "formula",
   );
-  const [amountMl, setAmountMl] = useState(_d.amountMl ?? 120);
+  const [amountMl, setAmountMl] = useState(_d.amountMl ?? _defaults.bottle?.amountMl ?? 120);
   const [solidName, setSolidName] = useState(_d.name || "");
   const [solidAmount, setSolidAmount] = useState(_d.amount || "");
-  const [waterMl, setWaterMl] = useState(_d.amountMl ?? 30);
+  const [waterMl, setWaterMl] = useState(_d.amountMl ?? _defaults.water?.amountMl ?? 30);
   const [diaperType, setDiaperType] = useState<"wet" | "dirty" | "both">(
     _d.type || "wet",
   );
@@ -244,18 +252,18 @@ export default function RecordFormPage() {
     if (_d.startTime && _d.durationMinutes) return dayjs(_d.startTime).add(_d.durationMinutes, 'minute').format('YYYY-MM-DDTHH:mm');
     return dayjs().format('YYYY-MM-DDTHH:mm');
   });
-  const [supplementName, setSupplementName] = useState(_d.name || "维生素D");
+  const [supplementName, setSupplementName] = useState(_d.name || _defaults.supplement?.name || "维生素D");
   const [temperature, setTemperature] = useState(_d.value ?? 36.5);
   const [tempLocation, setTempLocation] = useState<
     "axillary" | "ear" | "forehead" | "rectal"
-  >(_d.location || "axillary");
+  >(_d.location || _defaults.temperature?.location || "axillary");
   const [playDuration, setPlayDuration] = useState(_d.durationMinutes ?? 30);
   const [bathDuration, setBathDuration] = useState(_d.durationMinutes ?? 15);
-  const [pumpAmountMl, setPumpAmountMl] = useState(_d.amountMl ?? 120);
-  const [pumpSide, setPumpSide] = useState<"left" | "right" | "both">(_d.side || "both");
-  const [pumpDuration, setPumpDuration] = useState(_d.durationMinutes ?? 15);
+  const [pumpAmountMl, setPumpAmountMl] = useState(_d.amountMl ?? _defaults.pump?.amountMl ?? 120);
+  const [pumpSide, setPumpSide] = useState<"left" | "right" | "both">(_d.side || _defaults.pump?.side || "both");
+  const [pumpDuration, setPumpDuration] = useState(_d.durationMinutes ?? _defaults.pump?.durationMinutes ?? 15);
   const [pumpStorage, setPumpStorage] = useState<"fridge" | "freezer" | "direct_feed">(
-    _d.storage || "fridge",
+    _d.storage || _defaults.pump?.storage || "fridge",
   );
   const [isOngoing, setIsOngoing] = useState(false);
   const [ongoingStartTime, setOngoingStartTime] = useState<string | null>(null);
@@ -585,6 +593,17 @@ export default function RecordFormPage() {
       if (isEditing) {
         await api.recordsCrud.update(id!, payload);
       } else {
+        rememberRecentType(type);
+        if (type === "bottle") patchRecordDefaults({ bottle: { milkType, amountMl } });
+        if (type === "breastfeed") patchRecordDefaults({ breastfeed: { leftMinutes, rightMinutes } });
+        if (type === "water") patchRecordDefaults({ water: { amountMl: waterMl } });
+        if (type === "pump") patchRecordDefaults({ pump: { amountMl: pumpAmountMl, side: pumpSide, durationMinutes: pumpDuration, storage: pumpStorage } });
+        if (type === "temperature") patchRecordDefaults({ temperature: { location: tempLocation } });
+        if (type === "supplement") {
+          patchRecordDefaults({ supplement: { name: supplementName } });
+          rememberName("supplement", supplementName);
+        }
+        if (type === "solid") rememberName("solid", solidName);
         await api.recordsCrud.create(payload, idempotencyKeyRef.current);
         if (
           type === "pump" &&
@@ -607,7 +626,7 @@ export default function RecordFormPage() {
         }
       }
       cacheInvalidate("/timeline");
-      navigate("/", { replace: true });
+      navigate(-1);
     } catch {
       toast(isEditing ? "修改失败" : "添加失败", "error");
     } finally {
@@ -701,6 +720,20 @@ export default function RecordFormPage() {
                 className="input"
                 placeholder="如：米糊"
               />
+              {getRecentNames("solid").length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {getRecentNames("solid").map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => setSolidName(name)}
+                      className="px-2 py-0.5 rounded-full glass-chip text-xs text-gray-600 dark:text-gray-300"
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -771,6 +804,7 @@ export default function RecordFormPage() {
             />
             <div className="flex flex-wrap gap-2 mt-3">
               {[
+                ...getRecentNames("supplement"),
                 "维生素D",
                 "DHA",
                 "益生菌",
@@ -1352,7 +1386,7 @@ export default function RecordFormPage() {
                 try {
                   await api.recordsCrud.delete(id!);
                   cacheInvalidate("/timeline");
-                  navigate("/", { replace: true });
+                  navigate(-1);
                 } catch {
                   toast("删除失败", "error");
                 }
