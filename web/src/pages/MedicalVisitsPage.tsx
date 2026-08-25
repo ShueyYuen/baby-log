@@ -81,7 +81,7 @@ function VisitDetail() {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 md:left-64 z-30 glass-page-shell p-4">
+      <div className="absolute inset-0 glass-page-shell p-4">
         <Skeleton className="h-12 mb-4" />
         <Skeleton className="h-40 mb-4" />
         <Skeleton className="h-32" />
@@ -91,7 +91,7 @@ function VisitDetail() {
 
   if (!visit) {
     return (
-      <div className="fixed inset-0 md:left-64 z-30 glass-page-shell flex items-center justify-center">
+      <div className="absolute inset-0 glass-page-shell flex items-center justify-center">
         <p className="text-gray-400">记录不存在</p>
       </div>
     );
@@ -107,7 +107,7 @@ function VisitDetail() {
   ].filter((f) => f.value);
 
   return (
-    <div className="fixed inset-0 md:left-64 z-30 flex flex-col glass-page-shell">
+    <div className="absolute inset-0 flex flex-col glass-page-shell">
       <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b glass-sticky-header flex-shrink-0">
           <Button
             variant="ghost"
@@ -525,7 +525,7 @@ function VisitForm() {
 
   if (loadingVisit) {
     return (
-      <div className="fixed inset-0 md:left-64 z-30 glass-page-shell p-4">
+      <div className="absolute inset-0 glass-page-shell p-4">
         <Skeleton className="h-12 mb-4" />
         <Skeleton className="h-80" />
       </div>
@@ -536,7 +536,7 @@ function VisitForm() {
     existingImages.length + uploads.filter((u) => u.result).length;
 
   return (
-    <div className="fixed inset-0 md:left-64 z-30 flex flex-col glass-page-shell">
+    <div className="absolute inset-0 flex flex-col glass-page-shell">
       <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b glass-sticky-header flex-shrink-0">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft size={20} />

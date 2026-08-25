@@ -1,4 +1,3 @@
-import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { Play } from 'lucide-react';
@@ -24,19 +23,13 @@ export function RecordCard({ record, isViewer, onImageClick }: RecordCardProps) 
 
   const handleClick = () => {
     if (isViewer) return;
-    const doNavigate = () => navigate(href, { state: { record } });
-    if (document.startViewTransition) {
-      document.startViewTransition(() => { flushSync(doNavigate); });
-    } else {
-      doNavigate();
-    }
+    navigate(href, { state: { record } });
   };
 
   const urls = getViewerImages(record.images);
 
   return (
     <div
-      style={{ viewTransitionName: `record-card-${record.id}` }}
       className={`${!isViewer ? 'card-interactive' : 'card'} flex items-center gap-3 border-l-[3px] ${config.accent}`}
       onClick={handleClick}
     >

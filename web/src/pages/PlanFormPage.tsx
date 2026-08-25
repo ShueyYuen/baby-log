@@ -236,8 +236,7 @@ export default function PlanFormPage() {
 
   return (
     <div
-      style={{ viewTransitionName: id ? `plan-card-${id}` : undefined }}
-      className="fixed inset-0 md:top-0 md:bottom-0 md:left-64 z-30 flex flex-col glass-page-shell form-expand-in"
+      className="absolute inset-0 flex flex-col glass-page-shell"
     >
       <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b glass-sticky-header flex-shrink-0">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>

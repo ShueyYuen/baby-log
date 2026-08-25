@@ -213,15 +213,6 @@
   }
 }
 
-@keyframes keepalive-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.keepalive-page[data-active="true"] {
-  animation: keepalive-fade-in 150ms ease-out;
-}
-
 @keyframes slide-up {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
@@ -229,6 +220,80 @@
 
 .animate-slide-up {
   animation: slide-up 0.25s ease-out;
+}
+
+/* ─── Page transitions ─────────────────────────────────────── */
+
+.keepalive-page {
+  z-index: 1;
+}
+
+.keepalive-page[data-active="false"] {
+  pointer-events: none;
+}
+
+.keepalive-page[data-phase="in"] {
+  z-index: 2;
+}
+.keepalive-page[data-phase="out"] {
+  z-index: 1;
+  pointer-events: none;
+}
+.keepalive-page[data-phase="shown"] {
+  z-index: 1;
+}
+.keepalive-page[data-phase="hidden"] {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 0;
+}
+
+@keyframes ka-enter-forward {
+  from { opacity: 0; transform: translate3d(18%, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes ka-enter-back {
+  from { opacity: 0; transform: translate3d(-18%, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes ka-exit-forward {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(-12%, 0, 0); }
+}
+@keyframes ka-exit-back {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(12%, 0, 0); }
+}
+
+.keepalive-page[data-phase="in"][data-dir="forward"] {
+  animation: ka-enter-forward 320ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.keepalive-page[data-phase="in"][data-dir="back"] {
+  animation: ka-enter-back 320ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.keepalive-page[data-phase="out"][data-dir="forward"] {
+  animation: ka-exit-forward 260ms ease-in both;
+}
+.keepalive-page[data-phase="out"][data-dir="back"] {
+  animation: ka-exit-back 260ms ease-in both;
+}
+
+@keyframes page-enter-push {
+  from { opacity: 0; transform: translate3d(24%, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes page-exit-pop {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(24%, 0, 0); }
+}
+
+.secondary-pane.is-entering {
+  animation: page-enter-push 320ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.secondary-pane.is-exiting {
+  pointer-events: none;
+  animation: page-exit-pop 280ms ease-in both;
 }
 
 .scrollbar-hide {
@@ -412,6 +477,36 @@ a.glass-card-ui:hover,
     0 8px 32px rgba(0, 0, 0, 0.35),
     0 2px 8px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+@keyframes dialog-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes dialog-overlay-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes dialog-content-in {
+  from { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes dialog-content-out {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }
+}
+
+.glass-dialog-overlay[data-state="open"] {
+  animation: dialog-overlay-in 200ms ease-out;
+}
+.glass-dialog-overlay[data-state="closed"] {
+  animation: dialog-overlay-out 150ms ease-in forwards;
+}
+.glass-dialog-content[data-state="open"] {
+  animation: dialog-content-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-dialog-content[data-state="closed"] {
+  animation: dialog-content-out 150ms ease-in forwards;
 }
 
 .glass-dialog-content {
@@ -1559,6 +1654,16 @@ a.glass-card-ui:hover,
   ::view-transition-new(record-card),
   ::view-transition-old(plan-card),
   ::view-transition-new(plan-card) {
+    animation: none !important;
+  }
+
+  .keepalive-page[data-phase="in"],
+  .keepalive-page[data-phase="out"],
+  .secondary-pane.is-entering,
+  .secondary-pane.is-exiting,
+  .form-expand-in,
+  .glass-dialog-overlay,
+  .glass-dialog-content {
     animation: none !important;
   }
 }

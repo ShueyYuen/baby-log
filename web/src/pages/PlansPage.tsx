@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { flushSync } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -160,12 +159,7 @@ function PlanCardItem({ plan, isViewer, onComplete, onCalendar }: PlanCardItemPr
   const handleClick = (e: React.MouseEvent) => {
     if (isViewer) return;
     if ((e.target as HTMLElement).closest('img')) return;
-    const doNavigate = () => navigate(href, { state: { plan } });
-    if (document.startViewTransition) {
-      document.startViewTransition(() => { flushSync(doNavigate); });
-    } else {
-      doNavigate();
-    }
+    navigate(href, { state: { plan } });
   };
 
   const viewerImages: ViewerImage[] = useMemo(
@@ -175,7 +169,6 @@ function PlanCardItem({ plan, isViewer, onComplete, onCalendar }: PlanCardItemPr
 
   return (
     <Card
-      style={{ viewTransitionName: `plan-card-${plan.id}` }}
       className={`transition-all ${!isViewer ? 'cursor-pointer hover:!bg-white/50 dark:hover:!bg-white/[0.06] active:!bg-white/60 dark:active:!bg-white/[0.03]' : ''}`}
       onClick={handleClick}
     >

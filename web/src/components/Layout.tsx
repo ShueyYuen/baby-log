@@ -1,6 +1,4 @@
-import { ReactNode, useState, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { hapticTap } from '../lib/haptic';
+import dayjs from "dayjs";
 import {
   Activity,
   Calendar,
@@ -10,16 +8,31 @@ import {
   TrendingUp,
   User,
   Users,
-} from 'lucide-react';
-import { useBaby } from '../contexts/BabyContext';
-import { useAuth } from '../contexts/AuthContext';
-import { api } from '../lib/api';
-import { cropAndResizeAvatar } from '../lib/avatar-crop';
-import { formatBabyAge } from '../lib/baby-age';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, Button, Input, DateTimePicker, useToast } from './ui';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui';
-import { BabySwitcher } from './BabySwitcher';
-import dayjs from 'dayjs';
+} from "lucide-react";
+import { ReactNode, useRef, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import { useBaby } from "../contexts/BabyContext";
+import { api } from "../lib/api";
+import { cropAndResizeAvatar } from "../lib/avatar-crop";
+import { formatBabyAge } from "../lib/baby-age";
+import { hapticTap } from "../lib/haptic";
+import { BabySwitcher } from "./BabySwitcher";
+import {
+  Button,
+  DateTimePicker,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  useToast,
+} from "./ui";
 
 interface LayoutProps {
   children: ReactNode;
@@ -33,11 +46,13 @@ export default function Layout({ children }: LayoutProps) {
 
   const [showBabyEdit, setShowBabyEdit] = useState(false);
   const [showSwitcher, setShowSwitcher] = useState(false);
-  const [editName, setEditName] = useState('');
-  const [editGender, setEditGender] = useState<string>('male');
-  const [editBirthDate, setEditBirthDate] = useState('');
+  const [editName, setEditName] = useState("");
+  const [editGender, setEditGender] = useState<string>("male");
+  const [editBirthDate, setEditBirthDate] = useState("");
   const [saving, setSaving] = useState(false);
-  const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null);
+  const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(
+    null,
+  );
   const [editAvatarKey, setEditAvatarKey] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const babyAvatarInputRef = useRef<HTMLInputElement>(null);
@@ -46,7 +61,11 @@ export default function Layout({ children }: LayoutProps) {
     if (!currentBaby) return;
     setEditName(currentBaby.name);
     setEditGender(currentBaby.gender);
-    setEditBirthDate(currentBaby.birthDate ? dayjs(currentBaby.birthDate).format('YYYY-MM-DDTHH:mm') : '');
+    setEditBirthDate(
+      currentBaby.birthDate
+        ? dayjs(currentBaby.birthDate).format("YYYY-MM-DDTHH:mm")
+        : "",
+    );
     setEditAvatarPreview(currentBaby.avatar ?? null);
     setEditAvatarKey(null);
     setShowBabyEdit(true);
@@ -57,12 +76,15 @@ export default function Layout({ children }: LayoutProps) {
     try {
       const cropped = await cropAndResizeAvatar(file);
       const formData = new FormData();
-      formData.append('file', cropped);
-      const res = await api.post<{ success: boolean; data: { url: string; key: string } }>('/upload', formData);
+      formData.append("file", cropped);
+      const res = await api.post<{
+        success: boolean;
+        data: { url: string; key: string };
+      }>("/upload", formData);
       setEditAvatarPreview(res.data.url);
       setEditAvatarKey(res.data.key);
     } catch {
-      toast('头像上传失败', 'error');
+      toast("头像上传失败", "error");
     } finally {
       setAvatarUploading(false);
     }
@@ -75,82 +97,105 @@ export default function Layout({ children }: LayoutProps) {
       const payload: Record<string, unknown> = {
         name: editName.trim(),
         gender: editGender,
-        birthDate: editBirthDate ? new Date(editBirthDate).toISOString() : undefined,
+        birthDate: editBirthDate
+          ? new Date(editBirthDate).toISOString()
+          : undefined,
       };
       if (editAvatarKey) payload.avatar = editAvatarKey;
       await api.babies.update(currentBaby.id, payload);
       await refreshBabies();
       setShowBabyEdit(false);
     } catch {
-      toast('保存失败', 'error');
+      toast("保存失败", "error");
     } finally {
       setSaving(false);
     }
   };
 
-  const isSecondaryPage = /^\/(record|plan\/new|plan\/[^/]+\/edit|growth\/history|health\/[^/]+|milk-inventory|medical-visits\/|stats)/.test(location.pathname);
+  const isSecondaryPage =
+    /^\/(record|plan\/new|plan\/[^/]+\/edit|growth\/history|health\/[^/]+|milk-inventory|medical-visits\/|stats)/.test(
+      location.pathname,
+    );
 
   const mobileNav = [
-    { path: '/', icon: Home, label: '今天' },
-    { path: '/plans', icon: Calendar, label: '计划' },
-    { path: '/moments', icon: Images, label: '朋友圈' },
-    { path: '/growth', icon: TrendingUp, label: '成长' },
-    { path: '/me', icon: User, label: '我的' },
+    { path: "/", icon: Home, label: "记录" },
+    { path: "/plans", icon: Calendar, label: "计划" },
+    { path: "/moments", icon: Images, label: "朋友圈" },
+    { path: "/growth", icon: TrendingUp, label: "成长" },
+    { path: "/me", icon: User, label: "我的" },
   ];
 
   const desktopNav = [
-    { path: '/', icon: Home, label: '今天' },
-    { path: '/plans', icon: Calendar, label: '计划' },
-    { path: '/moments', icon: Images, label: '朋友圈' },
-    { path: '/growth', icon: TrendingUp, label: '成长' },
-    { path: '/me', icon: User, label: '我的' },
-    { path: '/health', icon: Activity, label: '健康' },
-    ...(isAdmin ? [{ path: '/admin', icon: Users, label: '管理' }] : []),
+    { path: "/", icon: Home, label: "记录" },
+    { path: "/plans", icon: Calendar, label: "计划" },
+    { path: "/moments", icon: Images, label: "朋友圈" },
+    { path: "/growth", icon: TrendingUp, label: "成长" },
+    { path: "/me", icon: User, label: "我的" },
+    { path: "/health", icon: Activity, label: "健康" },
+    ...(isAdmin ? [{ path: "/admin", icon: Users, label: "管理" }] : []),
   ];
 
   const isActive = (path: string) => {
-    if (path === '/') return location.pathname === '/';
-    return location.pathname === path || location.pathname.startsWith(path + '/');
+    if (path === "/") return location.pathname === "/";
+    return (
+      location.pathname === path || location.pathname.startsWith(path + "/")
+    );
   };
 
   const babyAge = formatBabyAge(currentBaby?.birthDate);
-  const babyNameLabel = babyLoading ? '…' : currentBaby?.name;
+  const babyNameLabel = babyLoading ? "…" : currentBaby?.name;
 
-  const babyButton = (size: 'sm' | 'md') => (
+  const babyButton = (size: "sm" | "md") =>
     currentBaby ? (
       <button
         onClick={() => setShowSwitcher(true)}
         className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors text-left"
       >
         {currentBaby.avatar ? (
-          <img src={currentBaby.avatar} alt="" className={`${size === 'md' ? 'w-7 h-7' : 'w-6 h-6'} rounded-full object-cover flex-shrink-0`} />
+          <img
+            src={currentBaby.avatar}
+            alt=""
+            className={`${size === "md" ? "w-7 h-7" : "w-6 h-6"} rounded-full object-cover flex-shrink-0`}
+          />
         ) : (
-          <span className={`${size === 'md' ? 'w-7 h-7 text-xs' : 'w-6 h-6 text-[10px]'} rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-600 font-medium flex items-center justify-center flex-shrink-0`}>
+          <span
+            className={`${size === "md" ? "w-7 h-7 text-xs" : "w-6 h-6 text-[10px]"} rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-600 font-medium flex items-center justify-center flex-shrink-0`}
+          >
             {currentBaby.name.slice(0, 1)}
           </span>
         )}
         <span className="min-w-0">
           <span className="block truncate">{babyNameLabel}</span>
-          {babyAge && <span className="block text-[11px] text-gray-400 leading-tight">{babyAge}</span>}
+          {babyAge && (
+            <span className="block text-[11px] text-gray-400 leading-tight">
+              {babyAge}
+            </span>
+          )}
         </span>
       </button>
     ) : babyLoading ? (
       <span className="text-sm text-gray-400">…</span>
     ) : (
-      <Link to="/baby/setup" className="text-sm text-primary-500 hover:text-primary-600">添加宝宝</Link>
-    )
-  );
+      <Link
+        to="/baby/setup"
+        className="text-sm text-primary-500 hover:text-primary-600"
+      >
+        添加宝宝
+      </Link>
+    );
 
-  const renderNav = (items: typeof desktopNav, variant: 'side' | 'bottom') =>
+  const renderNav = (items: typeof desktopNav, variant: "side" | "bottom") =>
     items.map((item) => {
       const active = isActive(item.path);
-      if (variant === 'side') {
+      if (variant === "side") {
         return (
           <Link
             key={item.path}
             to={item.path}
             className={`glass-nav-item flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-              active ? 'bg-primary-50 text-primary-600 glass-nav-item-active' : 'text-gray-600 dark:text-gray-300 hover:bg-white/40'
+              active
+                ? "bg-primary-50 text-primary-600 glass-nav-item-active"
+                : "text-gray-600 dark:text-gray-300 hover:bg-white/40"
             }`}
           >
             <item.icon size={20} />
@@ -164,7 +209,7 @@ export default function Layout({ children }: LayoutProps) {
           to={item.path}
           onClick={hapticTap}
           className={`flex-1 flex flex-col items-center py-2.5 transition-transform active:scale-90 ${
-            active ? 'text-primary-500' : 'text-gray-400 dark:text-gray-500'
+            active ? "text-primary-500" : "text-gray-400 dark:text-gray-500"
           }`}
         >
           <item.icon size={22} />
@@ -185,39 +230,50 @@ export default function Layout({ children }: LayoutProps) {
       <aside className="glass-sidebar hidden md:flex fixed left-0 top-0 h-full w-64 border-r glass-divider flex-col z-50">
         <div className="p-6 border-b glass-divider">
           <h1 className="text-xl font-bold text-primary-600">宝宝日志</h1>
-          <div className="mt-1.5">{babyButton('md')}</div>
+          <div className="mt-1.5">{babyButton("md")}</div>
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {renderNav(desktopNav.slice(0, 5), 'side')}
+          {renderNav(desktopNav.slice(0, 5), "side")}
           <div className="h-px bg-gray-200/60 dark:bg-white/10 my-3" />
-          {renderNav(desktopNav.slice(5), 'side')}
+          {renderNav(desktopNav.slice(5), "side")}
         </nav>
 
         <div className="p-4 border-t glass-divider">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600 dark:text-gray-300">{user?.displayName}</span>
-            <button onClick={logout} className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+            <span className="text-sm text-gray-600 dark:text-gray-300">
+              {user?.displayName}
+            </span>
+            <button
+              onClick={logout}
+              className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            >
               退出
             </button>
           </div>
         </div>
       </aside>
 
-      <header className={`glass-topbar md:hidden fixed top-0 left-0 right-0 border-b glass-divider z-50 px-4 py-3 flex items-center justify-between ${isSecondaryPage ? 'hidden' : ''}`}>
+      <header
+        className={`glass-topbar md:hidden fixed top-0 left-0 right-0 border-b glass-divider z-50 px-4 py-3 flex items-center justify-between ${isSecondaryPage ? "hidden" : ""}`}
+      >
         <h1 className="text-lg font-bold text-primary-600">宝宝日志</h1>
-        {babyButton('sm')}
+        {babyButton("sm")}
       </header>
 
-      <main className="h-full overflow-hidden glass-main-area">
-        {children}
-      </main>
+      <main className="h-full overflow-hidden glass-main-area">{children}</main>
 
-      <nav className={`glass-bottomnav md:hidden fixed bottom-0 left-0 right-0 border-t glass-divider z-50 flex ${isSecondaryPage ? 'hidden' : ''}`}>
-        {renderNav(mobileNav, 'bottom')}
+      <nav
+        className={`glass-bottomnav md:hidden fixed bottom-0 left-0 right-0 border-t glass-divider z-50 flex ${isSecondaryPage ? "hidden" : ""}`}
+      >
+        {renderNav(mobileNav, "bottom")}
       </nav>
 
-      <BabySwitcher open={showSwitcher} onOpenChange={setShowSwitcher} onEditCurrent={openBabyEdit} />
+      <BabySwitcher
+        open={showSwitcher}
+        onOpenChange={setShowSwitcher}
+        onEditCurrent={openBabyEdit}
+      />
 
       <Dialog open={showBabyEdit} onOpenChange={setShowBabyEdit}>
         <DialogContent>
@@ -226,7 +282,9 @@ export default function Layout({ children }: LayoutProps) {
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">头像</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                头像
+              </label>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -235,13 +293,26 @@ export default function Layout({ children }: LayoutProps) {
                   className="relative w-16 h-16 rounded-full overflow-hidden glass-avatar-placeholder flex items-center justify-center flex-shrink-0"
                 >
                   {editAvatarPreview ? (
-                    <img src={editAvatarPreview} alt="" className="w-full h-full object-cover" />
+                    <img
+                      src={editAvatarPreview}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <Camera size={22} className="text-gray-400" />
                   )}
                 </button>
-                <Button type="button" variant="secondary" disabled={avatarUploading} onClick={() => babyAvatarInputRef.current?.click()}>
-                  {avatarUploading ? '上传中...' : editAvatarPreview ? '更换头像' : '选择图片'}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={avatarUploading}
+                  onClick={() => babyAvatarInputRef.current?.click()}
+                >
+                  {avatarUploading
+                    ? "上传中..."
+                    : editAvatarPreview
+                      ? "更换头像"
+                      : "选择图片"}
                 </Button>
                 <input
                   ref={babyAvatarInputRef}
@@ -251,17 +322,25 @@ export default function Layout({ children }: LayoutProps) {
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (f) handleBabyAvatarUpload(f);
-                    e.target.value = '';
+                    e.target.value = "";
                   }}
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">姓名</label>
-              <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="宝宝姓名" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                姓名
+              </label>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="宝宝姓名"
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">性别</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                性别
+              </label>
               <Select value={editGender} onValueChange={setEditGender}>
                 <SelectTrigger>
                   <SelectValue />
@@ -273,13 +352,26 @@ export default function Layout({ children }: LayoutProps) {
               </Select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">出生日期</label>
-              <DateTimePicker value={editBirthDate} onChange={(v) => setEditBirthDate(v)} />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                出生日期
+              </label>
+              <DateTimePicker
+                value={editBirthDate}
+                onChange={(v) => setEditBirthDate(v)}
+              />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="secondary" onClick={() => setShowBabyEdit(false)}>取消</Button>
-              <Button onClick={saveBabyEdit} disabled={saving || !editName.trim()}>
-                {saving ? '保存中...' : '保存'}
+              <Button
+                variant="secondary"
+                onClick={() => setShowBabyEdit(false)}
+              >
+                取消
+              </Button>
+              <Button
+                onClick={saveBabyEdit}
+                disabled={saving || !editName.trim()}
+              >
+                {saving ? "保存中..." : "保存"}
               </Button>
             </div>
           </div>

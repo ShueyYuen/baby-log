@@ -1,5 +1,5 @@
-import { lazy, Suspense, useState, useEffect, useMemo, useRef } from 'react';
-import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
+import { lazy, Suspense, useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { Routes, Route, Navigate, useLocation, Link, type Location } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { useBaby } from './contexts/BabyContext';
 import { KeepAliveActiveContext } from './hooks/useActivated';
@@ -53,23 +53,93 @@ function BabyBanner() {
   );
 }
 
+const PAGE_TRANSITION_MS = 320;
+
+const TAB_ORDER = ['/', '/plans', '/moments', '/growth', '/me', '/health', '/admin'];
+
+const KA_PATH_TO_KEY: Record<string, string> = {
+  '/': 'today',
+  '/growth': 'growth',
+  '/me': 'me',
+  '/plans': 'plans',
+  '/health': 'health',
+  '/moments': 'moments',
+  '/admin': 'admin',
+};
+
+function tabIndex(pathname: string) {
+  return TAB_ORDER.indexOf(pathname);
+}
+
+function prefersReducedMotion() {
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function transitionDuration() {
+  return prefersReducedMotion() ? 0 : PAGE_TRANSITION_MS;
+}
+
+type MotionDir = 'forward' | 'back';
+type MotionPhase = 'in' | 'out' | 'shown' | 'hidden';
+
 function KeepAlivePageWrapper({
   active,
+  held,
+  direction,
+  animateOnMount,
   Component,
 }: {
   active: boolean;
+  held: boolean;
+  direction: MotionDir;
+  animateOnMount: boolean;
   Component: React.ComponentType;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { pullDistance, refreshing, ctxValue } = usePullRefresh(containerRef);
+  const [phase, setPhase] = useState<MotionPhase>(() =>
+    active ? (animateOnMount ? 'in' : 'shown') : 'hidden',
+  );
+  const prevActive = useRef(active);
+  const prevHeld = useRef(held);
+
+  useLayoutEffect(() => {
+    const wasActive = prevActive.current;
+    const wasHeld = prevHeld.current;
+    if (active === wasActive && held === wasHeld) return;
+    prevActive.current = active;
+    prevHeld.current = held;
+
+    if (active && !wasActive) {
+      setPhase(wasHeld ? 'shown' : 'in');
+    } else if (!active && wasActive) {
+      setPhase(held ? 'hidden' : 'out');
+    } else if (!active && wasHeld && !held) {
+      setPhase('hidden');
+    }
+  }, [active, held]);
+
+  useEffect(() => {
+    if (phase !== 'in' && phase !== 'out') return;
+    const t = window.setTimeout(
+      () => setPhase(phase === 'in' ? 'shown' : 'hidden'),
+      transitionDuration(),
+    );
+    return () => clearTimeout(t);
+  }, [phase]);
 
   return (
     <div
       ref={containerRef}
-      className={`keepalive-page h-full overflow-y-auto custom-scrollbar pt-[72px] pb-[72px] md:pt-6 md:pb-0 px-4 md:px-8 ${
-        active ? '' : 'invisible absolute inset-0 pointer-events-none -z-10'
-      }`}
+      className="keepalive-page absolute inset-0 overflow-y-auto custom-scrollbar pt-[72px] pb-[72px] md:pt-6 md:pb-0 px-4 md:px-8"
       data-active={active}
+      data-phase={phase}
+      data-dir={direction}
+      onAnimationEnd={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (phase === 'in') setPhase('shown');
+        if (phase === 'out') setPhase('hidden');
+      }}
     >
       <div className="max-w-4xl mx-auto">
         <PullRefreshIndicator pullDistance={pullDistance} refreshing={refreshing} />
@@ -99,20 +169,59 @@ function KeepAliveRoutes() {
     { path: '/admin', key: 'admin', Component: AdminPage, guard: () => isAdmin },
   ], [isAdmin]);
 
-  const [visited, setVisited] = useState<Set<string>>(() => new Set());
+  const [visited, setVisited] = useState<Set<string>>(() => {
+    const key = KA_PATH_TO_KEY[location.pathname];
+    return key ? new Set([key]) : new Set();
+  });
 
   const activeKeepAlive = keepAlivePages.find((p) => p.path === location.pathname);
-
-  useEffect(() => {
-    if (activeKeepAlive && (!activeKeepAlive.guard || activeKeepAlive.guard())) {
-      setVisited((prev) => {
-        if (prev.has(activeKeepAlive.key)) return prev;
-        return new Set([...prev, activeKeepAlive.key]);
-      });
-    }
-  }, [activeKeepAlive?.key]);
-
   const isKeepAlivePage = !!activeKeepAlive;
+
+  if (activeKeepAlive && (!activeKeepAlive.guard || activeKeepAlive.guard()) && !visited.has(activeKeepAlive.key)) {
+    setVisited(new Set([...visited, activeKeepAlive.key]));
+  }
+
+  const isFirstPaint = useRef(true);
+  useLayoutEffect(() => {
+    isFirstPaint.current = false;
+  }, []);
+
+  const directionRef = useRef<MotionDir>('forward');
+  const prevPathRef = useRef(location.pathname);
+  if (prevPathRef.current !== location.pathname) {
+    const from = tabIndex(prevPathRef.current);
+    const to = tabIndex(location.pathname);
+    if (from >= 0 && to >= 0 && from !== to) {
+      directionRef.current = to > from ? 'forward' : 'back';
+    }
+    prevPathRef.current = location.pathname;
+  }
+  const direction = directionRef.current;
+
+  const lastKaKeyRef = useRef(activeKeepAlive?.key ?? KA_PATH_TO_KEY[location.pathname] ?? 'today');
+  if (activeKeepAlive) lastKaKeyRef.current = activeKeepAlive.key;
+
+  const [secondary, setSecondary] = useState<{ loc: Location; mode: 'in' | 'out' | 'idle' } | null>(
+    () => (isKeepAlivePage ? null : { loc: location, mode: 'in' }),
+  );
+  const secondaryRef = useRef(secondary);
+  secondaryRef.current = secondary;
+
+  useLayoutEffect(() => {
+    if (!isKeepAlivePage) {
+      setSecondary((prev) => ({
+        loc: location,
+        mode: !prev || prev.mode === 'out' ? 'in' : prev.mode,
+      }));
+      return;
+    }
+    if (!secondaryRef.current) return;
+    setSecondary((prev) => (prev ? { ...prev, mode: 'out' } : null));
+    const t = window.setTimeout(() => {
+      setSecondary((prev) => (prev?.mode === 'out' ? null : prev));
+    }, transitionDuration());
+    return () => clearTimeout(t);
+  }, [isKeepAlivePage, location]);
 
   const nonKaScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -122,21 +231,40 @@ function KeepAliveRoutes() {
   }, [location.pathname, isKeepAlivePage]);
 
   return (
-    <>
+    <div className="relative h-full overflow-hidden">
       {keepAlivePages.map(({ path, key, Component, guard }) => {
         if (!visited.has(key)) return null;
         if (guard && !guard()) return null;
         const active = location.pathname === path;
+        const held = !isKeepAlivePage && lastKaKeyRef.current === key;
         return (
-          <KeepAlivePageWrapper key={key} active={active} Component={Component} />
+          <KeepAlivePageWrapper
+            key={key}
+            active={active}
+            held={held}
+            direction={direction}
+            animateOnMount={!isFirstPaint.current}
+            Component={Component}
+          />
         );
       })}
 
-      {!isKeepAlivePage && (
-        <div ref={nonKaScrollRef} className="h-full overflow-y-auto custom-scrollbar pt-0 pb-0 md:pt-6 px-4 md:px-8">
-          <div className="max-w-4xl mx-auto">
+      {secondary && (
+        <div
+          ref={nonKaScrollRef}
+          className={`secondary-pane absolute inset-0 z-10 overflow-y-auto custom-scrollbar pt-0 pb-0 md:pt-6 px-4 md:px-8 ${
+            secondary.mode === 'out' ? 'is-exiting' : secondary.mode === 'in' ? 'is-entering' : ''
+          }`}
+          onAnimationEnd={(e) => {
+            if (e.target !== e.currentTarget) return;
+            if (secondary.mode === 'in') {
+              setSecondary((prev) => (prev?.mode === 'in' ? { ...prev, mode: 'idle' } : prev));
+            }
+          }}
+        >
+          <div className="secondary-pane-inner max-w-4xl mx-auto h-full">
             <Suspense fallback={<PageFallback />}>
-              <Routes location={location}>
+              <Routes location={secondary.loc}>
                 <Route path="/records" element={<Navigate to="/" replace />} />
                 <Route path="/record/new" element={<RecordFormPage />} />
                 <Route path="/record/:id/edit" element={<RecordFormPage />} />
@@ -154,7 +282,7 @@ function KeepAliveRoutes() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

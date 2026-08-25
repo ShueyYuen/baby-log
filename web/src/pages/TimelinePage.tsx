@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import dayjs from "dayjs";
 import { BarChart3, Plus, Refrigerator, Search, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FeedingPredictionCard,
@@ -639,10 +640,10 @@ export default function TimelinePage() {
         </Button>
       )}
 
-      {showTypePanel && (
+      {showTypePanel && createPortal(
         <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center">
           <div
-            className="absolute inset-0 bg-black/40 dark:bg-black/60"
+            className="absolute inset-0 bg-black/40 dark:bg-black/60 animate-[dialog-overlay-in_200ms_ease-out]"
             onClick={() => setShowTypePanel(false)}
           />
           <div className="glass-type-panel relative w-full max-w-sm rounded-t-2xl md:rounded-2xl p-6 pb-10 animate-slide-up">
@@ -699,7 +700,8 @@ export default function TimelinePage() {
               })}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       <ImageViewer
