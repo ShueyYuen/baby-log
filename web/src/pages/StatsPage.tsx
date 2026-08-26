@@ -291,11 +291,13 @@ export default function StatsPage() {
 
   return (
     <div className="absolute inset-0 flex flex-col glass-page-shell">
-      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b glass-sticky-header flex-shrink-0">
+      <div className="border-b glass-sticky-header flex-shrink-0">
+        <div className="flex items-center gap-3 px-4 md:px-8 py-3 max-w-4xl mx-auto w-full">
         <button onClick={() => navigate(-1)} className="p-1 -ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
           <ArrowLeft size={20} />
         </button>
         <h2 className="text-lg font-semibold dark:text-gray-100">{t('stats.title')}</h2>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto py-4 space-y-6">
 

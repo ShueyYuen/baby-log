@@ -190,36 +190,30 @@
    scrollers (not nested lists that use .custom-scrollbar), and shrink
    the original 1rem / 2rem inline padding by that gutter. */
 .keepalive-page,
+.secondary-pane,
 .glass-page-shell > .overflow-y-auto {
   scrollbar-gutter: stable both-edges;
   padding-left: calc(1rem - var(--page-scrollbar-size));
   padding-right: calc(1rem - var(--page-scrollbar-size));
 }
 
-/* Secondary shells use position:absolute; padding on this scroller would
-   be ignored by those pages and double-up with their own form padding.
-   Flow-layout secondary pages (health tracking, milk inventory) still
-   need the same inset — apply it on the inner wrapper instead. */
-.secondary-pane {
-  scrollbar-gutter: stable both-edges;
-}
-
-.secondary-pane-inner {
-  padding-left: calc(1rem - var(--page-scrollbar-size));
-  padding-right: calc(1rem - var(--page-scrollbar-size));
-}
-
 @media (min-width: 768px) {
   .keepalive-page,
+  .secondary-pane,
   .glass-page-shell > .overflow-y-auto {
     padding-left: calc(2rem - var(--page-scrollbar-size));
     padding-right: calc(2rem - var(--page-scrollbar-size));
   }
+}
 
-  .secondary-pane-inner {
-    padding-left: 0;
-    padding-right: 0;
-  }
+/* Secondary page shells fill the pane so the sticky header can span the
+   full main column. Only the scrolling body is capped to match primary
+   pages (max-w-4xl). */
+.glass-page-shell > .overflow-y-auto {
+  max-width: 56rem;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 @keyframes toast-slide-in {
@@ -1127,6 +1121,7 @@ a.glass-card-ui:hover,
 }
 
 .glass-sticky-header {
+  width: 100%;
   background: rgba(255, 255, 255, 0.5) !important;
   backdrop-filter: blur(20px) saturate(1.5);
   -webkit-backdrop-filter: blur(20px) saturate(1.5);

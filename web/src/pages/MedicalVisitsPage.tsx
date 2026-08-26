@@ -110,7 +110,8 @@ function VisitDetail() {
 
   return (
     <div className="absolute inset-0 flex flex-col glass-page-shell">
-      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b glass-sticky-header flex-shrink-0">
+      <div className="border-b glass-sticky-header flex-shrink-0">
+        <div className="flex items-center gap-3 px-4 md:px-8 py-3 max-w-4xl mx-auto w-full">
           <Button
             variant="ghost"
             size="icon"
@@ -141,6 +142,7 @@ function VisitDetail() {
               </Button>
             </div>
           )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto py-4 space-y-4">
@@ -542,7 +544,8 @@ function VisitForm() {
 
   return (
     <div className="absolute inset-0 flex flex-col glass-page-shell">
-      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b glass-sticky-header flex-shrink-0">
+      <div className="border-b glass-sticky-header flex-shrink-0">
+        <div className="flex items-center gap-3 px-4 md:px-8 py-3 max-w-4xl mx-auto w-full">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft size={20} />
           </Button>
@@ -552,6 +555,7 @@ function VisitForm() {
           <Button size="sm" onClick={handleSubmit} disabled={saving}>
             {saving ? t('common.saving') : t('common.save')}
           </Button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto py-4 space-y-4 pb-20">

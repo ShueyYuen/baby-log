@@ -265,7 +265,7 @@ function KeepAliveRoutes() {
             }
           }}
         >
-          <div className="secondary-pane-inner relative w-full max-w-4xl mx-auto h-full">
+          <div className="secondary-pane-inner max-w-4xl mx-auto h-full">
             <Suspense fallback={<PageFallback />}>
               <Routes location={secondary.loc}>
                 <Route path="/records" element={<Navigate to="/" replace />} />
