@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useBaby } from '../contexts/BabyContext';
 import { useI18n } from '../contexts/I18nContext';
 import { api } from '../lib/api';
 import { useServerEvent } from '../hooks/useServerEvents';
 import dayjs from 'dayjs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { SecondaryHeader } from '../components/SecondaryHeader';
 import { getAgeDays, evaluatePee, evaluatePoop, evaluateFeeding, evaluateSleep, type DiaperStatus } from '../lib/diaper-standards';
 import { StatsSkeleton } from '../components/ui/skeleton';
 import { DatePicker } from '../components/ui';
@@ -76,7 +76,6 @@ function buildEmptyRange(startDate: string, endDate: string): DailyData[] {
 }
 
 export default function StatsPage() {
-  const navigate = useNavigate();
   const { currentBaby } = useBaby();
   const { t } = useI18n();
   const [weekData, setWeekData] = useState<DailyData[]>([]);
@@ -291,14 +290,7 @@ export default function StatsPage() {
 
   return (
     <div className="absolute inset-0 flex flex-col glass-page-shell">
-      <div className="border-b glass-sticky-header flex-shrink-0">
-        <div className="flex items-center gap-3 px-4 md:px-8 py-3 max-w-4xl mx-auto w-full">
-        <button onClick={() => navigate(-1)} className="p-1 -ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-          <ArrowLeft size={20} />
-        </button>
-        <h2 className="text-lg font-semibold dark:text-gray-100">{t('stats.title')}</h2>
-        </div>
-      </div>
+      <SecondaryHeader title={t('stats.title')} />
       <div className="flex-1 overflow-y-auto py-4 space-y-6">
 
       <div className="space-y-3">

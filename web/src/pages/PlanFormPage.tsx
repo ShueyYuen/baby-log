@@ -5,7 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
 import { api, generateIdempotencyKey, type UploadMomentResult, type RecordImage } from '../lib/api';
 import { cacheRead } from '../lib/queryCache';
-import { ArrowLeft, Bell, ImagePlus, X, AlertCircle } from 'lucide-react';
+import { Bell, ImagePlus, X, AlertCircle } from 'lucide-react';
+import { SecondaryHeader } from '../components/SecondaryHeader';
 import { Button, Input, Textarea, DateTimePicker, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, ImageViewer, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
 import dayjs from 'dayjs';
@@ -235,19 +236,17 @@ export default function PlanFormPage() {
     <div
       className="absolute inset-0 flex flex-col glass-page-shell"
     >
-      <div className="border-b glass-sticky-header flex-shrink-0">
-        <div className="flex items-center gap-3 px-4 md:px-8 py-3 max-w-4xl mx-auto w-full">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-          <ArrowLeft size={20} />
-        </Button>
-        <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">{isEditing ? t('planForm.edit') : t('planForm.create')}</h2>
-        {isEditing && (
-          <Button type="submit" form="plan-form" size="sm" disabled={loading}>
-            {loading ? t('common.saving') : t('common.save')}
-          </Button>
-        )}
-        </div>
-      </div>
+      <SecondaryHeader
+        title={isEditing ? t('planForm.edit') : t('planForm.create')}
+        onBack={() => navigate(-1)}
+        actions={
+          isEditing ? (
+            <Button type="submit" form="plan-form" size="sm" disabled={loading}>
+              {loading ? t('common.saving') : t('common.save')}
+            </Button>
+          ) : undefined
+        }
+      />
 
       <form id="plan-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-6 space-y-5">
         <div>

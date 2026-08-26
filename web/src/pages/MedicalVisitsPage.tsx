@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import dayjs from 'dayjs';
 import {
-  ArrowLeft,
   X,
   Trash2,
   Edit3,
@@ -23,6 +22,7 @@ import {
   type UploadMomentResult,
 } from '../lib/api';
 import { cacheInvalidate } from '../lib/queryCache';
+import { SecondaryHeader } from '../components/SecondaryHeader';
 import {
   Button,
   Card,
@@ -83,18 +83,21 @@ function VisitDetail() {
 
   if (loading) {
     return (
-      <div className="absolute inset-0 glass-page-shell p-4">
-        <Skeleton className="h-12 mb-4" />
-        <Skeleton className="h-40 mb-4" />
-        <Skeleton className="h-32" />
+      <div className="absolute inset-0 flex flex-col glass-page-shell">
+        <SecondaryHeader title={t('common.loading')} onBack={() => navigate('/health')} />
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <Skeleton className="h-40 rounded-xl" />
+          <Skeleton className="h-32 rounded-xl" />
+        </div>
       </div>
     );
   }
 
   if (!visit) {
     return (
-      <div className="absolute inset-0 glass-page-shell flex items-center justify-center">
-        <p className="text-gray-400">{t('visits.notFound')}</p>
+      <div className="absolute inset-0 flex flex-col glass-page-shell">
+        <SecondaryHeader title={t('visits.notFound')} onBack={() => navigate('/health')} />
+        <p className="flex-1 flex items-center justify-center text-gray-400">{t('visits.notFound')}</p>
       </div>
     );
   }
@@ -110,19 +113,11 @@ function VisitDetail() {
 
   return (
     <div className="absolute inset-0 flex flex-col glass-page-shell">
-      <div className="border-b glass-sticky-header flex-shrink-0">
-        <div className="flex items-center gap-3 px-4 md:px-8 py-3 max-w-4xl mx-auto w-full">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/health')}
-          >
-            <ArrowLeft size={20} />
-          </Button>
-          <h2 className="flex-1 text-xl font-semibold dark:text-gray-100 truncate">
-            {visit.hospital || t('visits.fallbackTitle')}
-          </h2>
-          {!isViewer && (
+      <SecondaryHeader
+        title={visit.hospital || t('visits.fallbackTitle')}
+        onBack={() => navigate('/health')}
+        actions={
+          !isViewer ? (
             <div className="flex gap-2">
               <Button
                 variant="ghost"
@@ -141,9 +136,9 @@ function VisitDetail() {
                 <Trash2 size={18} className="text-red-500" />
               </Button>
             </div>
-          )}
-        </div>
-      </div>
+          ) : undefined
+        }
+      />
 
       <div className="flex-1 overflow-y-auto py-4 space-y-4">
         <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
@@ -532,9 +527,14 @@ function VisitForm() {
 
   if (loadingVisit) {
     return (
-      <div className="absolute inset-0 glass-page-shell p-4">
-        <Skeleton className="h-12 mb-4" />
-        <Skeleton className="h-80" />
+      <div className="absolute inset-0 flex flex-col glass-page-shell">
+        <SecondaryHeader
+          title={isEdit ? t('visits.edit') : t('visits.create')}
+          onBack={() => navigate(-1)}
+        />
+        <div className="flex-1 overflow-y-auto p-4">
+          <Skeleton className="h-80 rounded-xl" />
+        </div>
       </div>
     );
   }
@@ -544,19 +544,15 @@ function VisitForm() {
 
   return (
     <div className="absolute inset-0 flex flex-col glass-page-shell">
-      <div className="border-b glass-sticky-header flex-shrink-0">
-        <div className="flex items-center gap-3 px-4 md:px-8 py-3 max-w-4xl mx-auto w-full">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ArrowLeft size={20} />
-          </Button>
-          <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">
-            {isEdit ? t('visits.edit') : t('visits.create')}
-          </h2>
+      <SecondaryHeader
+        title={isEdit ? t('visits.edit') : t('visits.create')}
+        onBack={() => navigate(-1)}
+        actions={
           <Button size="sm" onClick={handleSubmit} disabled={saving}>
             {saving ? t('common.saving') : t('common.save')}
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="flex-1 overflow-y-auto py-4 space-y-4 pb-20">
         <div>

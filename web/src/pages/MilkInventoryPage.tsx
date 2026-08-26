@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { ArrowLeft, Plus, Refrigerator, Snowflake, Check, Trash2 } from 'lucide-react';
+import { Plus, Refrigerator, Snowflake, Check, Trash2 } from 'lucide-react';
 import { useBaby } from '../contexts/BabyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
@@ -11,6 +10,7 @@ import { api, generateIdempotencyKey, type MilkInventoryItem } from '../lib/api'
 import { cacheInvalidate, cacheRead, cacheWrite } from '../lib/queryCache';
 import { useRefreshHandler } from '../hooks/usePullRefresh';
 import { useActivated } from '../hooks/useActivated';
+import { SecondaryHeader } from '../components/SecondaryHeader';
 import {
   Button,
   Card,
@@ -222,33 +222,34 @@ export default function MilkInventoryPage() {
 
   if (loading && items.length === 0) {
     return (
-      <div className="space-y-4 py-4">
-        <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-20 rounded-xl" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Skeleton className="h-48 rounded-xl" />
-          <Skeleton className="h-48 rounded-xl" />
+      <div className="absolute inset-0 flex flex-col glass-page-shell">
+        <SecondaryHeader title={t('milkInv.title')} backTo="/" />
+        <div className="flex-1 overflow-y-auto py-4 space-y-4">
+          <Skeleton className="h-20 rounded-xl" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Skeleton className="h-48 rounded-xl" />
+            <Skeleton className="h-48 rounded-xl" />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 pb-8">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/">
-            <ArrowLeft size={20} />
-          </Link>
-        </Button>
-        <h1 className="text-xl font-semibold dark:text-gray-100">{t('milkInv.title')}</h1>
-        {!isViewer && (
-          <Button size="sm" className="ml-auto" onClick={() => setShowAddDialog(true)}>
-            <Plus size={16} />
-            {t('milkInv.add')}
-          </Button>
-        )}
-      </div>
+    <div className="absolute inset-0 flex flex-col glass-page-shell">
+      <SecondaryHeader
+        title={t('milkInv.title')}
+        backTo="/"
+        actions={
+          !isViewer ? (
+            <Button size="sm" onClick={() => setShowAddDialog(true)}>
+              <Plus size={16} />
+              {t('milkInv.add')}
+            </Button>
+          ) : undefined
+        }
+      />
+      <div className="flex-1 overflow-y-auto py-4 space-y-4 pb-8">
 
       <Card>
         <CardContent className="py-4">
@@ -311,6 +312,7 @@ export default function MilkInventoryPage() {
             )}
           </CardContent>
         </Card>
+      </div>
       </div>
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>

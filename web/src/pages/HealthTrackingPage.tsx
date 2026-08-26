@@ -6,7 +6,8 @@ import { useI18n } from '../contexts/I18nContext';
 import { api, generateIdempotencyKey, toStoredMedia, type HealthCondition, type HealthEntry, type HealthAnnotationsMap, type RecordImage, type UploadMomentResult } from '../lib/api';
 import { useServerEvent } from '../hooks/useServerEvents';
 import dayjs from 'dayjs';
-import { ArrowLeft, Plus, Pencil, Trash2, ImagePlus, X, AlertCircle, CheckCircle2, Ruler } from 'lucide-react';
+import { Plus, Pencil, Trash2, ImagePlus, X, AlertCircle, CheckCircle2, Ruler } from 'lucide-react';
+import { SecondaryHeader } from '../components/SecondaryHeader';
 import { Button, Input, Card, CardContent, Dialog, DialogContent, DialogHeader, DialogTitle, Badge, DatePicker, ConfirmDialog, ImageViewer, MediaCover, toViewerImages, useToast } from '../components/ui';
 import { Textarea } from '../components/ui';
 import { VisibilityPicker } from '../components/ui/visibility-picker';
@@ -434,14 +435,9 @@ export default function HealthTrackingPage() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/health')} className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 glass-icon-btn transition-colors">
-            <ArrowLeft size={20} />
-          </button>
-          <h2 className="text-xl font-semibold dark:text-gray-100">{t('common.loading')}</h2>
-        </div>
-        <div className="flex justify-center py-8">
+      <div className="absolute inset-0 flex flex-col glass-page-shell">
+        <SecondaryHeader title={t('common.loading')} onBack={() => navigate('/health')} />
+        <div className="flex-1 flex justify-center py-8">
           <div className="w-6 h-6 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
         </div>
       </div>
@@ -450,38 +446,26 @@ export default function HealthTrackingPage() {
 
   if (!condition) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/health')} className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 glass-icon-btn transition-colors">
-            <ArrowLeft size={20} />
-          </button>
-          <h2 className="text-xl font-semibold dark:text-gray-100">{t('common.notFound')}</h2>
-        </div>
+      <div className="absolute inset-0 flex flex-col glass-page-shell">
+        <SecondaryHeader title={t('common.notFound')} onBack={() => navigate('/health')} />
         <p className="text-center text-gray-400 py-8">{t('tracking.notFound')}</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate('/health')}
-          className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 glass-icon-btn transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-semibold dark:text-gray-100 truncate">{condition.name}</h2>
-          {condition.description && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{condition.description}</p>
-          )}
-        </div>
-        <Badge variant={condition.status === 'active' ? 'default' : 'secondary'}>
-          {condition.status === 'active' ? t('health.tracking') : t('health.resolved')}
-        </Badge>
-      </div>
+    <div className="absolute inset-0 flex flex-col glass-page-shell">
+      <SecondaryHeader
+        title={condition.name}
+        subtitle={condition.description || undefined}
+        onBack={() => navigate('/health')}
+        actions={
+          <Badge variant={condition.status === 'active' ? 'default' : 'secondary'}>
+            {condition.status === 'active' ? t('health.tracking') : t('health.resolved')}
+          </Badge>
+        }
+      />
+      <div className="flex-1 overflow-y-auto py-4 space-y-4">
 
       {/* Actions */}
       {!isViewer && (
@@ -600,6 +584,7 @@ export default function HealthTrackingPage() {
           {t('tracking.loadedAll')}
         </div>
       )}
+      </div>
 
       {/* Entry Form Dialog */}
       <Dialog open={showEntryForm} onOpenChange={(open) => { if (!open) { setShowEntryForm(false); setEntryPreviews([]); } }}>

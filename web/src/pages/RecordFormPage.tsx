@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import { AlertCircle, ArrowLeft, ImagePlus, X } from "lucide-react";
+import { AlertCircle, ImagePlus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useLocation,
@@ -7,6 +7,7 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
+import { SecondaryHeader } from "../components/SecondaryHeader";
 import {
   Button,
   DateTimePicker,
@@ -1132,12 +1133,14 @@ export default function RecordFormPage() {
 
   if (loadingRecord) {
     return (
-      <div className="space-y-4 p-4">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-12 rounded-xl" />
-        <Skeleton className="h-12 rounded-xl" />
-        <Skeleton className="h-24 rounded-xl" />
-        <Skeleton className="h-12 rounded-xl" />
+      <div className="absolute inset-0 flex flex-col glass-page-shell">
+        <SecondaryHeader title={t("common.loading")} onBack={() => navigate(-1)} />
+        <div className="flex-1 overflow-y-auto space-y-4 p-4">
+          <Skeleton className="h-12 rounded-xl" />
+          <Skeleton className="h-12 rounded-xl" />
+          <Skeleton className="h-24 rounded-xl" />
+          <Skeleton className="h-12 rounded-xl" />
+        </div>
       </div>
     );
   }
@@ -1146,24 +1149,20 @@ export default function RecordFormPage() {
     <div
       className="absolute inset-0 flex flex-col glass-page-shell"
     >
-      <div className="border-b glass-sticky-header flex-shrink-0">
-        <div className="flex items-center gap-3 px-4 md:px-8 py-3 max-w-4xl mx-auto w-full">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-          <ArrowLeft size={20} />
-        </Button>
-        <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">
-          {recordTypeLabel(type, t)}
-        </h2>
-        <Button
-          type="submit"
-          form="record-form"
-          size="sm"
-          disabled={loading || uploading}
-        >
-          {loading ? t("common.saving") : uploading ? t("common.uploading") : t("common.save")}
-        </Button>
-        </div>
-      </div>
+      <SecondaryHeader
+        title={recordTypeLabel(type, t)}
+        onBack={() => navigate(-1)}
+        actions={
+          <Button
+            type="submit"
+            form="record-form"
+            size="sm"
+            disabled={loading || uploading}
+          >
+            {loading ? t("common.saving") : uploading ? t("common.uploading") : t("common.save")}
+          </Button>
+        }
+      />
 
       <form
         id="record-form"

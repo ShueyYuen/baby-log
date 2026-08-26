@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
 import { api, type GrowthItem } from '../lib/api';
 import dayjs from 'dayjs';
-import { ArrowLeft } from 'lucide-react';
+import { SecondaryHeader } from '../components/SecondaryHeader';
 import { Button, Input, Card, CardContent, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DatePicker } from '../components/ui';
 
 export default function GrowthHistoryPage() {
@@ -101,15 +101,11 @@ export default function GrowthHistoryPage() {
   return (
     <div className="absolute inset-0 flex flex-col glass-page-shell">
       {/* Fixed Header */}
-      <div className="border-b glass-sticky-header flex-shrink-0">
-        <div className="flex items-center gap-3 px-4 md:px-8 py-3 max-w-4xl mx-auto w-full">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/growth')}>
-          <ArrowLeft size={20} />
-        </Button>
-        <h2 className="flex-1 text-xl font-semibold dark:text-gray-100">{t('growth.historyTitle')}</h2>
-        <span className="text-sm text-gray-400">{total}</span>
-        </div>
-      </div>
+      <SecondaryHeader
+        title={t('growth.historyTitle')}
+        onBack={() => navigate('/growth')}
+        actions={<span className="text-sm text-gray-400">{total}</span>}
+      />
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto py-4">
