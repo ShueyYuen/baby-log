@@ -58,7 +58,7 @@ function BabyBanner() {
 
 const PAGE_TRANSITION_MS = 320;
 
-const TAB_ORDER = ['/', '/plans', '/moments', '/growth', '/me', '/health', '/admin'];
+const TAB_ORDER = ['/', '/plans', '/growth', '/moments', '/me', '/health', '/admin'];
 
 const KA_PATH_TO_KEY: Record<string, string> = {
   '/': 'today',
@@ -134,7 +134,7 @@ function KeepAlivePageWrapper({
   return (
     <div
       ref={containerRef}
-      className="keepalive-page absolute inset-0 overflow-y-auto custom-scrollbar pt-[72px] pb-[72px] md:pt-6 md:pb-0 px-4 md:px-8"
+      className="keepalive-page absolute inset-0 overflow-y-auto custom-scrollbar pt-[72px] pb-[72px] md:pt-6 md:pb-0"
       data-active={active}
       data-phase={phase}
       data-dir={direction}
@@ -255,7 +255,7 @@ function KeepAliveRoutes() {
       {secondary && (
         <div
           ref={nonKaScrollRef}
-          className={`secondary-pane absolute inset-0 z-10 overflow-y-auto custom-scrollbar pt-0 pb-0 md:pt-6 px-4 md:px-8 ${
+          className={`secondary-pane absolute inset-0 z-10 overflow-y-auto custom-scrollbar pt-0 pb-0 md:pt-6 ${
             secondary.mode === 'out' ? 'is-exiting' : secondary.mode === 'in' ? 'is-entering' : ''
           }`}
           onAnimationEnd={(e) => {

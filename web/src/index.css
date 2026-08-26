@@ -147,8 +147,12 @@
 }
 
 /* Custom Scrollbar */
+:root {
+  --page-scrollbar-size: 6px;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: var(--page-scrollbar-size);
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -179,6 +183,27 @@
 
 .dark .custom-scrollbar {
   scrollbar-color: rgba(238, 119, 17, 0.2) transparent;
+}
+
+/* Classic scrollbars consume width on the inline-end edge, so left/right
+   padding looks uneven. Reserve a matching gutter on both edges of page
+   scrollers (not nested lists that use .custom-scrollbar), and shrink
+   the original 1rem / 2rem inline padding by that gutter. */
+.keepalive-page,
+.secondary-pane,
+.glass-page-shell > .overflow-y-auto {
+  scrollbar-gutter: stable both-edges;
+  padding-left: calc(1rem - var(--page-scrollbar-size));
+  padding-right: calc(1rem - var(--page-scrollbar-size));
+}
+
+@media (min-width: 768px) {
+  .keepalive-page,
+  .secondary-pane,
+  .glass-page-shell > .overflow-y-auto {
+    padding-left: calc(2rem - var(--page-scrollbar-size));
+    padding-right: calc(2rem - var(--page-scrollbar-size));
+  }
 }
 
 @keyframes toast-slide-in {

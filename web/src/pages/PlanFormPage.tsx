@@ -247,7 +247,7 @@ export default function PlanFormPage() {
         )}
       </div>
 
-      <form id="plan-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-5">
+      <form id="plan-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-6 space-y-5">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('planForm.type')}</label>
           <div className="flex flex-wrap gap-2">

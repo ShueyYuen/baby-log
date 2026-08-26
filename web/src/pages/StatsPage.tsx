@@ -297,7 +297,7 @@ export default function StatsPage() {
         </button>
         <h2 className="text-lg font-semibold dark:text-gray-100">{t('stats.title')}</h2>
       </div>
-      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 space-y-6">
+      <div className="flex-1 overflow-y-auto py-4 space-y-6">
 
       <div className="space-y-3">
         <div className="flex gap-1 p-1 rounded-lg glass-preset-bar">

@@ -143,7 +143,7 @@ function VisitDetail() {
           )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto py-4 space-y-4">
         <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
           <Stethoscope size={16} />
           <span>{dayjs(visit.visitDate).format(t('dateFmt.ymd'))}</span>
@@ -554,7 +554,7 @@ function VisitForm() {
           </Button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 space-y-4 pb-20">
+      <div className="flex-1 overflow-y-auto py-4 space-y-4 pb-20">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             {t('visits.visitDate')}

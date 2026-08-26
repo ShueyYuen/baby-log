@@ -122,16 +122,16 @@ export default function Layout({ children }: LayoutProps) {
   const mobileNav = [
     { path: "/", icon: Home, label: t("nav.records") },
     { path: "/plans", icon: Calendar, label: t("nav.plans") },
-    { path: "/moments", icon: Images, label: t("nav.moments") },
     { path: "/growth", icon: TrendingUp, label: t("nav.growth") },
+    { path: "/moments", icon: Images, label: t("nav.moments") },
     { path: "/me", icon: User, label: t("nav.me") },
   ];
 
   const desktopNav = [
     { path: "/", icon: Home, label: t("nav.records") },
     { path: "/plans", icon: Calendar, label: t("nav.plans") },
-    { path: "/moments", icon: Images, label: t("nav.moments") },
     { path: "/growth", icon: TrendingUp, label: t("nav.growth") },
+    { path: "/moments", icon: Images, label: t("nav.moments") },
     { path: "/me", icon: User, label: t("nav.me") },
     { path: "/health", icon: Activity, label: t("nav.health") },
     ...(isAdmin

@@ -1166,7 +1166,7 @@ export default function RecordFormPage() {
       <form
         id="record-form"
         onSubmit={handleSubmit}
-        className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6"
+        className="flex-1 overflow-y-auto py-6 space-y-6"
       >
         {/* Category & Type Selection - only show when not pre-selected */}
         {!urlType && !isEditing && (
