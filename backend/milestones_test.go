@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestCreateMilestone(t *testing.T) {
@@ -41,6 +42,42 @@ func TestCreateMilestoneInvalid(t *testing.T) {
 	if r.status != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", r.status)
 	}
+}
+
+func TestListMilestonesWithVideoDoesNotDeadlock(t *testing.T) {
+	s := newTestServer(t)
+	uid := insertUser(t, "u", "U", "user")
+	bid := createBabyFor(t, uid, "宝宝")
+
+	registerUploadKey(t, "clip.mp4")
+	mustOK(t, s.do(http.MethodPost, "/milestones/", uid, map[string]interface{}{
+		"babyId":     bid,
+		"type":       "t",
+		"title":      "视频里程碑",
+		"occurredAt": "2025-06-01T00:00:00.000Z",
+		"images":     []map[string]string{{"key": "clip.mp4", "mediaType": "video"}},
+	}))
+
+	done := make(chan resp, 1)
+	go func() {
+		done <- s.do(http.MethodGet, "/milestones/?babyId="+bid+"&page=1&pageSize=20", uid, nil)
+	}()
+	select {
+	case r := <-done:
+		e := mustOK(t, r)
+		var list []milestoneOut
+		jsonUnmarshal(extractItems(e.Data), &list)
+		if len(list) != 1 {
+			t.Fatalf("expected 1 milestone, got %d", len(list))
+		}
+		if len(list[0].Images) != 1 || list[0].Images[0].Key != "clip.mp4" {
+			t.Errorf("video image missing: %+v", list[0].Images)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("GET /milestones hung: nested DB query while rows open (MaxOpenConns=1 deadlock)")
+	}
+
+	mustOK(t, s.do(http.MethodGet, "/babies", uid, nil))
 }
 
 func TestListMilestones(t *testing.T) {

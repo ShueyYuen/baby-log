@@ -484,7 +484,11 @@ func handleTimeline(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	items := []recordOut{}
+	type scanned struct {
+		rec    recordOut
+		images sql.NullString
+	}
+	raw := []scanned{}
 	for rows.Next() {
 		var rec recordOut
 		var dataStr string
@@ -500,13 +504,20 @@ func handleTimeline(w http.ResponseWriter, r *http.Request) {
 		rec.CreatedAt = Millis(created)
 		rec.UpdatedAt = Millis(updated)
 		rec.Note = strPtr(note)
-		rec.Images = recordImagesToDisplay(parseRecordImages(images), userID, isAdminCtx(r), rec.CreatedBy)
 		rec.User = &memberUser{ID: uID, DisplayName: uName}
-		items = append(items, rec)
+		raw = append(raw, scanned{rec: rec, images: images})
 	}
 	if err := rows.Err(); err != nil {
 		writeErr(w, http.StatusInternalServerError, "Server error")
 		return
+	}
+	rows.Close()
+
+	admin := isAdminCtx(r)
+	items := make([]recordOut, 0, len(raw))
+	for _, s := range raw {
+		s.rec.Images = recordImagesToDisplay(parseRecordImages(s.images), userID, admin, s.rec.CreatedBy)
+		items = append(items, s.rec)
 	}
 
 	hasMore := len(items) > pageSize

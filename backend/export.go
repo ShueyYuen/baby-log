@@ -83,7 +83,11 @@ func exportRecords(babyID, userID string, admin bool) ([]recordOut, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []recordOut{}
+	type scanned struct {
+		rec    recordOut
+		images sql.NullString
+	}
+	raw := []scanned{}
 	for rows.Next() {
 		var rec recordOut
 		var dataStr string
@@ -98,11 +102,19 @@ func exportRecords(babyID, userID string, admin bool) ([]recordOut, error) {
 		rec.CreatedAt = Millis(created)
 		rec.UpdatedAt = Millis(updated)
 		rec.Note = strPtr(note)
-		rec.Images = recordImagesToDisplay(parseRecordImages(images), userID, admin, rec.CreatedBy)
 		rec.User = &memberUser{ID: uID, DisplayName: uName}
-		items = append(items, rec)
+		raw = append(raw, scanned{rec: rec, images: images})
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	items := make([]recordOut, 0, len(raw))
+	for _, s := range raw {
+		s.rec.Images = recordImagesToDisplay(parseRecordImages(s.images), userID, admin, s.rec.CreatedBy)
+		items = append(items, s.rec)
+	}
+	return items, nil
 }
 
 func exportPlans(babyID, userID string, admin bool) ([]planOut, error) {
@@ -111,15 +123,28 @@ func exportPlans(babyID, userID string, admin bool) ([]planOut, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []planOut{}
+	type scanned struct {
+		p      planOut
+		images sql.NullString
+	}
+	raw := []scanned{}
 	for rows.Next() {
-		p, err := scanPlanRow(rows, userID, admin)
+		p, images, err := scanPlanFields(rows)
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, *p)
+		raw = append(raw, scanned{p: *p, images: images})
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	items := make([]planOut, 0, len(raw))
+	for _, s := range raw {
+		s.p.Images = recordImagesToDisplay(parseRecordImages(s.images), userID, admin, s.p.CreatedBy)
+		items = append(items, s.p)
+	}
+	return items, nil
 }
 
 func exportGrowth(babyID string) ([]growthOut, error) {
@@ -145,20 +170,26 @@ func exportMilestones(babyID, userID string, admin bool) ([]milestoneOut, error)
 		return nil, err
 	}
 	defer rows.Close()
-	items := []milestoneOut{}
+	type scanned struct {
+		m      milestoneOut
+		images sql.NullString
+	}
+	raw := []scanned{}
 	for rows.Next() {
-		var m milestoneOut
-		var occurred, created, updated int64
-		var desc, images sql.NullString
-		if err := rows.Scan(&m.ID, &m.BabyID, &m.Type, &m.Title, &occurred, &desc, &images, &created, &updated); err != nil {
+		m, images, err := scanMilestoneFields(rows)
+		if err != nil {
 			return nil, err
 		}
-		m.OccurredAt = Millis(occurred)
-		m.CreatedAt = Millis(created)
-		m.UpdatedAt = Millis(updated)
-		m.Description = strPtr(desc)
-		m.Images = recordImagesToDisplay(parseRecordImages(images), userID, admin, "")
-		items = append(items, m)
+		raw = append(raw, scanned{m: *m, images: images})
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	items := make([]milestoneOut, 0, len(raw))
+	for _, s := range raw {
+		s.m.Images = recordImagesToDisplay(parseRecordImages(s.images), userID, admin, "")
+		items = append(items, s.m)
+	}
+	return items, nil
 }

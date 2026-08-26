@@ -11,21 +11,31 @@ import (
 
 const milestoneCols = `id, babyId, type, title, occurredAt, description, images, createdAt, updatedAt`
 
-func scanMilestoneRow(row interface {
+func scanMilestoneFields(row interface {
 	Scan(dest ...interface{}) error
-}, currentUserID string, isAdmin bool) (*milestoneOut, error) {
+}) (*milestoneOut, sql.NullString, error) {
 	var m milestoneOut
 	var occurred, created, updated int64
 	var desc, images sql.NullString
 	if err := row.Scan(&m.ID, &m.BabyID, &m.Type, &m.Title, &occurred, &desc, &images, &created, &updated); err != nil {
-		return nil, err
+		return nil, sql.NullString{}, err
 	}
 	m.OccurredAt = Millis(occurred)
 	m.CreatedAt = Millis(created)
 	m.UpdatedAt = Millis(updated)
 	m.Description = strPtr(desc)
+	return &m, images, nil
+}
+
+func scanMilestoneRow(row interface {
+	Scan(dest ...interface{}) error
+}, currentUserID string, isAdmin bool) (*milestoneOut, error) {
+	m, images, err := scanMilestoneFields(row)
+	if err != nil {
+		return nil, err
+	}
 	m.Images = recordImagesToDisplay(parseRecordImages(images), currentUserID, isAdmin, "")
-	return &m, nil
+	return m, nil
 }
 
 // GET /milestones
@@ -68,14 +78,26 @@ func handleListMilestones(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	list := []milestoneOut{}
+	type scanned struct {
+		m      milestoneOut
+		images sql.NullString
+	}
+	raw := []scanned{}
 	for rows.Next() {
-		m, err := scanMilestoneRow(rows, userID, isAdminCtx(r))
+		m, images, err := scanMilestoneFields(rows)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, "Server error")
 			return
 		}
-		list = append(list, *m)
+		raw = append(raw, scanned{m: *m, images: images})
+	}
+	rows.Close()
+
+	admin := isAdminCtx(r)
+	list := make([]milestoneOut, 0, len(raw))
+	for _, s := range raw {
+		s.m.Images = recordImagesToDisplay(parseRecordImages(s.images), userID, admin, "")
+		list = append(list, s.m)
 	}
 	writeOK(w, map[string]interface{}{
 		"items":    list,

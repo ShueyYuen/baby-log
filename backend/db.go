@@ -52,6 +52,8 @@ func initDB() {
 		log.Fatalf("[DB] Failed to connect: %v", err)
 	}
 
+	// SQLite allows only one writer. Nested db.Query while another *sql.Rows is
+	// still open will wait forever for this connection and freeze every API.
 	db.SetMaxOpenConns(1)
 
 	if _, err := db.Exec(schemaSQL); err != nil {

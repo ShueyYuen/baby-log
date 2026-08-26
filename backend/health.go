@@ -299,7 +299,12 @@ func handleListHealthEntries(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	isAdmin := isAdminCtx(r)
-	list := []healthEntryOut{}
+	type scanned struct {
+		e           healthEntryOut
+		images      sql.NullString
+		annotations sql.NullString
+	}
+	raw := []scanned{}
 	for rows.Next() {
 		var e healthEntryOut
 		var dateMs, created, updated int64
@@ -310,13 +315,19 @@ func handleListHealthEntries(w http.ResponseWriter, r *http.Request) {
 		}
 		e.Date = Millis(dateMs)
 		e.Note = strPtr(note)
-		e.Images = recordImagesToDisplay(parseRecordImages(images), userID, isAdmin, e.CreatedBy)
-		if annotations.Valid && annotations.String != "" {
-			e.Annotations = json.RawMessage(annotations.String)
-		}
 		e.CreatedAt = Millis(created)
 		e.UpdatedAt = Millis(updated)
-		list = append(list, e)
+		raw = append(raw, scanned{e: e, images: images, annotations: annotations})
+	}
+	rows.Close()
+
+	list := make([]healthEntryOut, 0, len(raw))
+	for _, s := range raw {
+		s.e.Images = recordImagesToDisplay(parseRecordImages(s.images), userID, isAdmin, s.e.CreatedBy)
+		if s.annotations.Valid && s.annotations.String != "" {
+			s.e.Annotations = json.RawMessage(s.annotations.String)
+		}
+		list = append(list, s.e)
 	}
 
 	writeOK(w, map[string]interface{}{

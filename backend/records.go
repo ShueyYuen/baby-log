@@ -128,6 +128,9 @@ func unmarkRemovedImages(oldJSON sql.NullString, keepKeys []string) {
 	}
 }
 
+// recordImagesToDisplay resolves stored keys to URLs and queries UploadedFile
+// for unready videos. Do not call it while iterating another db Query's *sql.Rows:
+// MaxOpenConns=1 means a nested Query deadlocks and every later request stays pending.
 func recordImagesToDisplay(items []RecordImageStore, currentUserID string, isAdmin bool, createdBy string) []RecordImageDisplay {
 	keys := make([]string, 0, len(items))
 	for _, item := range items {
@@ -228,7 +231,11 @@ func handleListRecords(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	items := []recordOut{}
+	type scanned struct {
+		rec    recordOut
+		images sql.NullString
+	}
+	raw := []scanned{}
 	for rows.Next() {
 		var rec recordOut
 		var dataStr string
@@ -244,9 +251,16 @@ func handleListRecords(w http.ResponseWriter, r *http.Request) {
 		rec.CreatedAt = Millis(created)
 		rec.UpdatedAt = Millis(updated)
 		rec.Note = strPtr(note)
-		rec.Images = recordImagesToDisplay(parseRecordImages(images), userID, isAdminCtx(r), rec.CreatedBy)
 		rec.User = &memberUser{ID: uID, DisplayName: uName}
-		items = append(items, rec)
+		raw = append(raw, scanned{rec: rec, images: images})
+	}
+	rows.Close()
+
+	admin := isAdminCtx(r)
+	items := make([]recordOut, 0, len(raw))
+	for _, s := range raw {
+		s.rec.Images = recordImagesToDisplay(parseRecordImages(s.images), userID, admin, s.rec.CreatedBy)
+		items = append(items, s.rec)
 	}
 
 	writeOK(w, map[string]interface{}{

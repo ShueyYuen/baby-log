@@ -12,24 +12,33 @@ import (
 	"github.com/google/uuid"
 )
 
-func scanPlanRow(row interface {
+func scanPlanFields(row interface {
 	Scan(dest ...interface{}) error
-}, userID string, isAdmin bool,
-) (*planOut, error) {
+}) (*planOut, sql.NullString, error) {
 	var p planOut
 	var scheduled, created, updated int64
 	var desc, reminder, imagesJSON sql.NullString
 	if err := row.Scan(&p.ID, &p.BabyID, &p.Title, &p.Type, &scheduled, &desc, &reminder, &p.Repeat, &p.Status, &p.CreatedBy, &created, &updated, &imagesJSON); err != nil {
-		return nil, err
+		return nil, sql.NullString{}, err
 	}
 	p.ScheduledAt = Millis(scheduled)
 	p.CreatedAt = Millis(created)
 	p.UpdatedAt = Millis(updated)
 	p.Description = strPtr(desc)
 	p.Reminder = strPtr(reminder)
-	stored := parseRecordImages(imagesJSON)
-	p.Images = recordImagesToDisplay(stored, userID, isAdmin, p.CreatedBy)
-	return &p, nil
+	return &p, imagesJSON, nil
+}
+
+func scanPlanRow(row interface {
+	Scan(dest ...interface{}) error
+}, userID string, isAdmin bool,
+) (*planOut, error) {
+	p, imagesJSON, err := scanPlanFields(row)
+	if err != nil {
+		return nil, err
+	}
+	p.Images = recordImagesToDisplay(parseRecordImages(imagesJSON), userID, isAdmin, p.CreatedBy)
+	return p, nil
 }
 
 const planCols = `id, babyId, title, type, scheduledAt, description, reminder, repeat, status, createdBy, createdAt, updatedAt, images`
@@ -98,14 +107,25 @@ func handleListPlans(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	plans := []planOut{}
+	type scanned struct {
+		p      planOut
+		images sql.NullString
+	}
+	raw := []scanned{}
 	for rows.Next() {
-		p, err := scanPlanRow(rows, userID, isAdmin)
+		p, images, err := scanPlanFields(rows)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, "Server error")
 			return
 		}
-		plans = append(plans, *p)
+		raw = append(raw, scanned{p: *p, images: images})
+	}
+	rows.Close()
+
+	plans := make([]planOut, 0, len(raw))
+	for _, s := range raw {
+		s.p.Images = recordImagesToDisplay(parseRecordImages(s.images), userID, isAdmin, s.p.CreatedBy)
+		plans = append(plans, s.p)
 	}
 
 	writeOK(w, map[string]interface{}{
