@@ -229,7 +229,8 @@ function KeepAliveRoutes() {
   const nonKaScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!isKeepAlivePage && nonKaScrollRef.current) {
-      nonKaScrollRef.current.scrollTop = 0;
+      const body = nonKaScrollRef.current.querySelector('.glass-page-body');
+      if (body) body.scrollTop = 0;
     }
   }, [location.pathname, isKeepAlivePage]);
 
@@ -255,7 +256,7 @@ function KeepAliveRoutes() {
       {secondary && (
         <div
           ref={nonKaScrollRef}
-          className={`secondary-pane absolute inset-0 z-10 overflow-y-auto custom-scrollbar pt-0 pb-0 md:pt-6 ${
+          className={`secondary-pane absolute inset-0 z-10 overflow-hidden ${
             secondary.mode === 'out' ? 'is-exiting' : secondary.mode === 'in' ? 'is-entering' : ''
           }`}
           onAnimationEnd={(e) => {
@@ -265,7 +266,7 @@ function KeepAliveRoutes() {
             }
           }}
         >
-          <div className="secondary-pane-inner max-w-4xl mx-auto h-full">
+          <div className="secondary-pane-inner h-full">
             <Suspense fallback={<PageFallback />}>
               <Routes location={secondary.loc}>
                 <Route path="/records" element={<Navigate to="/" replace />} />

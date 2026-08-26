@@ -83,9 +83,9 @@ function VisitDetail() {
 
   if (loading) {
     return (
-      <div className="absolute inset-0 flex flex-col glass-page-shell">
+      <div className="absolute inset-0 glass-page-shell">
         <SecondaryHeader title={t('common.loading')} onBack={() => navigate('/health')} />
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="glass-page-body custom-scrollbar space-y-4">
           <Skeleton className="h-40 rounded-xl" />
           <Skeleton className="h-32 rounded-xl" />
         </div>
@@ -95,9 +95,11 @@ function VisitDetail() {
 
   if (!visit) {
     return (
-      <div className="absolute inset-0 flex flex-col glass-page-shell">
+      <div className="absolute inset-0 glass-page-shell">
         <SecondaryHeader title={t('visits.notFound')} onBack={() => navigate('/health')} />
-        <p className="flex-1 flex items-center justify-center text-gray-400">{t('visits.notFound')}</p>
+        <div className="glass-page-body custom-scrollbar flex items-center justify-center">
+          <p className="text-gray-400">{t('visits.notFound')}</p>
+        </div>
       </div>
     );
   }
@@ -112,7 +114,7 @@ function VisitDetail() {
   ].filter((f) => f.value);
 
   return (
-    <div className="absolute inset-0 flex flex-col glass-page-shell">
+    <div className="absolute inset-0 glass-page-shell">
       <SecondaryHeader
         title={visit.hospital || t('visits.fallbackTitle')}
         onBack={() => navigate('/health')}
@@ -140,7 +142,7 @@ function VisitDetail() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto py-4 space-y-4">
+      <div className="glass-page-body custom-scrollbar space-y-4">
         <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
           <Stethoscope size={16} />
           <span>{dayjs(visit.visitDate).format(t('dateFmt.ymd'))}</span>
@@ -527,12 +529,12 @@ function VisitForm() {
 
   if (loadingVisit) {
     return (
-      <div className="absolute inset-0 flex flex-col glass-page-shell">
+      <div className="absolute inset-0 glass-page-shell">
         <SecondaryHeader
           title={isEdit ? t('visits.edit') : t('visits.create')}
           onBack={() => navigate(-1)}
         />
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="glass-page-body custom-scrollbar">
           <Skeleton className="h-80 rounded-xl" />
         </div>
       </div>
@@ -543,7 +545,7 @@ function VisitForm() {
     existingImages.length + uploads.filter((u) => u.result).length;
 
   return (
-    <div className="absolute inset-0 flex flex-col glass-page-shell">
+    <div className="absolute inset-0 glass-page-shell">
       <SecondaryHeader
         title={isEdit ? t('visits.edit') : t('visits.create')}
         onBack={() => navigate(-1)}
@@ -554,7 +556,7 @@ function VisitForm() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto py-4 space-y-4 pb-20">
+      <div className="glass-page-body custom-scrollbar space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             {t('visits.visitDate')}

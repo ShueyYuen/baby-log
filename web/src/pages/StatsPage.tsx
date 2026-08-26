@@ -289,9 +289,9 @@ export default function StatsPage() {
   const todayData = weekData[weekData.length - 1];
 
   return (
-    <div className="absolute inset-0 flex flex-col glass-page-shell">
+    <div className="absolute inset-0 glass-page-shell">
       <SecondaryHeader title={t('stats.title')} />
-      <div className="flex-1 overflow-y-auto py-4 space-y-6">
+      <div className="glass-page-body custom-scrollbar space-y-6">
 
       <div className="space-y-3">
         <div className="flex gap-1 p-1 rounded-lg glass-preset-bar">

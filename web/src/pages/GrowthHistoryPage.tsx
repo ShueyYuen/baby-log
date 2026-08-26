@@ -99,16 +99,14 @@ export default function GrowthHistoryPage() {
   };
 
   return (
-    <div className="absolute inset-0 flex flex-col glass-page-shell">
-      {/* Fixed Header */}
+    <div className="absolute inset-0 glass-page-shell">
       <SecondaryHeader
         title={t('growth.historyTitle')}
         onBack={() => navigate('/growth')}
         actions={<span className="text-sm text-gray-400">{total}</span>}
       />
 
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto py-4">
+      <div className="glass-page-body custom-scrollbar">
         {records.length === 0 ? (
           <p className="text-center text-gray-400 py-12">{t('growth.noRecords')}</p>
         ) : (

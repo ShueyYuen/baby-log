@@ -222,9 +222,9 @@ export default function MilkInventoryPage() {
 
   if (loading && items.length === 0) {
     return (
-      <div className="absolute inset-0 flex flex-col glass-page-shell">
+      <div className="absolute inset-0 glass-page-shell">
         <SecondaryHeader title={t('milkInv.title')} backTo="/" />
-        <div className="flex-1 overflow-y-auto py-4 space-y-4">
+        <div className="glass-page-body custom-scrollbar space-y-4">
           <Skeleton className="h-20 rounded-xl" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Skeleton className="h-48 rounded-xl" />
@@ -236,7 +236,7 @@ export default function MilkInventoryPage() {
   }
 
   return (
-    <div className="absolute inset-0 flex flex-col glass-page-shell">
+    <div className="absolute inset-0 glass-page-shell">
       <SecondaryHeader
         title={t('milkInv.title')}
         backTo="/"
@@ -249,7 +249,7 @@ export default function MilkInventoryPage() {
           ) : undefined
         }
       />
-      <div className="flex-1 overflow-y-auto py-4 space-y-4 pb-8">
+      <div className="glass-page-body custom-scrollbar space-y-4">
 
       <Card>
         <CardContent className="py-4">

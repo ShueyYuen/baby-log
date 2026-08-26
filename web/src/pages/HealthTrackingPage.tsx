@@ -435,9 +435,9 @@ export default function HealthTrackingPage() {
 
   if (loading) {
     return (
-      <div className="absolute inset-0 flex flex-col glass-page-shell">
+      <div className="absolute inset-0 glass-page-shell">
         <SecondaryHeader title={t('common.loading')} onBack={() => navigate('/health')} />
-        <div className="flex-1 flex justify-center py-8">
+        <div className="glass-page-body custom-scrollbar flex justify-center">
           <div className="w-6 h-6 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
         </div>
       </div>
@@ -446,15 +446,17 @@ export default function HealthTrackingPage() {
 
   if (!condition) {
     return (
-      <div className="absolute inset-0 flex flex-col glass-page-shell">
+      <div className="absolute inset-0 glass-page-shell">
         <SecondaryHeader title={t('common.notFound')} onBack={() => navigate('/health')} />
-        <p className="text-center text-gray-400 py-8">{t('tracking.notFound')}</p>
+        <div className="glass-page-body custom-scrollbar">
+          <p className="text-center text-gray-400 py-8">{t('tracking.notFound')}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="absolute inset-0 flex flex-col glass-page-shell">
+    <div className="absolute inset-0 glass-page-shell">
       <SecondaryHeader
         title={condition.name}
         subtitle={condition.description || undefined}
@@ -465,7 +467,7 @@ export default function HealthTrackingPage() {
           </Badge>
         }
       />
-      <div className="flex-1 overflow-y-auto py-4 space-y-4">
+      <div className="glass-page-body custom-scrollbar space-y-4">
 
       {/* Actions */}
       {!isViewer && (

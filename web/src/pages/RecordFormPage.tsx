@@ -1133,9 +1133,9 @@ export default function RecordFormPage() {
 
   if (loadingRecord) {
     return (
-      <div className="absolute inset-0 flex flex-col glass-page-shell">
+      <div className="absolute inset-0 glass-page-shell">
         <SecondaryHeader title={t("common.loading")} onBack={() => navigate(-1)} />
-        <div className="flex-1 overflow-y-auto space-y-4 p-4">
+        <div className="glass-page-body custom-scrollbar space-y-4">
           <Skeleton className="h-12 rounded-xl" />
           <Skeleton className="h-12 rounded-xl" />
           <Skeleton className="h-24 rounded-xl" />
@@ -1146,9 +1146,7 @@ export default function RecordFormPage() {
   }
 
   return (
-    <div
-      className="absolute inset-0 flex flex-col glass-page-shell"
-    >
+    <div className="absolute inset-0 glass-page-shell">
       <SecondaryHeader
         title={recordTypeLabel(type, t)}
         onBack={() => navigate(-1)}
@@ -1167,7 +1165,7 @@ export default function RecordFormPage() {
       <form
         id="record-form"
         onSubmit={handleSubmit}
-        className="flex-1 overflow-y-auto py-6 space-y-6"
+        className="glass-page-body custom-scrollbar space-y-6"
       >
         {/* Category & Type Selection - only show when not pre-selected */}
         {!urlType && !isEditing && (

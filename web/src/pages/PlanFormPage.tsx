@@ -233,9 +233,7 @@ export default function PlanFormPage() {
   };
 
   return (
-    <div
-      className="absolute inset-0 flex flex-col glass-page-shell"
-    >
+    <div className="absolute inset-0 glass-page-shell">
       <SecondaryHeader
         title={isEditing ? t('planForm.edit') : t('planForm.create')}
         onBack={() => navigate(-1)}
@@ -248,7 +246,7 @@ export default function PlanFormPage() {
         }
       />
 
-      <form id="plan-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-6 space-y-5">
+      <form id="plan-form" onSubmit={handleSubmit} className="glass-page-body custom-scrollbar space-y-5">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('planForm.type')}</label>
           <div className="flex flex-wrap gap-2">
