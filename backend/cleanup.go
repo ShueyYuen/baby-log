@@ -20,6 +20,8 @@ type orphanFile struct {
 // startCleanupScheduler runs once per hour; on each tick it removes uploaded
 // files that were created more than 24 hours ago, are marked unused, and are
 // not referenced by any live record (used = 0 is not trusted alone).
+// It never lists S3: objects that exist in storage but have no UploadedFile
+// row are handled only by the admin-triggered POST /admin/storage/reindex.
 func startCleanupScheduler() {
 	go func() {
 		repairReferencedUploads()
@@ -193,7 +195,7 @@ func claimAndDeleteOrphan(o orphanFile) (bool, error) {
 
 func restoreTrackingRow(o orphanFile, used int) {
 	now := int64(nowMillis())
-	size := localFileSize(o.key)
+	size := combinedUploadSize(o.key, o.rawKey, nil)
 	_, err := db.Exec(
 		`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used", "size") VALUES (?, ?, ?, ?, ?)`,
 		o.key, o.rawKey, now, used, size,

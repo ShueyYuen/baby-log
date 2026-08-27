@@ -174,10 +174,16 @@ func handlePresignComplete(w http.ResponseWriter, r *http.Request) {
 		markResultProcessing(result)
 		enqueueS3VideoPrepare(req.Key)
 	}
-	if n := localFileSize(req.Key); n > 0 {
+	if n := combinedUploadSize(req.Key, req.RawKey, nil); n > 0 {
 		setUploadSize(req.Key, n)
-	} else if n := s3ObjectSize(req.Key); n > 0 {
-		setUploadSize(req.Key, n)
+	} else {
+		n := s3ObjectSize(req.Key)
+		if req.RawKey != "" && req.RawKey != req.Key {
+			n += s3ObjectSize(req.RawKey)
+		}
+		if n > 0 {
+			setUploadSize(req.Key, n)
+		}
 	}
 
 	writeOK(w, []*uploadResult{result})

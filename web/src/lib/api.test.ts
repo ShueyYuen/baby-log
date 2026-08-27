@@ -71,6 +71,17 @@ describe('api client', () => {
     expect(url).toContain('q=moments%2F');
   });
 
+  it('posts storage reindex', async () => {
+    await api.admin.reindexStorage();
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/admin/storage/reindex',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({}),
+      }),
+    );
+  });
+
   it('builds timeline query strings from filters', async () => {
     await api.timeline.list('baby-1', {
       category: 'feeding',

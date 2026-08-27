@@ -201,8 +201,10 @@ func buildAdminUploadItem(cfg storageConfig, key, rawKey string, created int64, 
 	if st, err := os.Stat(localPath); err == nil && !st.IsDir() {
 		item.Local = true
 		if item.Size <= 0 {
-			item.Size = st.Size()
-			setUploadSize(key, item.Size)
+			item.Size = combinedUploadSize(key, rawKey, nil)
+			if item.Size > 0 {
+				setUploadSize(key, item.Size)
+			}
 		}
 	}
 	if item.MediaType == "video" {

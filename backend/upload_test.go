@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -54,6 +56,9 @@ func TestUploadSingle(t *testing.T) {
 	}
 	if stored <= 0 {
 		t.Fatalf("expected stored size > 0, got %d", stored)
+	}
+	if result.RawKey != "" && stored <= result.Size {
+		t.Fatalf("stored size %d should include raw beyond display %d", stored, result.Size)
 	}
 }
 
@@ -162,5 +167,30 @@ func TestPresignFallsBackWhenNotS3(t *testing.T) {
 	})
 	if mp.status != http.StatusBadRequest {
 		t.Fatalf("multipart without S3 expected 400, got %d %s", mp.status, string(mp.body))
+	}
+}
+
+func TestCombinedUploadSizeIncludesRaw(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("UPLOAD_DIR", dir)
+	key := "moments/a.jpg"
+	raw := "moments/raw/a.jpg"
+	if err := os.MkdirAll(filepath.Join(dir, "moments", "raw"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(key)), []byte("12345"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(raw)), []byte("1234567890"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := combinedUploadSize(key, raw, nil); got != 15 {
+		t.Fatalf("local sum=%d", got)
+	}
+	if got := combinedUploadSize(key, raw, map[string]int64{key: 3, raw: 7}); got != 10 {
+		t.Fatalf("listed sum=%d", got)
+	}
+	if got := combinedUploadSize(key, "", nil); got != 5 {
+		t.Fatalf("display only=%d", got)
 	}
 }

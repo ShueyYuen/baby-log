@@ -231,6 +231,7 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 			r.Post("/admin/uploads/transcode", handleAdminTranscodeUpload)
 			r.Delete("/admin/uploads", handleAdminDeleteUpload)
 			r.Post("/admin/cleanup", handleManualCleanup)
+			r.Post("/admin/storage/reindex", handleStorageReindex)
 
 			r.Get("/events", handleSSE)
 		})

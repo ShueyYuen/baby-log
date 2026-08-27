@@ -409,6 +409,22 @@ export interface AdminUploadsResponse {
   storageType?: 'local' | 's3';
 }
 
+export interface AdminStorageReindexResult {
+  listed: number;
+  postersIndexed: number;
+  sizesUpdated: number;
+  tracked: number;
+  skippedRecent: number;
+  skippedReferenced: number;
+  found: number;
+  deleted: number;
+  bytes: number;
+  listRequests: number;
+  truncated?: boolean;
+  items: { key: string; size: number; lastModified: number }[];
+  errors?: string[];
+}
+
 // ─── Baby type ───────────────────────────────────────────────────────────────
 
 export interface Baby {
@@ -752,6 +768,8 @@ export const api = {
       ),
     cleanup: () =>
       api.post<{ success: boolean; data: { found: number; deleted: number; errors?: string[] } }>('/admin/cleanup', {}),
+    reindexStorage: () =>
+      api.post<{ success: boolean; data: AdminStorageReindexResult }>('/admin/storage/reindex', {}),
   },
 
   babies: {

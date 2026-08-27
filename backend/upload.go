@@ -444,6 +444,9 @@ func trackUploadedFile(key, rawKey string, size int64) {
 	if size <= 0 {
 		size = localFileSize(key)
 	}
+	if rawKey != "" && rawKey != key {
+		size += localFileSize(rawKey)
+	}
 	now := int64(nowMillis())
 	ready := 1
 	if mediaTypeFromKey(key) == "video" && videoTranscodeEnabled() {
@@ -493,6 +496,26 @@ func localFileSize(key string) int64 {
 		return 0
 	}
 	return st.Size()
+}
+
+// combinedUploadSize is display object bytes plus raw original bytes, if any.
+func combinedUploadSize(key, rawKey string, knownSizes map[string]int64) int64 {
+	sizeOf := func(k string) int64 {
+		if k == "" {
+			return 0
+		}
+		if knownSizes != nil {
+			if n := knownSizes[k]; n > 0 {
+				return n
+			}
+		}
+		return localFileSize(k)
+	}
+	n := sizeOf(key)
+	if rawKey != "" && rawKey != key {
+		n += sizeOf(rawKey)
+	}
+	return n
 }
 
 func markUploadReady(key string) {
@@ -670,6 +693,6 @@ func markFileUnusedOne(key, rawKey string) {
 	result, _ := db.Exec(`UPDATE "UploadedFile" SET "used" = 0, "createdAt" = ? WHERE "key" = ?`, now, key)
 	if affected, _ := result.RowsAffected(); affected == 0 {
 		db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used", "size") VALUES (?, ?, ?, 0, ?)`,
-			key, rawKey, now, localFileSize(key))
+			key, rawKey, now, combinedUploadSize(key, rawKey, nil))
 	}
 }
