@@ -92,7 +92,7 @@ func handleMultipartInit(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Printf("[Multipart] CreateMultipartUpload failed: %v", err)
-		writeErr(w, http.StatusInternalServerError, "failed to initiate upload")
+		writeInternal(w, r, http.StatusInternalServerError, "failed to initiate upload", err)
 		return
 	}
 
@@ -118,7 +118,7 @@ func handleMultipartInit(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("[Multipart] PresignUploadPart %d failed: %v", partNum, err)
 			abortMultipart(cfg.s3.bucket, key, uploadID)
-			writeErr(w, http.StatusInternalServerError, "failed to generate part URLs")
+			writeInternal(w, r, http.StatusInternalServerError, "failed to generate part URLs", err)
 			return
 		}
 		parts[i] = multipartPartInfo{
@@ -187,7 +187,7 @@ func handleMultipartComplete(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Printf("[Multipart] CompleteMultipartUpload failed: %v", err)
-		writeErr(w, http.StatusInternalServerError, "failed to complete upload")
+		writeInternal(w, r, http.StatusInternalServerError, "failed to complete upload", err)
 		return
 	}
 

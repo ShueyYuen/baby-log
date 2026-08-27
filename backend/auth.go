@@ -79,7 +79,7 @@ func authMiddleware(next http.Handler) http.Handler {
 				writeErr(w, http.StatusUnauthorized, "Invalid token")
 				return
 			}
-			writeErr(w, http.StatusInternalServerError, "Auth error")
+			writeInternal(w, r, http.StatusInternalServerError, "Auth error", err)
 			return
 		}
 
@@ -88,6 +88,7 @@ func authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		setReqMetaUser(r, id)
 		ctx := context.WithValue(r.Context(), userIDKey, id)
 		ctx = context.WithValue(ctx, userRoleKey, role)
 		setAuthCookie(w, r, token)
@@ -232,6 +233,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		if body.Username != nil {
 			recordLoginFailure(*body.Username)
 		}
+		log.Printf("[Auth] login failed user=%s", *body.Username)
 		writeErr(w, http.StatusUnauthorized, "用户名或密码错误")
 		return
 	}
@@ -240,6 +242,8 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	token := fmt.Sprintf("%s:%d", id, tokenVersion)
 	setAuthCookie(w, r, token)
+	setReqMetaUser(r, id)
+	log.Printf("[Auth] login ok user=%s id=%s", username, id)
 
 	writeOK(w, map[string]interface{}{
 		"token": token,
@@ -280,7 +284,7 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	now := nowMillis()
 	if _, err := db.Exec(`UPDATE "User" SET password = ?, updatedAt = ? WHERE id = ?`,
 		hashPassword(body.NewPassword), int64(now), userID); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeSuccess(w)
@@ -368,7 +372,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	_, err := db.Exec(`INSERT INTO "User" (id, username, password, displayName, role, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		id, body.Username, hashPassword(plainPwd), body.DisplayName, body.Role, int64(now), int64(now))
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -394,7 +398,7 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := db.Query(`SELECT id, username, displayName, role, createdAt, avatar FROM "User" ORDER BY createdAt ASC`)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -413,7 +417,7 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 		var it userListItem
 		var created int64
 		if err := rows.Scan(&it.ID, &it.Username, &it.DisplayName, &it.Role, &created, &it.Avatar); err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		it.CreatedAt = Millis(created)
@@ -428,7 +432,7 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 func handleListMembers(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(`SELECT id, displayName, avatar FROM "User" ORDER BY createdAt ASC`)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -443,7 +447,7 @@ func handleListMembers(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var it memberItem
 		if err := rows.Scan(&it.ID, &it.DisplayName, &it.Avatar); err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		it.Avatar = resolveAvatar(it.Avatar)
@@ -476,7 +480,7 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := db.Begin()
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	stmts := []struct {
@@ -498,12 +502,12 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	for _, s := range stmts {
 		if _, err := tx.Exec(s.q, s.args...); err != nil {
 			tx.Rollback()
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if avatar.Valid && avatar.String != "" {
@@ -526,11 +530,11 @@ func handleResetPassword(w http.ResponseWriter, r *http.Request) {
 
 	res, err := db.Exec(`UPDATE "User" SET password = ?, "tokenVersion" = "tokenVersion" + 1, updatedAt = ? WHERE id = ?`, hashPassword(plainPwd), int64(now), targetID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -566,7 +570,7 @@ func handleSetUserRole(w http.ResponseWriter, r *http.Request) {
 	now := int64(nowMillis())
 	res, err := db.Exec(`UPDATE "User" SET role = ?, updatedAt = ? WHERE id = ?`, body.Role, now, targetID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -633,7 +637,7 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	query := fmt.Sprintf(`UPDATE "User" SET %s WHERE id = ?`, strings.Join(setClauses, ", "))
 	res, err := db.Exec(query, args...)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -694,11 +698,11 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 		if cfg.typ == storageLocal {
 			avatarDir := filepath.Join(cfg.uploadDir, "avatar")
 			if err := os.MkdirAll(avatarDir, 0o755); err != nil {
-				writeErr(w, http.StatusInternalServerError, "Server error")
+				writeServerErr(w, r, err)
 				return
 			}
 			if err := os.WriteFile(filepath.Join(cfg.uploadDir, localKey), compressedData, 0o644); err != nil {
-				writeErr(w, http.StatusInternalServerError, "Upload failed")
+				writeInternal(w, r, http.StatusInternalServerError, "Upload failed", err)
 				return
 			}
 		} else if cfg.s3 != nil {
@@ -710,7 +714,7 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 				ContentType:  aws.String("image/jpeg"),
 				CacheControl: aws.String(s3CacheControl),
 			}); err != nil {
-				writeErr(w, http.StatusInternalServerError, "Upload failed")
+				writeInternal(w, r, http.StatusInternalServerError, "Upload failed", err)
 				return
 			}
 		}
@@ -723,7 +727,7 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 		now := int64(nowMillis())
 		res, err := db.Exec(`UPDATE "User" SET avatar = ?, updatedAt = ? WHERE id = ?`, localKey, now, targetID)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
@@ -765,7 +769,7 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 	now := int64(nowMillis())
 	res, err := db.Exec(`UPDATE "User" SET avatar = ?, updatedAt = ? WHERE id = ?`, stored, now, targetID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {

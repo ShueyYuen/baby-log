@@ -187,7 +187,7 @@ func handleListRecords(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -212,7 +212,7 @@ func handleListRecords(w http.ResponseWriter, r *http.Request) {
 	// total
 	var total int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM "Record" r `+where, args...).Scan(&total); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -226,7 +226,7 @@ func handleListRecords(w http.ResponseWriter, r *http.Request) {
 		ORDER BY r.occurredAt DESC
 		LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -243,7 +243,7 @@ func handleListRecords(w http.ResponseWriter, r *http.Request) {
 		var note, images sql.NullString
 		var uID, uName string
 		if err := rows.Scan(&rec.ID, &rec.BabyID, &rec.Category, &rec.Type, &dataStr, &occurred, &note, &images, &rec.CreatedBy, &created, &updated, &uID, &uName); err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		rec.Data = json.RawMessage(dataStr)
@@ -297,7 +297,7 @@ func handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(body.BabyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -332,7 +332,7 @@ func handleCreateRecord(w http.ResponseWriter, r *http.Request) {
 		id, body.BabyID, body.Category, body.Type, string(body.Data), int64(occurred),
 		nullStringFromPtr(body.Note), imagesStore, userID, int64(now), int64(now))
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -372,13 +372,13 @@ func handleUpdateRecord(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(existingBabyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -388,7 +388,7 @@ func handleUpdateRecord(w http.ResponseWriter, r *http.Request) {
 
 	var body map[string]json.RawMessage
 	if err := decodeJSON(r, &body); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -461,7 +461,7 @@ func handleUpdateRecord(w http.ResponseWriter, r *http.Request) {
 	args = append(args, id)
 
 	if _, err := db.Exec(`UPDATE "Record" SET `+joinComma(sets)+` WHERE id = ?`, args...); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -490,7 +490,7 @@ func handleUpdateRecord(w http.ResponseWriter, r *http.Request) {
 
 	out, err := loadRecordByID(id, userID, isAdminCtx(r))
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeOK(w, out)
@@ -510,13 +510,13 @@ func handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -525,7 +525,7 @@ func handleDeleteRecord(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := db.Exec(`DELETE FROM "Record" WHERE id = ?`, id); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 

@@ -203,4 +203,3 @@ func TestTimelineTypeAndCreatedByFilter(t *testing.T) {
 		t.Fatalf("createdBy filter expected 2, got %d", len(data2.Records))
 	}
 }
-

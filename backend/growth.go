@@ -42,7 +42,7 @@ func handleListGrowth(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -66,7 +66,7 @@ func handleListGrowth(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(`SELECT `+growthCols+` FROM "GrowthRecord" WHERE babyId = ? ORDER BY date DESC LIMIT ? OFFSET ?`,
 		babyID, pageSize, (page-1)*pageSize)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -75,7 +75,7 @@ func handleListGrowth(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		g, err := scanGrowthRow(rows)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		records = append(records, *g)
@@ -116,7 +116,7 @@ func handleCreateGrowth(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(body.BabyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -136,14 +136,14 @@ func handleCreateGrowth(w http.ResponseWriter, r *http.Request) {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		id, body.BabyID, int64(date), floatArg(body.Height), floatArg(body.Weight), floatArg(body.HeadCircumference),
 		nullStringFromPtr(body.Note), int64(now), int64(now)); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	row := db.QueryRow(`SELECT `+growthCols+` FROM "GrowthRecord" WHERE id = ?`, id)
 	g, err := scanGrowthRow(row)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeOK(w, g)
@@ -161,13 +161,13 @@ func handleUpdateGrowth(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -177,7 +177,7 @@ func handleUpdateGrowth(w http.ResponseWriter, r *http.Request) {
 
 	var body map[string]json.RawMessage
 	if err := decodeJSON(r, &body); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -220,14 +220,14 @@ func handleUpdateGrowth(w http.ResponseWriter, r *http.Request) {
 	args = append(args, id)
 
 	if _, err := db.Exec(`UPDATE "GrowthRecord" SET `+strings.Join(sets, ", ")+` WHERE id = ?`, args...); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	row := db.QueryRow(`SELECT `+growthCols+` FROM "GrowthRecord" WHERE id = ?`, id)
 	g, err := scanGrowthRow(row)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeOK(w, g)
@@ -245,13 +245,13 @@ func handleDeleteGrowth(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -260,7 +260,7 @@ func handleDeleteGrowth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := db.Exec(`DELETE FROM "GrowthRecord" WHERE id = ?`, id); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeSuccess(w)

@@ -244,3 +244,49 @@ func TestRecoverPendingVideoJobs(t *testing.T) {
 	}
 	t.Fatal("pending transcode was not resumed")
 }
+
+func TestFormatByteSize(t *testing.T) {
+	if got := formatByteSize(500); got != "500B" {
+		t.Fatalf("got %s", got)
+	}
+	if got := formatByteSize(10 * 1024); got != "10.0KB" {
+		t.Fatalf("got %s", got)
+	}
+	if got := formatByteSize(85 * 1024 * 1024); got != "85.0MB" {
+		t.Fatalf("got %s", got)
+	}
+}
+
+func TestVideoProbeLogLine(t *testing.T) {
+	p := videoProbe{HasVideo: true, VideoCodec: "hevc", VideoProfile: "Main", PixFmt: "yuv420p", Width: 1920, Height: 1080, FPS: 60, Duration: 45.2, HasAudio: true, AudioCodec: "aac"}
+	got := p.logLine()
+	for _, want := range []string{"codec=hevc", "1920x1080", "fps=60.0", "dur=45.2s", "audio=aac"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in %s", want, got)
+		}
+	}
+}
+
+func TestLogPendingVideoJobsReportsStuck(t *testing.T) {
+	setupTestDB(t)
+	t.Cleanup(func() {
+		clearVideoJob("moments/stuck.mp4")
+	})
+	key := "moments/stuck.mp4"
+	created := int64(nowMillis()) - int64(14*time.Hour/time.Millisecond)
+	if _, err := db.Exec(`INSERT INTO "UploadedFile" ("key", "createdAt", "used", "ready") VALUES (?, ?, 0, 0)`, key, created); err != nil {
+		t.Fatal(err)
+	}
+	setVideoJobPhase(key, "transcode")
+	logPendingVideoJobs()
+	snap := snapshotVideoJob()
+	if snap == nil || snap.Key != key || snap.Phase != "transcode" {
+		t.Fatalf("active job: %+v", snap)
+	}
+}
+
+func TestLocalFileLogMissing(t *testing.T) {
+	if got := localFileLog(filepath.Join(t.TempDir(), "nope.mp4")); got != "missing" {
+		t.Fatalf("got %s", got)
+	}
+}

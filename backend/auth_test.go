@@ -393,4 +393,3 @@ func TestEnsureAdminCreatesFromEnv(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-

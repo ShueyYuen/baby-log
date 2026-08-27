@@ -212,13 +212,13 @@ func handleMedicalVisitOCR(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -256,7 +256,7 @@ func handleMedicalVisitOCR(w http.ResponseWriter, r *http.Request) {
 	now := nowMillis()
 	if _, err := db.Exec(`UPDATE "MedicalVisit" SET "ocrText" = ?, "ocrData" = ?, "updatedAt" = ? WHERE id = ?`,
 		ocrText, string(ocrDataJSON), int64(now), id); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 

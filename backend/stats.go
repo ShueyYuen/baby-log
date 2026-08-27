@@ -22,7 +22,7 @@ func handleStatsSummary(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -184,7 +184,7 @@ func handleStatsPredict(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -210,7 +210,7 @@ func handleStatsDaily(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -231,7 +231,7 @@ func handleStatsDaily(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(`SELECT category, type, data FROM "Record" WHERE babyId = ? AND occurredAt >= ? AND occurredAt <= ?`,
 		babyID, startOfDay, endOfDay)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -244,7 +244,7 @@ func handleStatsDaily(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var category, typ, dataStr string
 		if err := rows.Scan(&category, &typ, &dataStr); err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		if category == "feeding" {
@@ -313,7 +313,7 @@ func handleStatsRange(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -362,7 +362,7 @@ func handleStatsRange(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(`SELECT category, type, data, occurredAt FROM "Record" WHERE babyId = ? AND occurredAt >= ? AND occurredAt <= ?`,
 		babyID, firstStart, rangeEnd)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -371,7 +371,7 @@ func handleStatsRange(w http.ResponseWriter, r *http.Request) {
 		var category, typ, dataStr string
 		var occurred int64
 		if err := rows.Scan(&category, &typ, &dataStr, &occurred); err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		idx := int((occurred - firstStart) / dayMs)
@@ -444,7 +444,7 @@ func handleTimeline(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -479,7 +479,7 @@ func handleTimeline(w http.ResponseWriter, r *http.Request) {
 		ORDER BY r.occurredAt DESC
 		LIMIT ?`, listArgs...)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -496,7 +496,7 @@ func handleTimeline(w http.ResponseWriter, r *http.Request) {
 		var note, images sql.NullString
 		var uID, uName string
 		if err := rows.Scan(&rec.ID, &rec.BabyID, &rec.Category, &rec.Type, &dataStr, &occurred, &note, &images, &rec.CreatedBy, &created, &updated, &uID, &uName); err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		rec.Data = json.RawMessage(dataStr)
@@ -508,7 +508,7 @@ func handleTimeline(w http.ResponseWriter, r *http.Request) {
 		raw = append(raw, scanned{rec: rec, images: images})
 	}
 	if err := rows.Err(); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	rows.Close()

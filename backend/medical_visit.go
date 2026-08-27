@@ -91,7 +91,7 @@ func handleListMedicalVisits(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -111,7 +111,7 @@ func handleListMedicalVisits(w http.ResponseWriter, r *http.Request) {
 
 	var total int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM "MedicalVisit" `+where, args...).Scan(&total); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -131,7 +131,7 @@ func handleListMedicalVisits(w http.ResponseWriter, r *http.Request) {
 		queryArgs...,
 	)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -141,7 +141,7 @@ func handleListMedicalVisits(w http.ResponseWriter, r *http.Request) {
 		m, err := scanMedicalVisitRow(rows)
 		if err != nil {
 			log.Printf("[MedicalVisit] scan error: %v", err)
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		items = append(items, *m)
@@ -168,13 +168,13 @@ func handleGetMedicalVisit(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(m.BabyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -213,7 +213,7 @@ func handleCreateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(body.BabyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -260,7 +260,7 @@ func handleCreateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 		string(ocrDataJSON), userID, int64(now), int64(now),
 	); err != nil {
 		log.Printf("[MedicalVisit] create error: %v", err)
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -269,7 +269,7 @@ func handleCreateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 	row := db.QueryRow(`SELECT `+medicalVisitCols+` FROM "MedicalVisit" WHERE id = ?`, id)
 	out, err := scanMedicalVisitRow(row)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeOK(w, out)
@@ -286,13 +286,13 @@ func handleUpdateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -388,7 +388,7 @@ func handleUpdateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 	args = append(args, id)
 	if _, err := db.Exec(`UPDATE "MedicalVisit" SET `+strings.Join(sets, ", ")+` WHERE id = ?`, args...); err != nil {
 		log.Printf("[MedicalVisit] update error: %v", err)
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -400,7 +400,7 @@ func handleUpdateMedicalVisit(w http.ResponseWriter, r *http.Request) {
 	row := db.QueryRow(`SELECT `+medicalVisitCols+` FROM "MedicalVisit" WHERE id = ?`, id)
 	out, err := scanMedicalVisitRow(row)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeOK(w, out)
@@ -418,13 +418,13 @@ func handleDeleteMedicalVisit(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -433,7 +433,7 @@ func handleDeleteMedicalVisit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := db.Exec(`DELETE FROM "MedicalVisit" WHERE id = ?`, id); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	unmarkImagesJSON(imagesJSON)

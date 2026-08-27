@@ -37,6 +37,7 @@ func idempotencyMiddleware(next http.Handler) http.Handler {
 			key, userID,
 		).Scan(&statusCode, &respBody, &contentType)
 		if err == nil {
+			log.Printf("[HTTP] idempotent replay key=%s user=%s status=%d", key, userID, statusCode)
 			if contentType != "" {
 				w.Header().Set("Content-Type", contentType)
 			}
@@ -73,6 +74,16 @@ func (r *responseRecorder) WriteHeader(code int) {
 func (r *responseRecorder) Write(b []byte) (int, error) {
 	r.body.Write(b)
 	return r.ResponseWriter.Write(b)
+}
+
+func (r *responseRecorder) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
+}
+
+func (r *responseRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func cleanupIdempotencyKeys() {

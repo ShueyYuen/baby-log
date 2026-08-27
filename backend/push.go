@@ -81,7 +81,7 @@ func handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := db.Exec(`DELETE FROM "PushSubscription" WHERE endpoint = ? AND userId = ?`, body.Endpoint, userID); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeSuccess(w)
@@ -169,7 +169,7 @@ func handleListReminders(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -181,7 +181,7 @@ func handleListReminders(w http.ResponseWriter, r *http.Request) {
 		FROM "Reminder" WHERE babyId = ? AND sent = 0 AND remindAt >= ? ORDER BY remindAt ASC LIMIT 10`,
 		babyID, int64(nowMillis()))
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -190,7 +190,7 @@ func handleListReminders(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		rem, err := scanReminderRow(rows)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		list = append(list, *rem)
@@ -207,7 +207,7 @@ func handleDueReminders(w http.ResponseWriter, r *http.Request) {
 
 	memRows, err := db.Query(`SELECT babyId FROM "BabyMember" WHERE userId = ?`, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	var babyIDs []string
@@ -215,7 +215,7 @@ func handleDueReminders(w http.ResponseWriter, r *http.Request) {
 		var bid string
 		if err := memRows.Scan(&bid); err != nil {
 			memRows.Close()
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		babyIDs = append(babyIDs, bid)
@@ -239,7 +239,7 @@ func handleDueReminders(w http.ResponseWriter, r *http.Request) {
 		  AND r.remindAt <= ?
 		  AND r.id NOT IN (SELECT reminderId FROM "ReminderDelivered" WHERE userId = ?)`, args...)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	type notif struct {
@@ -253,7 +253,7 @@ func handleDueReminders(w http.ResponseWriter, r *http.Request) {
 		var id, title, body, babyName string
 		if err := rows.Scan(&id, &title, &body, &babyName); err != nil {
 			rows.Close()
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		if title == "" {

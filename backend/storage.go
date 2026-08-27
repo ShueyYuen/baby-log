@@ -32,7 +32,10 @@ const (
 
 // s3CacheControl sets the Cache-Control header for all uploaded objects.
 // Files use UUID-based names and are immutable, so a long cache is safe.
-const s3CacheControl = "public, max-age=31536000, immutable"
+const (
+	s3CacheControl = "public, max-age=31536000, immutable"
+	s3PutTimeout   = 20 * time.Minute
+)
 
 type s3Config struct {
 	bucket          string
@@ -162,7 +165,10 @@ func putToS3(key, contentType string, body io.Reader) error {
 		return err
 	}
 	client := getS3Client()
-	_, err = client.PutObject(context.Background(), &s3.PutObjectInput{
+	ctx, cancel := context.WithTimeout(context.Background(), s3PutTimeout)
+	defer cancel()
+	start := time.Now()
+	_, err = client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:        aws.String(cfg.s3.bucket),
 		Key:           aws.String(key),
 		Body:          reader,
@@ -170,7 +176,13 @@ func putToS3(key, contentType string, body io.Reader) error {
 		CacheControl:  aws.String(s3CacheControl),
 		ContentLength: aws.Int64(size),
 	})
-	return err
+	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("s3 put timed out after %s size=%s: %w", time.Since(start).Truncate(time.Second), formatByteSize(size), err)
+		}
+		return err
+	}
+	return nil
 }
 
 func bodyWithLength(body io.Reader) (io.Reader, int64, error) {

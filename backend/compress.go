@@ -3,8 +3,8 @@ package main
 import (
 	"bytes"
 	"image"
-	"image/jpeg"
 	_ "image/gif"
+	"image/jpeg"
 	_ "image/png"
 	"log"
 	"strings"

@@ -91,8 +91,8 @@ func pngIHDR(w, h int) []byte {
 	ihdr := make([]byte, 13)
 	binary.BigEndian.PutUint32(ihdr[0:4], uint32(w))
 	binary.BigEndian.PutUint32(ihdr[4:8], uint32(h))
-	ihdr[8] = 8  // bit depth
-	ihdr[9] = 2  // color type RGB
+	ihdr[8] = 8 // bit depth
+	ihdr[9] = 2 // color type RGB
 	chunk := append([]byte("IHDR"), ihdr...)
 	lenb := make([]byte, 4)
 	binary.BigEndian.PutUint32(lenb, 13)

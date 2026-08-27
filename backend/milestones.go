@@ -49,7 +49,7 @@ func handleListMilestones(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -73,7 +73,7 @@ func handleListMilestones(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(`SELECT `+milestoneCols+` FROM "Milestone" WHERE babyId = ? ORDER BY occurredAt DESC LIMIT ? OFFSET ?`,
 		babyID, pageSize, (page-1)*pageSize)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -86,7 +86,7 @@ func handleListMilestones(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		m, images, err := scanMilestoneFields(rows)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		raw = append(raw, scanned{m: *m, images: images})
@@ -113,11 +113,11 @@ func handleCreateMilestone(w http.ResponseWriter, r *http.Request) {
 	userID := getUserID(r)
 
 	var body struct {
-		BabyID      string            `json:"babyId"`
-		Type        string            `json:"type"`
-		Title       string            `json:"title"`
-		OccurredAt  string            `json:"occurredAt"`
-		Description *string           `json:"description"`
+		BabyID      string             `json:"babyId"`
+		Type        string             `json:"type"`
+		Title       string             `json:"title"`
+		OccurredAt  string             `json:"occurredAt"`
+		Description *string            `json:"description"`
 		Images      []RecordImageStore `json:"images"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
@@ -131,7 +131,7 @@ func handleCreateMilestone(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(body.BabyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -165,7 +165,7 @@ func handleCreateMilestone(w http.ResponseWriter, r *http.Request) {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		id, body.BabyID, body.Type, body.Title, int64(occurred),
 		nullStringFromPtr(body.Description), imagesStore, int64(now), int64(now)); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -178,7 +178,7 @@ func handleCreateMilestone(w http.ResponseWriter, r *http.Request) {
 	row := db.QueryRow(`SELECT `+milestoneCols+` FROM "Milestone" WHERE id = ?`, id)
 	m, err := scanMilestoneRow(row, userID, isAdminCtx(r))
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeOK(w, m)
@@ -197,13 +197,13 @@ func handleUpdateMilestone(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -213,7 +213,7 @@ func handleUpdateMilestone(w http.ResponseWriter, r *http.Request) {
 
 	var body map[string]json.RawMessage
 	if err := decodeJSON(r, &body); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -283,7 +283,7 @@ func handleUpdateMilestone(w http.ResponseWriter, r *http.Request) {
 	args = append(args, id)
 
 	if _, err := db.Exec(`UPDATE "Milestone" SET `+strings.Join(sets, ", ")+` WHERE id = ?`, args...); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -311,7 +311,7 @@ func handleUpdateMilestone(w http.ResponseWriter, r *http.Request) {
 	row := db.QueryRow(`SELECT `+milestoneCols+` FROM "Milestone" WHERE id = ?`, id)
 	m, err := scanMilestoneRow(row, userID, isAdminCtx(r))
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeOK(w, m)
@@ -330,13 +330,13 @@ func handleDeleteMilestone(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -345,7 +345,7 @@ func handleDeleteMilestone(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := db.Exec(`DELETE FROM "Milestone" WHERE id = ?`, id); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 

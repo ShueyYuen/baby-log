@@ -86,7 +86,7 @@ func handleUploadPoster(w http.ResponseWriter, r *http.Request) {
 
 	data, err := io.ReadAll(io.LimitReader(file, maxPosterUploadSize+1))
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Upload failed")
+		writeInternal(w, r, http.StatusInternalServerError, "Upload failed", err)
 		return
 	}
 	if len(data) == 0 || int64(len(data)) > maxPosterUploadSize {
@@ -100,7 +100,7 @@ func handleUploadPoster(w http.ResponseWriter, r *http.Request) {
 
 	if err := writeLocalBytes(posterKey, data); err != nil {
 		log.Printf("[Upload] poster write %s: %v", posterKey, err)
-		writeErr(w, http.StatusInternalServerError, "Upload failed")
+		writeInternal(w, r, http.StatusInternalServerError, "Upload failed", err)
 		return
 	}
 

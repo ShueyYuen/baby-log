@@ -10,16 +10,16 @@ import (
 )
 
 type milkInventoryOut struct {
-	ID          string   `json:"id"`
-	BabyID      string   `json:"babyId"`
-	AmountMl    float64  `json:"amountMl"`
-	StorageType string   `json:"storageType"`
-	StoredAt    Millis   `json:"storedAt"`
-	ExpiresAt   Millis   `json:"expiresAt"`
-	Status      string   `json:"status"`
-	Note        *string  `json:"note"`
-	CreatedAt   Millis   `json:"createdAt"`
-	UpdatedAt   Millis   `json:"updatedAt"`
+	ID          string  `json:"id"`
+	BabyID      string  `json:"babyId"`
+	AmountMl    float64 `json:"amountMl"`
+	StorageType string  `json:"storageType"`
+	StoredAt    Millis  `json:"storedAt"`
+	ExpiresAt   Millis  `json:"expiresAt"`
+	Status      string  `json:"status"`
+	Note        *string `json:"note"`
+	CreatedAt   Millis  `json:"createdAt"`
+	UpdatedAt   Millis  `json:"updatedAt"`
 }
 
 const milkInventoryCols = `id, babyId, amountMl, storageType, storedAt, expiresAt, status, note, createdAt, updatedAt`
@@ -60,7 +60,7 @@ func handleListMilkInventory(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -83,7 +83,7 @@ func handleListMilkInventory(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := db.Query(`SELECT `+milkInventoryCols+` FROM "MilkInventory" `+where+` ORDER BY expiresAt ASC`, args...)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -92,7 +92,7 @@ func handleListMilkInventory(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		m, err := scanMilkInventoryRow(rows)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		items = append(items, *m)
@@ -122,7 +122,7 @@ func handleCreateMilkInventory(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(body.BabyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -147,7 +147,7 @@ func handleCreateMilkInventory(w http.ResponseWriter, r *http.Request) {
 		VALUES (?, ?, ?, ?, ?, ?, 'available', ?, ?, ?)`,
 		id, body.BabyID, body.AmountMl, body.StorageType, int64(storedAt), int64(expiresAt),
 		nullStringFromPtr(body.Note), int64(now), int64(now)); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -169,13 +169,13 @@ func handleUpdateMilkInventory(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -217,14 +217,14 @@ func handleUpdateMilkInventory(w http.ResponseWriter, r *http.Request) {
 
 	args = append(args, id)
 	if _, err := db.Exec(`UPDATE "MilkInventory" SET `+strings.Join(sets, ", ")+` WHERE id = ?`, args...); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	row := db.QueryRow(`SELECT `+milkInventoryCols+` FROM "MilkInventory" WHERE id = ?`, id)
 	out, err := scanMilkInventoryRow(row)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeOK(w, out)
@@ -241,13 +241,13 @@ func handleDeleteMilkInventory(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -256,7 +256,7 @@ func handleDeleteMilkInventory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := db.Exec(`DELETE FROM "MilkInventory" WHERE id = ?`, id); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeSuccess(w)

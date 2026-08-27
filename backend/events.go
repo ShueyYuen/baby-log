@@ -96,6 +96,9 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 	sub := subscribe(userID)
 	defer unsubscribe(sub)
 
+	log.Printf("[SSE] connected user=%s", userID)
+	defer log.Printf("[SSE] disconnected user=%s", userID)
+
 	ctx := r.Context()
 
 	// Send initial keepalive

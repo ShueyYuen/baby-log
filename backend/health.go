@@ -22,7 +22,7 @@ func handleListHealthConditions(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -38,7 +38,7 @@ func handleListHealthConditions(w http.ResponseWriter, r *http.Request) {
 		ORDER BY CASE WHEN c.status = 'active' THEN 0 ELSE 1 END, c.updatedAt DESC`,
 		babyID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -49,7 +49,7 @@ func handleListHealthConditions(w http.ResponseWriter, r *http.Request) {
 		var desc sql.NullString
 		var created, updated int64
 		if err := rows.Scan(&c.ID, &c.BabyID, &c.Name, &desc, &c.Status, &c.CreatedBy, &created, &updated, &c.EntryCount); err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		c.Description = strPtr(desc)
@@ -80,7 +80,7 @@ func handleCreateHealthCondition(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(body.BabyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -93,7 +93,7 @@ func handleCreateHealthCondition(w http.ResponseWriter, r *http.Request) {
 	if _, err := db.Exec(`INSERT INTO "HealthCondition" (id, babyId, name, description, status, createdBy, createdAt, updatedAt)
 		VALUES (?, ?, ?, ?, 'active', ?, ?, ?)`,
 		id, body.BabyID, body.Name, nullStringFromPtr(body.Description), userID, int64(now), int64(now)); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -122,13 +122,13 @@ func handleUpdateHealthCondition(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -176,7 +176,7 @@ func handleUpdateHealthCondition(w http.ResponseWriter, r *http.Request) {
 	args = append(args, id)
 
 	if _, err := db.Exec(`UPDATE "HealthCondition" SET `+strings.Join(sets, ", ")+` WHERE id = ?`, args...); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -189,7 +189,7 @@ func handleUpdateHealthCondition(w http.ResponseWriter, r *http.Request) {
 		       (SELECT COUNT(*) FROM "HealthEntry" WHERE conditionId = c.id) as entryCount
 		FROM "HealthCondition" c WHERE c.id = ?`, id).Scan(
 		&c.ID, &c.BabyID, &c.Name, &desc, &c.Status, &c.CreatedBy, &created, &updated, &entryCount); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	c.Description = strPtr(desc)
@@ -211,13 +211,13 @@ func handleDeleteHealthCondition(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -238,7 +238,7 @@ func handleDeleteHealthCondition(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := db.Exec(`DELETE FROM "HealthCondition" WHERE id = ?`, id); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	for _, img := range toUnmark {
@@ -262,13 +262,13 @@ func handleListHealthEntries(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Condition not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -293,7 +293,7 @@ func handleListHealthEntries(w http.ResponseWriter, r *http.Request) {
 		FROM "HealthEntry" WHERE conditionId = ? ORDER BY date DESC LIMIT ? OFFSET ?`,
 		conditionID, pageSize, (page-1)*pageSize)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -310,7 +310,7 @@ func handleListHealthEntries(w http.ResponseWriter, r *http.Request) {
 		var dateMs, created, updated int64
 		var note, images, annotations sql.NullString
 		if err := rows.Scan(&e.ID, &e.ConditionID, &dateMs, &note, &images, &annotations, &e.CreatedBy, &created, &updated); err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		e.Date = Millis(dateMs)
@@ -350,13 +350,13 @@ func handleCreateHealthEntry(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Condition not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -409,7 +409,7 @@ func handleCreateHealthEntry(w http.ResponseWriter, r *http.Request) {
 	if _, err := db.Exec(`INSERT INTO "HealthEntry" (id, conditionId, date, note, images, annotations, createdBy, createdAt, updatedAt)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		id, conditionID, int64(dateMs), nullStringFromPtr(body.Note), imagesStore, annotationsStore, userID, int64(now), int64(now)); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -452,13 +452,13 @@ func handleUpdateHealthEntry(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Condition not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -473,7 +473,7 @@ func handleUpdateHealthEntry(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Entry not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -553,7 +553,7 @@ func handleUpdateHealthEntry(w http.ResponseWriter, r *http.Request) {
 	args = append(args, conditionID)
 
 	if _, err := db.Exec(`UPDATE "HealthEntry" SET `+strings.Join(sets, ", ")+` WHERE id = ? AND conditionId = ?`, args...); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -588,7 +588,7 @@ func handleUpdateHealthEntry(w http.ResponseWriter, r *http.Request) {
 	if err := db.QueryRow(`SELECT id, conditionId, date, note, images, annotations, createdBy, createdAt, updatedAt
 		FROM "HealthEntry" WHERE id = ?`, entryID).Scan(
 		&e.ID, &e.ConditionID, &dateMs, &note, &images, &annotations, &e.CreatedBy, &created, &updated); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	e.Date = Millis(dateMs)
@@ -615,13 +615,13 @@ func handleDeleteHealthEntry(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Condition not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -635,12 +635,12 @@ func handleDeleteHealthEntry(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Entry not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	if _, err := db.Exec(`DELETE FROM "HealthEntry" WHERE id = ? AND conditionId = ?`, entryID, conditionID); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 

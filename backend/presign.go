@@ -89,7 +89,7 @@ func handlePresignUpload(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Printf("[Presign] Failed to presign compressed key=%s: %v", compKey, err)
-		writeErr(w, http.StatusInternalServerError, "presign failed")
+		writeInternal(w, r, http.StatusInternalServerError, "presign failed", err)
 		return
 	}
 

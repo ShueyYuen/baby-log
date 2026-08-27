@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 )
 
@@ -27,7 +28,29 @@ func writeSuccess(w http.ResponseWriter) {
 }
 
 func writeErr(w http.ResponseWriter, status int, msg string) {
+	attachErrToWriter(w, msg, nil)
 	writeJSON(w, status, apiResponse{Success: false, Error: msg})
+}
+
+// writeInternal logs the real error (for later diagnosis) while returning a client-facing message.
+func writeInternal(w http.ResponseWriter, r *http.Request, status int, clientMsg string, err error) {
+	attachErrToWriter(w, clientMsg, err)
+	if unwrapLogWriter(w) == nil {
+		user := getUserID(r)
+		if user == "" {
+			user = "-"
+		}
+		if err != nil {
+			log.Printf("[HTTP] %s %s status=%d msg=%q err=%v user=%s", r.Method, requestURIForLog(r), status, clientMsg, err, user)
+		} else {
+			log.Printf("[HTTP] %s %s status=%d msg=%q user=%s", r.Method, requestURIForLog(r), status, clientMsg, user)
+		}
+	}
+	writeJSON(w, status, apiResponse{Success: false, Error: clientMsg})
+}
+
+func writeServerErr(w http.ResponseWriter, r *http.Request, err error) {
+	writeInternal(w, r, http.StatusInternalServerError, "Server error", err)
 }
 
 const maxJSONBodySize = 2 << 20 // 2 MB

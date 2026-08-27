@@ -136,7 +136,7 @@ func handleListMoments(w http.ResponseWriter, r *http.Request) {
 
 	var total int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM "Moment"`).Scan(&total); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Failed to count moments")
+		writeInternal(w, r, http.StatusInternalServerError, "Failed to count moments", err)
 		return
 	}
 
@@ -148,7 +148,7 @@ func handleListMoments(w http.ResponseWriter, r *http.Request) {
 		LIMIT ? OFFSET ?
 	`, pageSize, offset)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Failed to list moments")
+		writeInternal(w, r, http.StatusInternalServerError, "Failed to list moments", err)
 		return
 	}
 	defer rows.Close()
@@ -322,7 +322,7 @@ func handleCreateMoment(w http.ResponseWriter, r *http.Request) {
 	for _, item := range body.MediaItems {
 		if err := waitForUpload(item.Key); err != nil {
 			log.Printf("[Moments] Async upload failed for key=%s: %v", item.Key, err)
-			writeErr(w, http.StatusInternalServerError, "文件上传处理失败")
+			writeInternal(w, r, http.StatusInternalServerError, "文件上传处理失败", err)
 			return
 		}
 	}
@@ -331,7 +331,7 @@ func handleCreateMoment(w http.ResponseWriter, r *http.Request) {
 	if len(body.MediaItems) > 0 {
 		b, err := json.Marshal(body.MediaItems)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "Failed to marshal media")
+			writeInternal(w, r, http.StatusInternalServerError, "Failed to marshal media", err)
 			return
 		}
 		mediaJSON = string(b)
@@ -349,7 +349,7 @@ func handleCreateMoment(w http.ResponseWriter, r *http.Request) {
 		INSERT INTO "Moment" (id, userId, content, mediaItems, createdAt, updatedAt)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, id, currentUserID, contentVal, mediaJSON, now, now); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Failed to create moment")
+		writeInternal(w, r, http.StatusInternalServerError, "Failed to create moment", err)
 		return
 	}
 
@@ -397,7 +397,7 @@ func handleUpdateMoment(w http.ResponseWriter, r *http.Request) {
 		if isNoRows(err) {
 			writeErr(w, http.StatusNotFound, "Moment not found")
 		} else {
-			writeErr(w, http.StatusInternalServerError, "Failed to fetch moment")
+			writeInternal(w, r, http.StatusInternalServerError, "Failed to fetch moment", err)
 		}
 		return
 	}
@@ -465,7 +465,7 @@ func handleUpdateMoment(w http.ResponseWriter, r *http.Request) {
 	if _, err := db.Exec(`
 		UPDATE "Moment" SET content = ?, mediaItems = ?, updatedAt = ? WHERE id = ?
 	`, contentVal, mediaJSON, now, id); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Failed to update moment")
+		writeInternal(w, r, http.StatusInternalServerError, "Failed to update moment", err)
 		return
 	}
 
@@ -490,7 +490,7 @@ func handleDeleteMoment(w http.ResponseWriter, r *http.Request) {
 		if isNoRows(err) {
 			writeErr(w, http.StatusNotFound, "Moment not found")
 		} else {
-			writeErr(w, http.StatusInternalServerError, "Failed to fetch moment")
+			writeInternal(w, r, http.StatusInternalServerError, "Failed to fetch moment", err)
 		}
 		return
 	}
@@ -501,25 +501,25 @@ func handleDeleteMoment(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := db.Begin()
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer tx.Rollback()
 
 	if _, err := tx.Exec(`DELETE FROM "MomentComment" WHERE momentId = ?`, id); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if _, err := tx.Exec(`DELETE FROM "MomentLike" WHERE momentId = ?`, id); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if _, err := tx.Exec(`DELETE FROM "Moment" WHERE id = ?`, id); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if err := tx.Commit(); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -556,7 +556,7 @@ func handleToggleLike(w http.ResponseWriter, r *http.Request) {
 	var liked bool
 	if err == nil {
 		if _, err := db.Exec(`DELETE FROM "MomentLike" WHERE id = ?`, likeID); err != nil {
-			writeErr(w, http.StatusInternalServerError, "Failed to unlike")
+			writeInternal(w, r, http.StatusInternalServerError, "Failed to unlike", err)
 			return
 		}
 		liked = false
@@ -567,18 +567,18 @@ func handleToggleLike(w http.ResponseWriter, r *http.Request) {
 			INSERT INTO "MomentLike" (id, momentId, userId, createdAt)
 			VALUES (?, ?, ?, ?)
 		`, likeID, momentID, currentUserID, now); err != nil {
-			writeErr(w, http.StatusInternalServerError, "Failed to like")
+			writeInternal(w, r, http.StatusInternalServerError, "Failed to like", err)
 			return
 		}
 		liked = true
 	} else {
-		writeErr(w, http.StatusInternalServerError, "Failed to toggle like")
+		writeInternal(w, r, http.StatusInternalServerError, "Failed to toggle like", err)
 		return
 	}
 
 	var likeCount int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM "MomentLike" WHERE momentId = ?`, momentID).Scan(&likeCount); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Failed to count likes")
+		writeInternal(w, r, http.StatusInternalServerError, "Failed to count likes", err)
 		return
 	}
 
@@ -616,7 +616,7 @@ func handleCreateMomentComment(w http.ResponseWriter, r *http.Request) {
 		VALUES (?, ?, ?, ?, ?)
 	`, commentID, momentID, currentUserID, body.Content, now); err != nil {
 		log.Printf("[Moments] Failed to create comment: momentId=%s userId=%s err=%v", momentID, currentUserID, err)
-		writeErr(w, http.StatusInternalServerError, "Failed to create comment")
+		writeInternal(w, r, http.StatusInternalServerError, "Failed to create comment", err)
 		return
 	}
 
@@ -648,7 +648,7 @@ func handleDeleteMomentComment(w http.ResponseWriter, r *http.Request) {
 		if isNoRows(err) {
 			writeErr(w, http.StatusNotFound, "Comment not found")
 		} else {
-			writeErr(w, http.StatusInternalServerError, "")
+			writeInternal(w, r, http.StatusInternalServerError, "", err)
 		}
 		return
 	}

@@ -57,7 +57,7 @@ func handleListPlans(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -102,7 +102,7 @@ func handleListPlans(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer rows.Close()
@@ -115,7 +115,7 @@ func handleListPlans(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		p, images, err := scanPlanFields(rows)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		raw = append(raw, scanned{p: *p, images: images})
@@ -176,7 +176,7 @@ func handleCreatePlan(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(body.BabyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -212,7 +212,7 @@ func handleCreatePlan(w http.ResponseWriter, r *http.Request) {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
 		id, body.BabyID, body.Title, body.Type, int64(scheduled),
 		nullStringFromPtr(body.Description), nullStringFromPtr(body.Reminder), repeat, userID, int64(now), int64(now), imagesJSON); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -237,7 +237,7 @@ func handleCreatePlan(w http.ResponseWriter, r *http.Request) {
 	row := db.QueryRow(`SELECT `+planCols+` FROM "Plan" WHERE id = ?`, id)
 	p, err := scanPlanRow(row, userID, isAdminCtx(r))
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeOK(w, p)
@@ -255,13 +255,13 @@ func handleUpdatePlan(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -271,7 +271,7 @@ func handleUpdatePlan(w http.ResponseWriter, r *http.Request) {
 
 	var body map[string]json.RawMessage
 	if err := decodeJSON(r, &body); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -366,7 +366,7 @@ func handleUpdatePlan(w http.ResponseWriter, r *http.Request) {
 	args = append(args, id)
 
 	if _, err := db.Exec(`UPDATE "Plan" SET `+strings.Join(sets, ", ")+` WHERE id = ?`, args...); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -386,7 +386,7 @@ func handleUpdatePlan(w http.ResponseWriter, r *http.Request) {
 	row := db.QueryRow(`SELECT `+planCols+` FROM "Plan" WHERE id = ?`, id)
 	p, err := scanPlanRow(row, userID, isAdminCtx(r))
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeOK(w, p)
@@ -405,13 +405,13 @@ func handleDeletePlan(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
 	ok, err := findMembership(babyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -421,7 +421,7 @@ func handleDeletePlan(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := db.Begin()
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	defer tx.Rollback()
@@ -429,11 +429,11 @@ func handleDeletePlan(w http.ResponseWriter, r *http.Request) {
 	tx.Exec(`DELETE FROM "ReminderDelivered" WHERE reminderId IN (SELECT id FROM "Reminder" WHERE refId = ? AND source = 'plan')`, id)
 	tx.Exec(`DELETE FROM "Reminder" WHERE refId = ? AND source = 'plan'`, id)
 	if _, err := tx.Exec(`DELETE FROM "Plan" WHERE id = ?`, id); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if err := tx.Commit(); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	unmarkImagesJSON(imagesJSON)
@@ -500,7 +500,7 @@ func handleVaccineTemplate(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(body.BabyID, userID, "admin", "editor")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -514,7 +514,7 @@ func handleVaccineTemplate(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	birth := time.UnixMilli(birthMillis).UTC()
@@ -522,14 +522,14 @@ func handleVaccineTemplate(w http.ResponseWriter, r *http.Request) {
 	existing := map[string]bool{}
 	rows, err := db.Query(`SELECT title FROM "Plan" WHERE babyId = ? AND type = 'vaccine'`, body.BabyID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	for rows.Next() {
 		var title string
 		if err := rows.Scan(&title); err != nil {
 			rows.Close()
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		existing[title] = true
@@ -551,7 +551,7 @@ func handleVaccineTemplate(w http.ResponseWriter, r *http.Request) {
 		if _, err := db.Exec(`INSERT INTO "Plan" (id, babyId, title, type, scheduledAt, description, reminder, repeat, status, createdBy, createdAt, updatedAt, images)
 			VALUES (?, ?, ?, 'vaccine', ?, ?, ?, 'none', 'pending', ?, ?, ?, NULL)`,
 			id, body.BabyID, entry.title, int64(scheduled), desc, reminder, userID, int64(now), int64(now)); err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 
@@ -620,8 +620,8 @@ func createPlanReminder(babyID, planID, title string, scheduled Millis, reminder
 func autoRepeatPlan(planID string) (string, error) {
 	var (
 		babyID, title, planType, repeat, status, createdBy string
-		scheduled                                            int64
-		desc, reminder, imagesJSON                           sql.NullString
+		scheduled                                          int64
+		desc, reminder, imagesJSON                         sql.NullString
 	)
 	err := db.QueryRow(`SELECT babyId, title, type, scheduledAt, description, reminder, repeat, status, createdBy, images FROM "Plan" WHERE id = ?`, planID).
 		Scan(&babyID, &title, &planType, &scheduled, &desc, &reminder, &repeat, &status, &createdBy, &imagesJSON)

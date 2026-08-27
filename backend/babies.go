@@ -57,7 +57,7 @@ func handleListBabies(w http.ResponseWriter, r *http.Request) {
 		WHERE EXISTS (SELECT 1 FROM "BabyMember" m WHERE m.babyId = b.id AND m.userId = ?)
 		ORDER BY b.createdAt DESC`, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	// 先读取全部宝宝再加载成员，避免在遍历 rows 时发起嵌套查询（单连接下会死锁）。
@@ -66,7 +66,7 @@ func handleListBabies(w http.ResponseWriter, r *http.Request) {
 		b, err := scanBaby(rows, true)
 		if err != nil {
 			rows.Close()
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		data = append(data, *b)
@@ -76,7 +76,7 @@ func handleListBabies(w http.ResponseWriter, r *http.Request) {
 	for i := range data {
 		members, err := loadBabyMembers(data[i].ID)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "Server error")
+			writeServerErr(w, r, err)
 			return
 		}
 		data[i].Members = members
@@ -128,23 +128,23 @@ func handleCreateBaby(w http.ResponseWriter, r *http.Request) {
 	now := nowMillis()
 	tx, err := db.Begin()
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if _, err := tx.Exec(`INSERT INTO "Baby" (id, name, gender, birthDate, avatar, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		id, body.Name, body.Gender, int64(birth), avatarKey, int64(now), int64(now)); err != nil {
 		tx.Rollback()
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if _, err := tx.Exec(`INSERT INTO "BabyMember" (id, userId, babyId, role) VALUES (?, ?, ?, 'admin')`,
 		uuid.NewString(), userID, id); err != nil {
 		tx.Rollback()
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if err := tx.Commit(); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -181,12 +181,12 @@ func handleGetBaby(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "Not found")
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	members, err := loadBabyMembers(b.ID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	b.Members = members
@@ -200,7 +200,7 @@ func handleUpdateBaby(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(id, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -210,7 +210,7 @@ func handleUpdateBaby(w http.ResponseWriter, r *http.Request) {
 
 	var body map[string]interface{}
 	if err := decodeJSON(r, &body); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -257,7 +257,7 @@ func handleUpdateBaby(w http.ResponseWriter, r *http.Request) {
 
 	q := `UPDATE "Baby" SET ` + joinComma(sets) + ` WHERE id = ?`
 	if _, err := db.Exec(q, args...); err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 
@@ -275,7 +275,7 @@ func handleUpdateBaby(w http.ResponseWriter, r *http.Request) {
 	row := db.QueryRow(`SELECT id, name, gender, birthDate, avatar, createdAt, updatedAt FROM "Baby" WHERE id = ?`, id)
 	b, err := scanBaby(row, false)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	writeOK(w, b)

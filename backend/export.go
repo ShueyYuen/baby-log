@@ -18,7 +18,7 @@ func handleExport(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := findMembership(babyID, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	if !ok {
@@ -43,22 +43,22 @@ func handleExport(w http.ResponseWriter, r *http.Request) {
 
 	records, err := exportRecords(babyID, userID, isAdminCtx(r))
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	plans, err := exportPlans(babyID, userID, isAdminCtx(r))
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	growth, err := exportGrowth(babyID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 	milestones, err := exportMilestones(babyID, userID, isAdminCtx(r))
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "Server error")
+		writeServerErr(w, r, err)
 		return
 	}
 

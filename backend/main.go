@@ -44,6 +44,7 @@ func main() {
 	startReminderScheduler()
 	startCleanupScheduler()
 	recoverPendingVideoJobs()
+	startVideoWatchdog()
 
 	addr := ":" + port
 	log.Printf("Server running on http://localhost:%s", port)
@@ -262,15 +263,6 @@ func corsMiddleware(next http.Handler) http.Handler {
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func httpLogger(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/") {
-			log.Printf("[HTTP] %s %s", r.Method, r.URL.Path)
 		}
 		next.ServeHTTP(w, r)
 	})

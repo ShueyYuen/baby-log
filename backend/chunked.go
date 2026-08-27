@@ -92,7 +92,7 @@ func handleChunkedInit(w http.ResponseWriter, r *http.Request) {
 	tmpDir := filepath.Join(cfg.uploadDir, ".tmp")
 	if err := os.MkdirAll(tmpDir, 0755); err != nil {
 		log.Printf("[Chunked] Failed to create tmp dir: %v", err)
-		writeErr(w, http.StatusInternalServerError, "failed to init upload")
+		writeInternal(w, r, http.StatusInternalServerError, "failed to init upload", err)
 		return
 	}
 
@@ -103,14 +103,14 @@ func handleChunkedInit(w http.ResponseWriter, r *http.Request) {
 	f, err := os.Create(tempPath)
 	if err != nil {
 		log.Printf("[Chunked] Failed to create temp file: %v", err)
-		writeErr(w, http.StatusInternalServerError, "failed to init upload")
+		writeInternal(w, r, http.StatusInternalServerError, "failed to init upload", err)
 		return
 	}
 	if err := f.Truncate(req.FileSize); err != nil {
 		f.Close()
 		os.Remove(tempPath)
 		log.Printf("[Chunked] Failed to pre-allocate file: %v", err)
-		writeErr(w, http.StatusInternalServerError, "failed to init upload")
+		writeInternal(w, r, http.StatusInternalServerError, "failed to init upload", err)
 		return
 	}
 	f.Close()
@@ -183,21 +183,21 @@ func handleChunkedPart(w http.ResponseWriter, r *http.Request) {
 	f, err := os.OpenFile(state.TempPath, os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("[Chunked] Failed to open temp file: %v", err)
-		writeErr(w, http.StatusInternalServerError, "failed to write chunk")
+		writeInternal(w, r, http.StatusInternalServerError, "failed to write chunk", err)
 		return
 	}
 	defer f.Close()
 
 	if _, err := f.Seek(offset, io.SeekStart); err != nil {
 		log.Printf("[Chunked] Failed to seek: %v", err)
-		writeErr(w, http.StatusInternalServerError, "failed to write chunk")
+		writeInternal(w, r, http.StatusInternalServerError, "failed to write chunk", err)
 		return
 	}
 
 	written, err := io.Copy(f, io.LimitReader(r.Body, state.ChunkSize+4096))
 	if err != nil {
 		log.Printf("[Chunked] Failed to write chunk: %v", err)
-		writeErr(w, http.StatusInternalServerError, "failed to write chunk")
+		writeInternal(w, r, http.StatusInternalServerError, "failed to write chunk", err)
 		return
 	}
 
@@ -272,13 +272,13 @@ func handleChunkedComplete(w http.ResponseWriter, r *http.Request) {
 	finalDir := filepath.Dir(finalPath)
 	if err := os.MkdirAll(finalDir, 0755); err != nil {
 		log.Printf("[Chunked] Failed to create final dir: %v", err)
-		writeErr(w, http.StatusInternalServerError, "failed to complete upload")
+		writeInternal(w, r, http.StatusInternalServerError, "failed to complete upload", err)
 		return
 	}
 
 	if err := os.Rename(state.TempPath, finalPath); err != nil {
 		log.Printf("[Chunked] Failed to move temp to final: %v", err)
-		writeErr(w, http.StatusInternalServerError, "failed to complete upload")
+		writeInternal(w, r, http.StatusInternalServerError, "failed to complete upload", err)
 		return
 	}
 

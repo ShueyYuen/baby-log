@@ -132,7 +132,7 @@ func handleUploadSingle(w http.ResponseWriter, r *http.Request) {
 
 	data, err := io.ReadAll(io.LimitReader(file, maxUploadSize+1))
 	if err != nil || len(data) > maxUploadSize {
-		writeErr(w, http.StatusInternalServerError, "Upload failed")
+		writeInternal(w, r, http.StatusInternalServerError, "Upload failed", err)
 		return
 	}
 
@@ -147,7 +147,7 @@ func handleUploadSingle(w http.ResponseWriter, r *http.Request) {
 	result, err := uploadFile(header.Filename, contentType, data)
 	if err != nil {
 		log.Printf("[Upload] Failed: %v", err)
-		writeErr(w, http.StatusInternalServerError, "Upload failed")
+		writeInternal(w, r, http.StatusInternalServerError, "Upload failed", err)
 		return
 	}
 
@@ -190,7 +190,7 @@ func handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 	for _, header := range headers {
 		f, err := header.Open()
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "Upload failed")
+			writeInternal(w, r, http.StatusInternalServerError, "Upload failed", err)
 			return
 		}
 		contentType := normalizeMomentMIME(header.Filename, header.Header.Get("Content-Type"))
@@ -214,7 +214,7 @@ func handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 			result, err := uploadPrefixedFile(prefix, header.Filename, contentType, data)
 			if err != nil {
 				log.Printf("[Upload] %s failed: %v", prefix, err)
-				writeErr(w, http.StatusInternalServerError, "Upload failed")
+				writeInternal(w, r, http.StatusInternalServerError, "Upload failed", err)
 				return
 			}
 			result.MediaType = "image"
@@ -239,7 +239,7 @@ func handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 				writeErr(w, http.StatusBadRequest, "文件内容与声明的类型不匹配")
 			} else {
 				log.Printf("[Upload] %s video failed: %v", prefix, err)
-				writeErr(w, http.StatusInternalServerError, "Upload failed")
+				writeInternal(w, r, http.StatusInternalServerError, "Upload failed", err)
 			}
 			return
 		}
@@ -268,7 +268,7 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 			break
 		}
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "Failed to read upload")
+			writeInternal(w, r, http.StatusInternalServerError, "Failed to read upload", err)
 			return
 		}
 		if part.FormName() != "files" {
@@ -315,7 +315,7 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 			result.MediaType = "image"
 			if err := writeLocalBytes(compKey, compData); err != nil {
 				log.Printf("[Upload] write local %s: %v", compKey, err)
-				writeErr(w, http.StatusInternalServerError, "Upload failed")
+				writeInternal(w, r, http.StatusInternalServerError, "Upload failed", err)
 				return
 			}
 			localComp := filepath.Join(cfg.uploadDir, filepath.FromSlash(compKey))
@@ -343,7 +343,7 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 					writeErr(w, http.StatusBadRequest, "文件内容与声明的类型不匹配")
 				} else {
 					log.Printf("[Upload] %s video failed: %v", prefix, err)
-					writeErr(w, http.StatusInternalServerError, "Upload failed")
+					writeInternal(w, r, http.StatusInternalServerError, "Upload failed", err)
 				}
 				return
 			}
