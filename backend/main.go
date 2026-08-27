@@ -227,6 +227,9 @@ func buildRouter(uploadDir, webDist string) *chi.Mux {
 				r.Post("/due-reminders", handleDueReminders)
 			})
 
+			r.Get("/admin/uploads", handleListAdminUploads)
+			r.Post("/admin/uploads/transcode", handleAdminTranscodeUpload)
+			r.Delete("/admin/uploads", handleAdminDeleteUpload)
 			r.Post("/admin/cleanup", handleManualCleanup)
 
 			r.Get("/events", handleSSE)

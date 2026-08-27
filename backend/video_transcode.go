@@ -808,6 +808,32 @@ func syncFileToS3Typed(localPath, key, contentType string) error {
 	return nil
 }
 
+// enqueueVideoJobForKey queues transcode (and S3 sync) for an existing video key.
+func enqueueVideoJobForKey(key string) error {
+	key = toStorageKey(key)
+	if key == "" {
+		return errAdminUploadKey
+	}
+	if mediaTypeFromKey(key) != "video" {
+		return errAdminNotVideo
+	}
+	if !videoTranscodeEnabled() {
+		return errAdminTranscodeOff
+	}
+	cfg := getStorageConfig()
+	localPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(key))
+	_ = os.Remove(localPath + ".web.mp4")
+	if _, err := os.Stat(localPath); err != nil {
+		if cfg.typ == storageS3 && cfg.s3 != nil {
+			enqueueS3VideoPrepare(key)
+			return nil
+		}
+		return errAdminFileMissing
+	}
+	enqueueVideoPrepareAndSync(localPath, key)
+	return nil
+}
+
 func recoverPendingVideoJobs() {
 	if db == nil {
 		return
@@ -840,7 +866,6 @@ func recoverPendingVideoJobs() {
 		log.Printf("[Video] recover scan: %v", err)
 	}
 	rows.Close()
-	cfg := getStorageConfig()
 	now := int64(nowMillis())
 	n := 0
 	for _, j := range jobs {
@@ -853,20 +878,11 @@ func recoverPendingVideoJobs() {
 			markUploadReady(j.key)
 			continue
 		}
-		localPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(j.key))
-		_ = os.Remove(localPath + ".web.mp4")
-		if _, err := os.Stat(localPath); err != nil {
-			if cfg.typ == storageS3 && cfg.s3 != nil {
-				log.Printf("[Video] recover key=%s age=%s local=missing src=s3", j.key, age.Truncate(time.Second))
-				enqueueS3VideoPrepare(j.key)
-				n++
-				continue
-			}
-			log.Printf("[Video] pending %s missing on disk; left unready age=%s", j.key, age.Truncate(time.Second))
+		if err := enqueueVideoJobForKey(j.key); err != nil {
+			log.Printf("[Video] pending %s: %v age=%s", j.key, err, age.Truncate(time.Second))
 			continue
 		}
-		log.Printf("[Video] recover key=%s age=%s local=%s src=local", j.key, age.Truncate(time.Second), localFileLog(localPath))
-		enqueueVideoPrepareAndSync(localPath, j.key)
+		log.Printf("[Video] recover key=%s age=%s", j.key, age.Truncate(time.Second))
 		n++
 	}
 	if n > 0 {

@@ -1,17 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
 import { api } from '../lib/api';
 import { cropAndResizeAvatar } from '../lib/avatar-crop';
 import dayjs from 'dayjs';
-import { UserPlus, Trash2, KeyRound, Copy, Check, User as UserIcon, HardDrive, Camera, Pencil } from 'lucide-react';
+import { UserPlus, Trash2, KeyRound, Copy, Check, User as UserIcon, Camera, Pencil } from 'lucide-react';
 import { Button, Input, Card, CardContent, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, ConfirmDialog, useToast } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui';
+import { SecondaryHeader } from '../components/SecondaryHeader';
 
 import type { UserItem } from '../lib/api';
 
 export default function AdminPage() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, isAdmin, loading } = useAuth();
   const { t } = useI18n();
   const { toast } = useToast();
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -31,12 +33,6 @@ export default function AdminPage() {
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editRole, setEditRole] = useState('');
   const [editSaving, setEditSaving] = useState(false);
-  const [cleanupResult, setCleanupResult] = useState<{
-    found: number;
-    deleted: number;
-    errors?: string[];
-  } | null>(null);
-  const [cleaningUp, setCleaningUp] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const createAvatarFileRef = useRef<HTMLInputElement>(null);
@@ -141,19 +137,6 @@ export default function AdminPage() {
     setEditRole(u.role);
   };
 
-  const runCleanup = async () => {
-    setCleaningUp(true);
-    try {
-      const res = await api.post<{ success: boolean; data: typeof cleanupResult }>('/admin/cleanup', {});
-      setCleanupResult(res.data);
-      toast(t('admin.cleaned', { n: res.data?.deleted ?? 0 }), 'success');
-    } catch (err: any) {
-      toast(err.message || t('admin.cleanFailed'), 'error');
-    } finally {
-      setCleaningUp(false);
-    }
-  };
-
   const handleAvatarUpload = useCallback(async (file: File, userId?: string) => {
     setAvatarUploading(true);
     try {
@@ -187,15 +170,29 @@ export default function AdminPage() {
     return <Badge variant="secondary">{t('admin.roleUser')}</Badge>;
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold dark:text-gray-100">{t('admin.title')}</h2>
-        <Button size="sm" onClick={() => { setShowCreateForm(true); setGeneratedPassword(''); }}>
-          <UserPlus size={16} /> {t('admin.newUser')}
-        </Button>
+  if (loading) {
+    return (
+      <div className="absolute inset-0 glass-page-shell">
+        <SecondaryHeader title={t('admin.title')} />
+        <div className="glass-page-body custom-scrollbar flex justify-center">
+          <p className="text-sm text-gray-500">{t('common.loading')}</p>
+        </div>
       </div>
+    );
+  }
+  if (!isAdmin) return <Navigate to="/me" replace />;
 
+  return (
+    <div className="absolute inset-0 glass-page-shell">
+      <SecondaryHeader
+        title={t('admin.title')}
+        actions={
+          <Button size="sm" onClick={() => { setShowCreateForm(true); setGeneratedPassword(''); }}>
+            <UserPlus size={16} /> {t('admin.newUser')}
+          </Button>
+        }
+      />
+      <div className="glass-page-body custom-scrollbar space-y-6">
       <div className="space-y-3">
         {users.map((u) => (
           <Card key={u.id}>
@@ -450,54 +447,6 @@ export default function AdminPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Storage Cleanup */}
-      <div className="border-t glass-divider pt-6 mt-2">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <HardDrive size={18} className="text-gray-500" />
-            <h2 className="text-xl font-semibold dark:text-gray-100">{t('admin.storageCleanup')}</h2>
-          </div>
-        </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          {t('admin.cleanupHint')}
-        </p>
-
-        <div className="flex flex-wrap gap-2 mb-4">
-          <Button
-            size="sm"
-            variant="destructive"
-            disabled={cleaningUp}
-            onClick={runCleanup}
-          >
-            {cleaningUp ? t('admin.cleaning') : t('admin.cleanNow')}
-          </Button>
-        </div>
-
-        {cleanupResult && (
-          <Card>
-            <CardContent className="space-y-2">
-              <div className="grid grid-cols-2 gap-3 text-center text-sm">
-                <div>
-                  <p className="text-lg font-bold text-primary-500">{cleanupResult.found}</p>
-                  <p className="text-xs text-gray-500">{t('admin.foundOrphans')}</p>
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-green-500">{cleanupResult.deleted}</p>
-                  <p className="text-xs text-gray-500">{t('admin.deletedCount')}</p>
-                </div>
-              </div>
-              {cleanupResult.errors && cleanupResult.errors.length > 0 && (
-                <div className="text-xs text-red-500 space-y-0.5 mt-2 border-t pt-2 dark:border-gray-700">
-                  {cleanupResult.errors.map((e, i) => (
-                    <p key={i}>{e}</p>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
       {/* Password Reset Result Dialog */}
       {generatedPassword && !showCreateForm && (
         <Dialog open={true} onOpenChange={() => setGeneratedPassword('')}>
@@ -526,6 +475,7 @@ export default function AdminPage() {
         </Dialog>
       )}
 
+    </div>
     </div>
   );
 }

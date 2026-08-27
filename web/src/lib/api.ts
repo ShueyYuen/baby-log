@@ -380,6 +380,34 @@ export interface UserItem {
   avatar?: string | null;
 }
 
+export interface AdminUploadItem {
+  key: string;
+  rawKey?: string;
+  createdAt: string;
+  used: boolean;
+  ready: boolean;
+  mediaType: 'image' | 'video';
+  poster?: boolean;
+  referenced: boolean;
+  local: boolean;
+  size: number;
+  url?: string;
+  posterUrl?: string;
+  phase?: string;
+}
+
+export interface AdminUploadsResponse {
+  items: AdminUploadItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+  counts: { total: number; unready: number; unused: number; videos: number };
+  worker: { key: string; phase: string; elapsedMs: number; waitedMs: number } | null;
+  queued: number;
+  transcodeEnabled: boolean;
+}
+
 // ─── Baby type ───────────────────────────────────────────────────────────────
 
 export interface Baby {
@@ -698,6 +726,31 @@ export const api = {
       api.put<{ success: boolean }>(`/auth/users/${id}/avatar`, { avatar }),
     deleteUser: (id: string) =>
       api.delete<{ success: boolean }>(`/auth/users/${id}`),
+  },
+
+  admin: {
+    listUploads: (opts?: { page?: number; pageSize?: number; status?: string; q?: string }) => {
+      const params = new URLSearchParams();
+      if (opts?.page) params.set('page', String(opts.page));
+      if (opts?.pageSize) params.set('pageSize', String(opts.pageSize));
+      if (opts?.status && opts.status !== 'all') params.set('status', opts.status);
+      if (opts?.q) params.set('q', opts.q);
+      const qs = params.toString();
+      return api.get<{ success: boolean; data: AdminUploadsResponse }>(
+        `/admin/uploads${qs ? `?${qs}` : ''}`,
+      );
+    },
+    transcodeUpload: (body: { key?: string; allUnready?: boolean }) =>
+      api.post<{ success: boolean; data: { queued: number; skipped?: number; alreadyActive?: boolean; key?: string } }>(
+        '/admin/uploads/transcode',
+        body,
+      ),
+    deleteUpload: (key: string, force = false) =>
+      api.delete<{ success: boolean; data: { deleted: string } }>(
+        `/admin/uploads?key=${encodeURIComponent(key)}${force ? '&force=1' : ''}`,
+      ),
+    cleanup: () =>
+      api.post<{ success: boolean; data: { found: number; deleted: number; errors?: string[] } }>('/admin/cleanup', {}),
   },
 
   babies: {

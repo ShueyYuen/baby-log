@@ -61,6 +61,16 @@ describe('api client', () => {
     await expect(api.get('/babies')).rejects.toThrow('Permission denied');
   });
 
+  it('builds admin upload query strings from filters', async () => {
+    await api.admin.listUploads({ page: 2, pageSize: 20, status: 'unready', q: 'moments/' });
+    const url = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(url).toContain('/api/v1/admin/uploads?');
+    expect(url).toContain('page=2');
+    expect(url).toContain('pageSize=20');
+    expect(url).toContain('status=unready');
+    expect(url).toContain('q=moments%2F');
+  });
+
   it('builds timeline query strings from filters', async () => {
     await api.timeline.list('baby-1', {
       category: 'feeding',

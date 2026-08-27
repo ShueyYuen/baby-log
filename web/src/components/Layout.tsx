@@ -7,6 +7,7 @@ import {
   Images,
   TrendingUp,
   User,
+  HardDrive,
   Users,
 } from "lucide-react";
 import { ReactNode, useRef, useState } from "react";
@@ -115,7 +116,7 @@ export default function Layout({ children }: LayoutProps) {
   };
 
   const isSecondaryPage =
-    /^\/(record|plan\/new|plan\/[^/]+\/edit|growth\/history|health\/[^/]+|milk-inventory|medical-visits\/|stats)/.test(
+    /^\/(record|plan\/new|plan\/[^/]+\/edit|growth\/history|health\/[^/]+|milk-inventory|medical-visits\/|stats|admin)/.test(
       location.pathname,
     );
 
@@ -135,12 +136,16 @@ export default function Layout({ children }: LayoutProps) {
     { path: "/me", icon: User, label: t("nav.me") },
     { path: "/health", icon: Activity, label: t("nav.health") },
     ...(isAdmin
-      ? [{ path: "/admin", icon: Users, label: t("nav.admin") }]
+      ? [
+          { path: "/admin", icon: Users, label: t("nav.admin") },
+          { path: "/admin/files", icon: HardDrive, label: t("nav.files") },
+        ]
       : []),
   ];
 
   const isActive = (path: string) => {
     if (path === "/") return location.pathname === "/";
+    if (path === "/admin") return location.pathname === "/admin";
     return (
       location.pathname === path || location.pathname.startsWith(path + "/")
     );

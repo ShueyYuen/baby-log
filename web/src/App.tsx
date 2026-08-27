@@ -15,7 +15,6 @@ import GrowthPage from './pages/GrowthPage';
 import HealthPage from './pages/HealthPage';
 import MomentsPage from './pages/MomentsPage';
 import MePage from './pages/MePage';
-import AdminPage from './pages/AdminPage';
 
 const RecordFormPage = lazy(() => import('./pages/RecordFormPage'));
 const PlanFormPage = lazy(() => import('./pages/PlanFormPage'));
@@ -25,6 +24,8 @@ const StatsPage = lazy(() => import('./pages/StatsPage'));
 const BabySetupPage = lazy(() => import('./pages/BabySetupPage'));
 const MilkInventoryPage = lazy(() => import('./pages/MilkInventoryPage'));
 const MedicalVisitsPage = lazy(() => import('./pages/MedicalVisitsPage'));
+const AdminPage = lazy(() => import('./pages/AdminPage'));
+const AdminFilesPage = lazy(() => import('./pages/AdminFilesPage'));
 
 function PageFallback() {
   return (
@@ -58,7 +59,7 @@ function BabyBanner() {
 
 const PAGE_TRANSITION_MS = 320;
 
-const TAB_ORDER = ['/', '/plans', '/growth', '/moments', '/me', '/health', '/admin'];
+const TAB_ORDER = ['/', '/plans', '/growth', '/moments', '/me', '/health'];
 
 const KA_PATH_TO_KEY: Record<string, string> = {
   '/': 'today',
@@ -67,7 +68,6 @@ const KA_PATH_TO_KEY: Record<string, string> = {
   '/plans': 'plans',
   '/health': 'health',
   '/moments': 'moments',
-  '/admin': 'admin',
 };
 
 function tabIndex(pathname: string) {
@@ -159,7 +159,6 @@ function KeepAlivePageWrapper({
 
 function KeepAliveRoutes() {
   const location = useLocation();
-  const { isAdmin } = useAuth();
   useServerEventsConnection(true);
 
   const keepAlivePages = useMemo(() => [
@@ -169,8 +168,7 @@ function KeepAliveRoutes() {
     { path: '/plans', key: 'plans', Component: PlansPage },
     { path: '/health', key: 'health', Component: HealthPage },
     { path: '/moments', key: 'moments', Component: MomentsPage },
-    { path: '/admin', key: 'admin', Component: AdminPage, guard: () => isAdmin },
-  ], [isAdmin]);
+  ], []);
 
   const [visited, setVisited] = useState<Set<string>>(() => {
     const key = KA_PATH_TO_KEY[location.pathname];
@@ -180,7 +178,7 @@ function KeepAliveRoutes() {
   const activeKeepAlive = keepAlivePages.find((p) => p.path === location.pathname);
   const isKeepAlivePage = !!activeKeepAlive;
 
-  if (activeKeepAlive && (!activeKeepAlive.guard || activeKeepAlive.guard()) && !visited.has(activeKeepAlive.key)) {
+  if (activeKeepAlive && !visited.has(activeKeepAlive.key)) {
     setVisited(new Set([...visited, activeKeepAlive.key]));
   }
 
@@ -236,9 +234,8 @@ function KeepAliveRoutes() {
 
   return (
     <div className="relative h-full overflow-hidden">
-      {keepAlivePages.map(({ path, key, Component, guard }) => {
+      {keepAlivePages.map(({ path, key, Component }) => {
         if (!visited.has(key)) return null;
-        if (guard && !guard()) return null;
         const active = location.pathname === path;
         const held = !isKeepAlivePage && lastKaKeyRef.current === key;
         return (
@@ -281,6 +278,8 @@ function KeepAliveRoutes() {
                 <Route path="/medical-visits/new" element={<MedicalVisitsPage />} />
                 <Route path="/medical-visits/:id" element={<MedicalVisitsPage />} />
                 <Route path="/medical-visits/:id/edit" element={<MedicalVisitsPage />} />
+                <Route path="/admin" element={<AdminPage />} />
+                <Route path="/admin/files" element={<AdminFilesPage />} />
               </Routes>
             </Suspense>
           </div>

@@ -14,6 +14,7 @@ import {
   Plus,
   Refrigerator,
   Sun,
+  HardDrive,
   Users,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -118,7 +119,12 @@ export default function MePage() {
     { to: '/health', icon: Activity, label: t('nav.health') },
     { to: '/stats', icon: BarChart3, label: t('me.stats') },
     { to: '/milk-inventory', icon: Refrigerator, label: t('me.milkInventory') },
-    ...(isAdmin ? [{ to: '/admin', icon: Users, label: t('me.userAdmin') }] : []),
+    ...(isAdmin
+      ? [
+          { to: '/admin', icon: Users, label: t('me.userAdmin') },
+          { to: '/admin/files', icon: HardDrive, label: t('me.fileAdmin') },
+        ]
+      : []),
   ];
 
   return (

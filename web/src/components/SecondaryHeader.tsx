@@ -24,7 +24,7 @@ export function SecondaryHeader({
     <header
       className={`border-b glass-sticky-header ${subtitle ? "glass-sticky-header-tall" : ""}`}
     >
-      <div className="flex items-center gap-3 px-4 md:px-8 min-h-[3.75rem] py-3 max-w-4xl mx-auto w-full">
+      <div className="flex items-center gap-3 px-4 min-h-[3.75rem] py-3 max-w-4xl mx-auto w-full">
         {backTo ? (
           <Button variant="ghost" size="icon" asChild>
             <Link to={backTo}>
@@ -32,14 +32,22 @@ export function SecondaryHeader({
             </Link>
           </Button>
         ) : (
-          <Button variant="ghost" size="icon" onClick={onBack ?? (() => navigate(-1))}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onBack ?? (() => navigate(-1))}
+          >
             <ArrowLeft size={20} />
           </Button>
         )}
         <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-semibold dark:text-gray-100 truncate">{title}</h2>
+          <h2 className="text-xl font-semibold dark:text-gray-100 truncate">
+            {title}
+          </h2>
           {subtitle ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{subtitle}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+              {subtitle}
+            </p>
           ) : null}
         </div>
         {actions}
