@@ -317,7 +317,14 @@ func TestHandleStorageReindexWorksOnLocal(t *testing.T) {
 	}
 
 	r := s.do(http.MethodPost, "/admin/storage/reindex", admin, map[string]any{})
-	mustOK(t, r)
+	e := mustOK(t, r)
+	var data storageReindexResult
+	if err := jsonUnmarshal(e.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	if data.Items == nil {
+		t.Fatal("empty reindex must encode items as [] not null")
+	}
 }
 
 func TestReindexListError(t *testing.T) {

@@ -291,6 +291,9 @@ func fillMissingUploadSizes(listed map[string]s3ListedObject) int {
 }
 
 func sampleS3OrphanItems(orphans []s3OrphanItem) []s3OrphanItem {
+	if len(orphans) == 0 {
+		return []s3OrphanItem{}
+	}
 	if len(orphans) <= s3OrphanSampleLimit {
 		return orphans
 	}

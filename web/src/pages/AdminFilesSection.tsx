@@ -255,6 +255,7 @@ export default function AdminFilesSection() {
   };
 
   const counts = meta?.counts;
+  const orphanItems = s3Orphan?.items ?? [];
 
   const chipClass = (active: boolean) =>
     `px-3 py-1 rounded-full text-xs font-medium transition-colors glass-chip ${
@@ -362,19 +363,19 @@ export default function AdminFilesSection() {
                       {t("admin.s3OrphanTruncated")}
                     </p>
                   )}
-                  {s3Orphan.items.length > 0 && (
+                  {orphanItems.length > 0 && (
                     <div className="text-xs text-gray-600 dark:text-gray-300 space-y-0.5 break-all">
-                      {s3Orphan.items.slice(0, 8).map((item) => (
+                      {orphanItems.slice(0, 8).map((item) => (
                         <p key={item.key}>
                           {item.key} · {formatBytes(item.size)}
                         </p>
                       ))}
-                      {s3Orphan.found > Math.min(8, s3Orphan.items.length) && (
+                      {s3Orphan.found > Math.min(8, orphanItems.length) && (
                         <p className="text-gray-400 dark:text-gray-500">
                           {t("admin.s3OrphanMore", {
                             n:
                               s3Orphan.found -
-                              Math.min(8, s3Orphan.items.length),
+                              Math.min(8, orphanItems.length),
                           })}
                         </p>
                       )}

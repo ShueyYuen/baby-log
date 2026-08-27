@@ -135,4 +135,31 @@ describe('AdminFilesSection S3 storage', () => {
     expect(screen.getByText('封面入库')).toBeInTheDocument();
     expect(screen.getByText('尺寸回填')).toBeInTheDocument();
   });
+
+  it('renders a second rebuild when storage returns no leftover items', async () => {
+    reindexStorage
+      .mockResolvedValueOnce({ data: reindexResult() })
+      .mockResolvedValueOnce({
+        data: reindexResult({
+          found: 0,
+          deleted: 0,
+          postersIndexed: 0,
+          sizesUpdated: 0,
+          items: null,
+        }),
+      });
+    const user = userEvent.setup();
+    renderSection();
+
+    await user.click(await screen.findByRole('button', { name: '索引重建' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '索引重建' }));
+    expect(await screen.findByText('moments/leftover.jpg · 2.0KB')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: '索引重建' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '索引重建' }));
+    await waitFor(() => expect(reindexStorage).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('moments/leftover.jpg · 2.0KB')).not.toBeInTheDocument();
+    expect(screen.getByText('封面入库')).toBeInTheDocument();
+  });
 });

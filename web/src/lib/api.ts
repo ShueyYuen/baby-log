@@ -421,7 +421,7 @@ export interface AdminStorageReindexResult {
   bytes: number;
   listRequests: number;
   truncated?: boolean;
-  items: { key: string; size: number; lastModified: number }[];
+  items?: { key: string; size: number; lastModified: number }[] | null;
   errors?: string[];
 }
 
