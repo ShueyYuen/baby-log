@@ -48,6 +48,13 @@ func TestUploadSingle(t *testing.T) {
 	if result.Key == "" || result.URL == "" {
 		t.Fatalf("upload result missing fields: %+v", result)
 	}
+	var stored int64
+	if err := db.QueryRow(`SELECT "size" FROM "UploadedFile" WHERE "key" = ?`, result.Key).Scan(&stored); err != nil {
+		t.Fatalf("stored size: %v", err)
+	}
+	if stored <= 0 {
+		t.Fatalf("expected stored size > 0, got %d", stored)
+	}
 }
 
 func TestUploadMultiple(t *testing.T) {

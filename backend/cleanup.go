@@ -193,9 +193,10 @@ func claimAndDeleteOrphan(o orphanFile) (bool, error) {
 
 func restoreTrackingRow(o orphanFile, used int) {
 	now := int64(nowMillis())
+	size := localFileSize(o.key)
 	_, err := db.Exec(
-		`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used") VALUES (?, ?, ?, ?)`,
-		o.key, o.rawKey, now, used,
+		`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used", "size") VALUES (?, ?, ?, ?, ?)`,
+		o.key, o.rawKey, now, used, size,
 	)
 	if err != nil {
 		log.Printf("[Cleanup] Failed to restore tracking row %s: %v", o.key, err)

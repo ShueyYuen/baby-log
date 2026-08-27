@@ -123,7 +123,7 @@ func handlePresignUpload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	trackUploadedFile(compKey, rawKey)
+	trackUploadedFile(compKey, rawKey, 0)
 
 	writeOK(w, map[string]interface{}{
 		"directUpload": true,
@@ -173,6 +173,11 @@ func handlePresignComplete(w http.ResponseWriter, r *http.Request) {
 		attachPosterToResult(result)
 		markResultProcessing(result)
 		enqueueS3VideoPrepare(req.Key)
+	}
+	if n := localFileSize(req.Key); n > 0 {
+		setUploadSize(req.Key, n)
+	} else if n := s3ObjectSize(req.Key); n > 0 {
+		setUploadSize(req.Key, n)
 	}
 
 	writeOK(w, []*uploadResult{result})

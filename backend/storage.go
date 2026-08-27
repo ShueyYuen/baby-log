@@ -224,6 +224,7 @@ type uploadResult struct {
 	PosterKey  string `json:"posterKey,omitempty"`
 	MediaType  string `json:"mediaType,omitempty"`
 	Processing bool   `json:"processing,omitempty"`
+	Size       int64  `json:"size,omitempty"`
 }
 
 func buildPublicURL(cfg *s3Config, s3Key string) string {
@@ -332,7 +333,7 @@ func uploadFile(filename string, contentType string, data []byte) (*uploadResult
 			return nil, comp.err
 		}
 
-		result := &uploadResult{URL: comp.url, Key: comp.key}
+		result := &uploadResult{URL: comp.url, Key: comp.key, Size: int64(len(compressedData))}
 		raw := <-rawCh
 		if raw.key != "" {
 			result.RawURL = raw.url
@@ -351,8 +352,9 @@ func uploadFile(filename string, contentType string, data []byte) (*uploadResult
 	}
 
 	result := &uploadResult{
-		URL: cfg.publicPath + "/" + localKey,
-		Key: localKey,
+		URL:  cfg.publicPath + "/" + localKey,
+		Key:  localKey,
+		Size: int64(len(compressedData)),
 	}
 
 	// Store raw copy for images
@@ -460,7 +462,7 @@ func uploadPrefixedFile(prefix, filename, contentType string, data []byte) (*upl
 			return nil, comp.err
 		}
 
-		result := &uploadResult{URL: comp.url, Key: comp.key}
+		result := &uploadResult{URL: comp.url, Key: comp.key, Size: int64(len(compressedData))}
 		raw := <-rawCh
 		if raw.key != "" {
 			result.RawURL = raw.url
@@ -480,8 +482,9 @@ func uploadPrefixedFile(prefix, filename, contentType string, data []byte) (*upl
 	}
 
 	result := &uploadResult{
-		URL: cfg.publicPath + "/" + compKey,
-		Key: compKey,
+		URL:  cfg.publicPath + "/" + compKey,
+		Key:  compKey,
+		Size: int64(len(compressedData)),
 	}
 
 	// Store raw copy for images
@@ -555,6 +558,30 @@ func getSignedDownloadURL(key string, expiresInSec int64) (string, error) {
 	}
 	// Local: use the key directly as URL path (supports subdirectories)
 	return cfg.publicPath + "/" + key, nil
+}
+
+func s3ObjectSize(key string) int64 {
+	if key == "" {
+		return 0
+	}
+	cfg := getStorageConfig()
+	if cfg.typ != storageS3 || cfg.s3 == nil || cfg.s3.bucket == "" {
+		return 0
+	}
+	client := getS3Client()
+	if client == nil {
+		return 0
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	out, err := client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(cfg.s3.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil || out.ContentLength == nil || *out.ContentLength < 0 {
+		return 0
+	}
+	return *out.ContentLength
 }
 
 // toStorageKey extracts a relative storage key from a stored value, API path,

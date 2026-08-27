@@ -406,6 +406,7 @@ export interface AdminUploadsResponse {
   worker: { key: string; phase: string; elapsedMs: number; waitedMs: number } | null;
   queued: number;
   transcodeEnabled: boolean;
+  storageType?: 'local' | 's3';
 }
 
 // ─── Baby type ───────────────────────────────────────────────────────────────

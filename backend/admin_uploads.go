@@ -88,7 +88,7 @@ func handleListAdminUploads(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	listSQL := `SELECT "key", "rawKey", "createdAt", "used", "ready" FROM "UploadedFile"` + where +
+	listSQL := `SELECT "key", "rawKey", "createdAt", "used", "ready", "size" FROM "UploadedFile"` + where +
 		` ORDER BY "createdAt" DESC LIMIT ? OFFSET ?`
 	listArgs := append(append([]interface{}{}, args...), pageSize, (page-1)*pageSize)
 	rows, err := db.Query(listSQL, listArgs...)
@@ -101,13 +101,14 @@ func handleListAdminUploads(w http.ResponseWriter, r *http.Request) {
 		key, rawKey string
 		created     int64
 		used, ready bool
+		size        int64
 	}
 	var rawItems []uploadRow
 	for rows.Next() {
 		var row uploadRow
 		var rawKey sql.NullString
 		var used, ready int
-		if err := rows.Scan(&row.key, &rawKey, &row.created, &used, &ready); err != nil {
+		if err := rows.Scan(&row.key, &rawKey, &row.created, &used, &ready, &row.size); err != nil {
 			continue
 		}
 		row.rawKey = rawKey.String
@@ -126,7 +127,7 @@ func handleListAdminUploads(w http.ResponseWriter, r *http.Request) {
 	active := snapshotVideoJob()
 	items := make([]adminUploadItem, 0, len(rawItems))
 	for _, row := range rawItems {
-		items = append(items, buildAdminUploadItem(cfg, row.key, row.rawKey, row.created, row.used, row.ready, active))
+		items = append(items, buildAdminUploadItem(cfg, row.key, row.rawKey, row.created, row.used, row.ready, row.size, active))
 	}
 
 	writeOK(w, map[string]interface{}{
@@ -139,6 +140,7 @@ func handleListAdminUploads(w http.ResponseWriter, r *http.Request) {
 		"worker":           adminWorkerSnapshot(active),
 		"queued":           videoQueued.Load(),
 		"transcodeEnabled": videoTranscodeEnabled(),
+		"storageType":      string(cfg.typ),
 	})
 }
 
@@ -183,7 +185,7 @@ func adminUploadCountsAll() (adminUploadCounts, error) {
 	return c, err
 }
 
-func buildAdminUploadItem(cfg storageConfig, key, rawKey string, created int64, used, ready bool, active *videoJobState) adminUploadItem {
+func buildAdminUploadItem(cfg storageConfig, key, rawKey string, created int64, used, ready bool, size int64, active *videoJobState) adminUploadItem {
 	item := adminUploadItem{
 		Key:        key,
 		RawKey:     rawKey,
@@ -193,11 +195,15 @@ func buildAdminUploadItem(cfg storageConfig, key, rawKey string, created int64, 
 		MediaType:  mediaTypeFromKey(key),
 		Poster:     strings.HasSuffix(key, posterSuffix),
 		Referenced: fileIsReferenced(key, rawKey),
+		Size:       size,
 	}
 	localPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(key))
 	if st, err := os.Stat(localPath); err == nil && !st.IsDir() {
 		item.Local = true
-		item.Size = st.Size()
+		if item.Size <= 0 {
+			item.Size = st.Size()
+			setUploadSize(key, item.Size)
+		}
 	}
 	if item.MediaType == "video" {
 		if u := resolvePosterURL("video", key, ""); u != "" {

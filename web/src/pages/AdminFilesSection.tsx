@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import { Copy, Eye, HardDrive, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { Cloud, Copy, Eye, HardDrive, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { SecondaryHeader } from '../components/SecondaryHeader';
 import { useI18n } from '../contexts/I18nContext';
 import { api, type AdminUploadItem, type AdminUploadsResponse } from '../lib/api';
+import { fileLocationBadge } from '../lib/file-location';
 import {
   Badge,
   Button,
@@ -52,7 +53,7 @@ export default function AdminFilesSection() {
   const [status, setStatus] = useState<FileFilter>('all');
   const [qInput, setQInput] = useState('');
   const [q, setQ] = useState('');
-  const [meta, setMeta] = useState<Pick<AdminUploadsResponse, 'counts' | 'worker' | 'queued' | 'transcodeEnabled'> | null>(null);
+  const [meta, setMeta] = useState<Pick<AdminUploadsResponse, 'counts' | 'worker' | 'queued' | 'transcodeEnabled' | 'storageType'> | null>(null);
   const [cleanupResult, setCleanupResult] = useState<{ found: number; deleted: number; errors?: string[] } | null>(null);
   const [cleaningUp, setCleaningUp] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -66,6 +67,7 @@ export default function AdminFilesSection() {
       worker: data.worker,
       queued: data.queued,
       transcodeEnabled: data.transcodeEnabled,
+      storageType: data.storageType,
     });
     setHasMore(data.hasMore);
   };
@@ -209,6 +211,12 @@ export default function AdminFilesSection() {
       />
       <div className="glass-page-body custom-scrollbar space-y-4">
         <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.filesHint')}</p>
+        {meta?.storageType === 's3' && (
+          <div className="flex items-start gap-2 glass-info-strip rounded-xl px-3 py-2.5">
+            <Cloud size={14} className="mt-0.5 shrink-0 text-blue-600 dark:text-blue-300" />
+            <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">{t('admin.filesHintS3')}</p>
+          </div>
+        )}
         {counts && (
           <div className="grid grid-cols-4 gap-2">
             {[
@@ -341,6 +349,7 @@ export default function AdminFilesSection() {
               const processing = file.mediaType === 'video' && !file.ready;
               const canPreview = !!(file.url || file.posterUrl);
               const { dir, name } = splitKey(file.key);
+              const loc = fileLocationBadge(file.local, meta?.storageType);
               return (
                 <Card key={file.key}>
                   <CardContent className="flex items-start gap-3">
@@ -371,9 +380,7 @@ export default function AdminFilesSection() {
                         ) : (
                           <Badge variant="secondary">{t('admin.statusUnused')}</Badge>
                         )}
-                        <Badge variant={file.local ? 'secondary' : 'danger'}>
-                          {file.local ? t('admin.statusLocal') : t('admin.statusMissing')}
-                        </Badge>
+                        <Badge variant={loc.variant}>{t(loc.labelKey)}</Badge>
                       </div>
                     </div>
                     <div className="flex items-center gap-0.5 shrink-0">
@@ -419,18 +426,17 @@ export default function AdminFilesSection() {
                 </Card>
               );
             })}
+            {hasMore && (
+              <Button
+                variant="outline"
+                className="w-full"
+                disabled={loadingMore}
+                onClick={() => load(page + 1, false)}
+              >
+                {loadingMore ? t('common.loading') : t('common.more')}
+              </Button>
+            )}
           </div>
-        )}
-
-        {hasMore && (
-          <Button
-            variant="outline"
-            className="w-full"
-            disabled={loadingMore}
-            onClick={() => load(page + 1, false)}
-          >
-            {loadingMore ? t('common.loading') : t('common.more')}
-          </Button>
         )}
 
         <ConfirmDialog

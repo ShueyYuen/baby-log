@@ -131,7 +131,7 @@ func handleChunkedInit(w http.ResponseWriter, r *http.Request) {
 	}
 	chunkedUploads.Store(uploadID, state)
 
-	trackUploadedFile(key, "")
+	trackUploadedFile(key, "", req.FileSize)
 	log.Printf("[Chunked] Init: uploadId=%s key=%s size=%d parts=%d chunk=%d",
 		uploadID, key, req.FileSize, totalParts, req.ChunkSize)
 

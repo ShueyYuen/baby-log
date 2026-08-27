@@ -1156,6 +1156,12 @@ a.glass-card-ui:hover,
   margin-right: auto;
 }
 
+/* Buttons are inline-flex, so auto side margins would otherwise collapse
+   and leave a full-width button left-aligned against centered cards. */
+.glass-page-body > button {
+  display: flex;
+}
+
 .glass-page-shell:has(.glass-sticky-header-tall) .glass-page-body {
   padding-top: calc(var(--secondary-header-h-tall) + 1rem);
 }

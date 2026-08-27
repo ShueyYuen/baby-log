@@ -585,7 +585,7 @@ func prepareVideoForWeb(localPath, key string) (action string, err error) {
 				log.Printf("[Video] poster %s: %v", key, err)
 			} else {
 				log.Printf("[Video] poster wrote key=%s poster=%s size=%s", key, pk, formatByteSize(fileSizeOf(posterPath)))
-				trackUploadedFile(pk, "")
+				trackUploadedFile(pk, "", fileSizeOf(posterPath))
 			}
 		}
 	}
@@ -661,6 +661,9 @@ func enqueueVideoPrepareAndSync(localPath, key string) {
 				log.Printf("[Video] skip transcode key=%s (already web-safe)", key)
 			}
 		}
+		if prepareErr == nil {
+			setUploadSize(key, fileSizeOf(localPath))
+		}
 		if !needS3 {
 			if prepareErr == nil {
 				markUploadReady(key)
@@ -729,6 +732,7 @@ func enqueueS3VideoPrepare(key string) {
 			log.Printf("[Video] prepare %s (%s): %v — keeping original locally, not uploading to S3", key, action, prepareErr)
 			return
 		}
+		setUploadSize(key, fileSizeOf(localPath))
 		rewroteMP4 := action == "transcode" || action == "remux"
 		if !rewroteMP4 {
 			log.Printf("[Video] skip transcode key=%s (already web-safe)", key)

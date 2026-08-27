@@ -50,12 +50,16 @@ func TestAdminUploadsListAndFilter(t *testing.T) {
 	r := adminUploadsList(t, s, admin, "")
 	e := mustOK(t, r)
 	var data struct {
-		Items  []adminUploadItem `json:"items"`
-		Total  int               `json:"total"`
-		Counts adminUploadCounts `json:"counts"`
+		Items       []adminUploadItem `json:"items"`
+		Total       int               `json:"total"`
+		Counts      adminUploadCounts `json:"counts"`
+		StorageType string            `json:"storageType"`
 	}
 	if err := jsonUnmarshal(e.Data, &data); err != nil {
 		t.Fatal(err)
+	}
+	if data.StorageType != "local" {
+		t.Fatalf("default storageType: %q", data.StorageType)
 	}
 	if data.Total < 2 || data.Counts.Unready < 1 || data.Counts.Videos < 1 {
 		t.Fatalf("list: %+v", data)
@@ -257,4 +261,65 @@ func TestAdminTranscodeAllUnready(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatal("allUnready transcode did not complete")
+}
+
+func TestAdminUploadsReportsS3Storage(t *testing.T) {
+	s := newTestServer(t)
+	t.Setenv("STORAGE_TYPE", "s3")
+	t.Setenv("S3_BUCKET", "test-bucket")
+	t.Setenv("S3_ACCESS_KEY_ID", "x")
+	t.Setenv("S3_SECRET_ACCESS_KEY", "y")
+	admin := insertUser(t, "admin", "Admin", "admin")
+	key := "moments/" + uuid.NewString() + ".jpg"
+	insertTrackedUpload(t, key, "", 1, 1)
+
+	r := adminUploadsList(t, s, admin, "")
+	e := mustOK(t, r)
+	var data struct {
+		Items       []adminUploadItem `json:"items"`
+		StorageType string            `json:"storageType"`
+	}
+	if err := jsonUnmarshal(e.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	if data.StorageType != "s3" {
+		t.Fatalf("storageType=%q", data.StorageType)
+	}
+	if len(data.Items) != 1 || data.Items[0].Key != key {
+		t.Fatalf("items: %+v", data.Items)
+	}
+	if data.Items[0].Local {
+		t.Fatal("s3 object without a disk copy should not be marked local")
+	}
+}
+
+func TestAdminUploadsUsesStoredSizeWithoutLocalFile(t *testing.T) {
+	s := newTestServer(t)
+	admin := insertUser(t, "admin", "Admin", "admin")
+	key := "moments/" + uuid.NewString() + ".jpg"
+	const want int64 = 123456
+	if _, err := db.Exec(
+		`INSERT INTO "UploadedFile" ("key", "rawKey", "createdAt", "used", "ready", "size") VALUES (?, '', ?, 1, 1, ?)`,
+		key, int64(nowMillis()), want,
+	); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	r := adminUploadsList(t, s, admin, "q="+key)
+	e := mustOK(t, r)
+	var data struct {
+		Items []adminUploadItem `json:"items"`
+	}
+	if err := jsonUnmarshal(e.Data, &data); err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Items) != 1 {
+		t.Fatalf("items: %+v", data.Items)
+	}
+	if data.Items[0].Size != want {
+		t.Fatalf("size=%d want %d", data.Items[0].Size, want)
+	}
+	if data.Items[0].Local {
+		t.Fatal("missing disk file should not be marked local")
+	}
 }

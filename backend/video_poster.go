@@ -110,7 +110,7 @@ func handleUploadPoster(w http.ResponseWriter, r *http.Request) {
 		go syncFileToS3(localPath, posterKey, "image")
 	}
 
-	trackUploadedFile(posterKey, "")
+	trackUploadedFile(posterKey, "", int64(len(data)))
 
 	url, _ := toDisplayURL(posterKey, 86400)
 	writeOK(w, uploadResult{

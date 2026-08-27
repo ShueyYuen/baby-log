@@ -719,7 +719,7 @@ func handleSetUserAvatar(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		trackUploadedFile(localKey, "")
+		trackUploadedFile(localKey, "", int64(len(compressedData)))
 
 		var oldAvatar sql.NullString
 		_ = db.QueryRow(`SELECT avatar FROM "User" WHERE id = ?`, targetID).Scan(&oldAvatar)

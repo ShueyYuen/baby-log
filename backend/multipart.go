@@ -127,7 +127,7 @@ func handleMultipartInit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	trackUploadedFile(key, "")
+	trackUploadedFile(key, "", req.FileSize)
 
 	resp := multipartInitResponse{
 		UploadID:  uploadID,

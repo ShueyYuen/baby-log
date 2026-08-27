@@ -151,7 +151,7 @@ func handleUploadSingle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	trackUploadedFile(result.Key, result.RawKey)
+	trackUploadedFile(result.Key, result.RawKey, result.Size)
 	writeOK(w, result)
 }
 
@@ -225,7 +225,7 @@ func handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 				}
 				ocrEnqueueBackground(ocrKey, data)
 			}
-			trackUploadedFile(result.Key, result.RawKey)
+			trackUploadedFile(result.Key, result.RawKey, result.Size)
 			results = append(results, result)
 			continue
 		}
@@ -243,7 +243,7 @@ func handleUploadMedia(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		trackUploadedFile(result.Key, result.RawKey)
+		trackUploadedFile(result.Key, result.RawKey, result.Size)
 		localPath := filepath.Join(getStorageConfig().uploadDir, filepath.FromSlash(result.Key))
 		enqueueVideoPrepareAndSync(localPath, result.Key)
 		results = append(results, result)
@@ -313,6 +313,7 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 			rawKey := prefix + "/raw/" + uid + origExt
 			result.Key = compKey
 			result.MediaType = "image"
+			result.Size = int64(len(compData))
 			if err := writeLocalBytes(compKey, compData); err != nil {
 				log.Printf("[Upload] write local %s: %v", compKey, err)
 				writeInternal(w, r, http.StatusInternalServerError, "Upload failed", err)
@@ -333,8 +334,7 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 			}
 		} else {
 			compKey := prefix + "/" + uid + origExt
-			result.Key = compKey
-			_, err := saveLocalPrefixedVideoToKey(compKey, part, maxMomentUploadSize)
+			saved, err := saveLocalPrefixedVideoToKey(compKey, part, maxMomentUploadSize)
 			part.Close()
 			if err != nil {
 				if errors.Is(err, errMediaTooLarge) {
@@ -347,6 +347,8 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 				}
 				return
 			}
+			result.Key = saved.Key
+			result.Size = saved.Size
 			result.MediaType = "video"
 			localPath := filepath.Join(cfg.uploadDir, filepath.FromSlash(compKey))
 			attachPosterToResult(result)
@@ -356,7 +358,7 @@ func handleUploadMediaStreamingS3(w http.ResponseWriter, r *http.Request, prefix
 
 		result.URL = "/api/v1/uploads/" + result.Key
 
-		trackUploadedFile(result.Key, result.RawKey)
+		trackUploadedFile(result.Key, result.RawKey, result.Size)
 		results = append(results, result)
 	}
 
@@ -428,38 +430,69 @@ func saveLocalPrefixedVideoToKey(key string, src io.Reader, maxSize int64) (*upl
 		URL:       cfg.publicPath + "/" + key,
 		Key:       key,
 		MediaType: "video",
+		Size:      written,
 	}
 	attachPosterToResult(result)
 	markResultProcessing(result)
 	return result, nil
 }
 
-func trackUploadedFile(key, rawKey string) {
-	if db == nil {
+func trackUploadedFile(key, rawKey string, size int64) {
+	if db == nil || key == "" {
 		return
+	}
+	if size <= 0 {
+		size = localFileSize(key)
 	}
 	now := int64(nowMillis())
 	ready := 1
 	if mediaTypeFromKey(key) == "video" && videoTranscodeEnabled() {
 		ready = 0
 	}
-	_, err := db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used", "ready") VALUES (?, ?, ?, 0, ?)`,
-		key, rawKey, now, ready)
+	_, err := db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used", "ready", "size") VALUES (?, ?, ?, 0, ?, ?)`,
+		key, rawKey, now, ready, size)
 	if err != nil {
 		log.Printf("[Upload] Failed to track uploaded file %s: %v", key, err)
 		return
+	}
+	if size > 0 {
+		if _, err := db.Exec(`UPDATE "UploadedFile" SET "size" = ? WHERE "key" = ?`, size, key); err != nil {
+			log.Printf("[Upload] Failed to update size %s: %v", key, err)
+		}
 	}
 	if ready == 0 {
 		_, _ = db.Exec(`UPDATE "UploadedFile" SET "ready" = 0 WHERE "key" = ? AND "ready" = 1`, key)
 	}
 	if mediaTypeFromKey(key) == "video" {
 		if pk := posterKeyFromVideoKey(key); pk != "" {
-			if _, err := db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used", "ready") VALUES (?, ?, ?, 0, 1)`,
-				pk, "", now); err != nil {
+			posterSize := localFileSize(pk)
+			if _, err := db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used", "ready", "size") VALUES (?, ?, ?, 0, 1, ?)`,
+				pk, "", now, posterSize); err != nil {
 				log.Printf("[Upload] Failed to track poster %s: %v", pk, err)
 			}
 		}
 	}
+}
+
+func setUploadSize(key string, size int64) {
+	if db == nil || key == "" || size <= 0 {
+		return
+	}
+	if _, err := db.Exec(`UPDATE "UploadedFile" SET "size" = ? WHERE "key" = ?`, size, key); err != nil {
+		log.Printf("[Upload] Failed to update size %s: %v", key, err)
+	}
+}
+
+func localFileSize(key string) int64 {
+	if key == "" {
+		return 0
+	}
+	path := filepath.Join(getStorageConfig().uploadDir, filepath.FromSlash(key))
+	st, err := os.Stat(path)
+	if err != nil || st.IsDir() {
+		return 0
+	}
+	return st.Size()
 }
 
 func markUploadReady(key string) {
@@ -636,7 +669,7 @@ func markFileUnusedOne(key, rawKey string) {
 	now := int64(nowMillis())
 	result, _ := db.Exec(`UPDATE "UploadedFile" SET "used" = 0, "createdAt" = ? WHERE "key" = ?`, now, key)
 	if affected, _ := result.RowsAffected(); affected == 0 {
-		db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used") VALUES (?, ?, ?, 0)`,
-			key, rawKey, now)
+		db.Exec(`INSERT OR IGNORE INTO "UploadedFile" ("key", "rawKey", "createdAt", "used", "size") VALUES (?, ?, ?, 0, ?)`,
+			key, rawKey, now, localFileSize(key))
 	}
 }
