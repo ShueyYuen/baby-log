@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import { Copy, Eye, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { Copy, Eye, HardDrive, Loader2, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { SecondaryHeader } from '../components/SecondaryHeader';
 import { useI18n } from '../contexts/I18nContext';
 import { api, type AdminUploadItem, type AdminUploadsResponse } from '../lib/api';
 import {
@@ -10,9 +11,9 @@ import {
   CardContent,
   ConfirmDialog,
   ImageViewer,
-  Input,
   useToast,
 } from '../components/ui';
+import { Skeleton } from '../components/ui/skeleton';
 
 const PAGE_SIZE = 20;
 const FILTERS = ['all', 'unready', 'unused', 'used', 'video', 'image'] as const;
@@ -32,6 +33,12 @@ function formatElapsed(ms: number): string {
   const rem = sec % 60;
   if (min < 60) return `${min}m${rem ? ` ${rem}s` : ''}`;
   return `${Math.floor(min / 60)}h ${min % 60}m`;
+}
+
+function splitKey(key: string) {
+  const i = key.lastIndexOf('/');
+  if (i < 0) return { dir: '', name: key };
+  return { dir: key.slice(0, i), name: key.slice(i + 1) };
 }
 
 export default function AdminFilesSection() {
@@ -82,6 +89,14 @@ export default function AdminFilesSection() {
   useEffect(() => {
     load(1, true);
   }, [load]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const next = qInput.trim();
+      setQ((prev) => (prev === next ? prev : next));
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [qInput]);
 
   useEffect(() => {
     const busy = (meta?.counts.unready ?? 0) > 0 || !!meta?.worker;
@@ -177,231 +192,273 @@ export default function AdminFilesSection() {
 
   const counts = meta?.counts;
 
+  const chipClass = (active: boolean) =>
+    `px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+      active ? 'glass-chip-active' : 'glass-chip text-gray-600 dark:text-gray-300'
+    }`;
+
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.filesHint')}</p>
-      {counts && (
-        <div className="grid grid-cols-4 gap-2 text-center text-sm">
-          <div>
-            <p className="text-lg font-bold text-primary-500">{counts.total}</p>
-            <p className="text-[11px] text-gray-500">{t('admin.countTotal')}</p>
-          </div>
-          <div>
-            <p className="text-lg font-bold text-amber-500">{counts.unready}</p>
-            <p className="text-[11px] text-gray-500">{t('admin.countUnready')}</p>
-          </div>
-          <div>
-            <p className="text-lg font-bold text-gray-500">{counts.unused}</p>
-            <p className="text-[11px] text-gray-500">{t('admin.countUnused')}</p>
-          </div>
-          <div>
-            <p className="text-lg font-bold dark:text-gray-100">{counts.videos}</p>
-            <p className="text-[11px] text-gray-500">{t('admin.countVideos')}</p>
-          </div>
-        </div>
-      )}
-
-      {meta?.worker && (
-        <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50/80 dark:bg-amber-900/20 rounded-lg px-3 py-2">
-          {t('admin.workerActive', {
-            key: meta.worker.key,
-            phase: phaseLabel(meta.worker.phase),
-            elapsed: formatElapsed(meta.worker.elapsedMs),
-          })}
-        </p>
-      )}
-
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="destructive" disabled={cleaningUp} onClick={runCleanup}>
-          {cleaningUp ? t('admin.cleaning') : t('admin.cleanNow')}
-        </Button>
-        {meta?.transcodeEnabled && (counts?.unready ?? 0) > 0 && (
-          <Button size="sm" variant="outline" disabled={transcodingAll} onClick={triggerAllUnready}>
-            <RefreshCw size={14} />
-            {transcodingAll ? t('common.processing') : t('admin.transcodeAll')}
+    <div className="absolute inset-0 glass-page-shell">
+      <SecondaryHeader
+        title={t('admin.filesTitle')}
+        actions={
+          <Button size="sm" variant="destructive" disabled={cleaningUp} onClick={runCleanup}>
+            {cleaningUp ? t('admin.cleaning') : t('admin.cleanNow')}
           </Button>
+        }
+      />
+      <div className="glass-page-body custom-scrollbar space-y-4">
+        <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.filesHint')}</p>
+        {counts && (
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { value: counts.total, label: t('admin.countTotal'), color: 'text-primary-500' },
+              { value: counts.unready, label: t('admin.countUnready'), color: 'text-amber-500' },
+              { value: counts.unused, label: t('admin.countUnused'), color: 'text-gray-500 dark:text-gray-400' },
+              { value: counts.videos, label: t('admin.countVideos'), color: 'text-indigo-500 dark:text-indigo-400' },
+            ].map((stat) => (
+              <div key={stat.label} className="card text-center py-3 px-1">
+                <p className={`text-lg font-bold ${stat.color}`}>{stat.value}</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{stat.label}</p>
+              </div>
+            ))}
+          </div>
         )}
-      </div>
-      {!meta?.transcodeEnabled && (
-        <p className="text-xs text-gray-500">{t('admin.transcodeOff')}</p>
-      )}
 
-      {cleanupResult && (
-        <Card>
-          <CardContent className="space-y-2">
+        {meta?.worker && (
+          <div className="flex items-start gap-2 glass-warning-panel rounded-xl px-3 py-2.5">
+            <Loader2 size={14} className="mt-0.5 shrink-0 animate-spin text-amber-600 dark:text-amber-300" />
+            <p className="text-xs text-amber-800 dark:text-amber-200 break-all leading-relaxed">
+              {t('admin.workerActive', {
+                key: meta.worker.key,
+                phase: phaseLabel(meta.worker.phase),
+                elapsed: formatElapsed(meta.worker.elapsedMs),
+              })}
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <form
+            className="relative flex-1 min-w-[12rem]"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setQ(qInput.trim());
+            }}
+          >
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 z-10 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={qInput}
+              onChange={(e) => setQInput(e.target.value)}
+              placeholder={t('admin.filesSearch')}
+              className="glass-input-ui w-full h-10 pl-9 pr-9 text-sm rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
+            />
+            {qInput && (
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                onClick={() => {
+                  setQInput('');
+                  setQ('');
+                }}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </form>
+          {meta?.transcodeEnabled && (counts?.unready ?? 0) > 0 && (
+            <Button size="sm" variant="outline" disabled={transcodingAll} onClick={triggerAllUnready}>
+              <RefreshCw size={14} className={transcodingAll ? 'animate-spin' : undefined} />
+              {transcodingAll ? t('common.processing') : t('admin.transcodeAll')}
+            </Button>
+          )}
+        </div>
+        {!meta?.transcodeEnabled && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('admin.transcodeOff')}</p>
+        )}
+
+        {cleanupResult && (
+          <div className="glass-success-panel rounded-xl p-4 space-y-2">
             <div className="grid grid-cols-2 gap-3 text-center text-sm">
               <div>
                 <p className="text-lg font-bold text-primary-500">{cleanupResult.found}</p>
-                <p className="text-xs text-gray-500">{t('admin.foundOrphans')}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('admin.foundOrphans')}</p>
               </div>
               <div>
-                <p className="text-lg font-bold text-green-500">{cleanupResult.deleted}</p>
-                <p className="text-xs text-gray-500">{t('admin.deletedCount')}</p>
+                <p className="text-lg font-bold text-green-600 dark:text-green-400">{cleanupResult.deleted}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('admin.deletedCount')}</p>
               </div>
             </div>
             {cleanupResult.errors && cleanupResult.errors.length > 0 && (
-              <div className="text-xs text-red-500 space-y-0.5 mt-2 border-t pt-2 dark:border-gray-700">
+              <div className="text-xs text-red-500 dark:text-red-400 space-y-0.5 mt-1 pt-2 border-t border-white/30 dark:border-white/10">
                 {cleanupResult.errors.map((e, i) => (
                   <p key={i}>{e}</p>
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
 
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setQ(qInput.trim());
-        }}
-      >
-        <Input
-          value={qInput}
-          onChange={(e) => setQInput(e.target.value)}
-          placeholder={t('admin.filesSearch')}
-        />
-        <Button type="submit" size="icon" variant="outline" className="shrink-0">
-          <Search size={16} />
-        </Button>
-      </form>
+        <div className="flex flex-wrap gap-1.5">
+          {FILTERS.map((f) => (
+            <button
+              key={f}
+              type="button"
+              className={chipClass(status === f)}
+              onClick={() => setStatus(f)}
+            >
+              {t(`admin.filter${f.charAt(0).toUpperCase()}${f.slice(1)}` as 'admin.filterAll')}
+            </button>
+          ))}
+        </div>
 
-      <div className="flex flex-wrap gap-1.5">
-        {FILTERS.map((f) => (
-          <Button
-            key={f}
-            type="button"
-            size="sm"
-            variant={status === f ? 'default' : 'outline'}
-            onClick={() => setStatus(f)}
-          >
-            {t(`admin.filter${f.charAt(0).toUpperCase()}${f.slice(1)}` as 'admin.filterAll')}
-          </Button>
-        ))}
-      </div>
-
-      {loading && items.length === 0 ? (
-        <p className="text-sm text-gray-500">{t('common.loading')}</p>
-      ) : items.length === 0 ? (
-        <p className="text-sm text-gray-500">{t('admin.filesEmpty')}</p>
-      ) : (
-        <div className="space-y-3">
-          {items.map((file) => {
-            const processing = file.mediaType === 'video' && !file.ready;
-            const canPreview = !!(file.url || file.posterUrl);
-            return (
-              <Card key={file.key}>
-                <CardContent className="flex items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium dark:text-gray-100 break-all leading-snug">{file.key}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {formatBytes(file.size)} · {dayjs(file.createdAt).format('YYYY-MM-DD HH:mm')}
-                    </p>
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {file.mediaType === 'video' ? (
-                        <Badge variant="info">{t('admin.filterVideo')}</Badge>
-                      ) : (
-                        <Badge variant="secondary">{t('admin.filterImage')}</Badge>
-                      )}
-                      {file.poster && <Badge variant="secondary">{t('admin.statusPoster')}</Badge>}
-                      {processing ? (
-                        <Badge variant="warning">{file.phase ? phaseLabel(file.phase) : t('admin.statusProcessing')}</Badge>
-                      ) : (
-                        <Badge variant="success">{t('admin.statusReady')}</Badge>
-                      )}
-                      {file.referenced || file.used ? (
-                        <Badge variant="info">{t('admin.statusUsed')}</Badge>
-                      ) : (
-                        <Badge variant="secondary">{t('admin.statusUnused')}</Badge>
-                      )}
-                      <Badge variant={file.local ? 'secondary' : 'danger'}>
-                        {file.local ? t('admin.statusLocal') : t('admin.statusMissing')}
-                      </Badge>
-                    </div>
+        {loading && items.length === 0 ? (
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="card flex items-center gap-3">
+                <div className="flex-1 space-y-2 min-w-0">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                  <div className="flex gap-1.5">
+                    <Skeleton className="h-5 w-12 rounded-full" />
+                    <Skeleton className="h-5 w-12 rounded-full" />
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      className="p-2 rounded-md text-gray-400 hover:text-primary-500 glass-icon-btn"
-                      title={t('admin.copyKey')}
-                      onClick={() => copyKey(file.key)}
-                    >
-                      <Copy size={16} />
-                    </button>
-                    {file.mediaType === 'video' && meta?.transcodeEnabled && (
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="w-14 h-14 rounded-2xl glass-avatar-placeholder flex items-center justify-center mb-3">
+              <HardDrive size={24} className="text-gray-400" />
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.filesEmpty')}</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {items.map((file) => {
+              const processing = file.mediaType === 'video' && !file.ready;
+              const canPreview = !!(file.url || file.posterUrl);
+              const { dir, name } = splitKey(file.key);
+              return (
+                <Card key={file.key}>
+                  <CardContent className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium dark:text-gray-100 truncate leading-snug" title={file.key}>
+                        {name}
+                      </p>
+                      {dir ? (
+                        <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate" title={file.key}>{dir}</p>
+                      ) : null}
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {formatBytes(file.size)} · {dayjs(file.createdAt).format('YYYY-MM-DD HH:mm')}
+                      </p>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {file.mediaType === 'video' ? (
+                          <Badge variant="info">{t('admin.filterVideo')}</Badge>
+                        ) : (
+                          <Badge variant="secondary">{t('admin.filterImage')}</Badge>
+                        )}
+                        {file.poster && <Badge variant="secondary">{t('admin.statusPoster')}</Badge>}
+                        {processing ? (
+                          <Badge variant="warning">{file.phase ? phaseLabel(file.phase) : t('admin.statusProcessing')}</Badge>
+                        ) : (
+                          <Badge variant="success">{t('admin.statusReady')}</Badge>
+                        )}
+                        {file.referenced || file.used ? (
+                          <Badge variant="info">{t('admin.statusUsed')}</Badge>
+                        ) : (
+                          <Badge variant="secondary">{t('admin.statusUnused')}</Badge>
+                        )}
+                        <Badge variant={file.local ? 'secondary' : 'danger'}>
+                          {file.local ? t('admin.statusLocal') : t('admin.statusMissing')}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0">
                       <button
                         type="button"
-                        className="p-2 rounded-md text-gray-400 hover:text-primary-500 glass-icon-btn disabled:opacity-40"
-                        title={t('admin.transcode')}
-                        disabled={busyKey === file.key}
-                        onClick={() => triggerTranscode(file.key)}
+                        className="p-2 rounded-lg text-gray-400 hover:text-primary-500 glass-icon-btn transition-colors"
+                        title={t('admin.copyKey')}
+                        onClick={() => copyKey(file.key)}
                       >
-                        <RefreshCw size={16} />
+                        <Copy size={16} />
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      className="p-2 rounded-md text-gray-400 hover:text-red-500 glass-icon-btn disabled:opacity-40"
-                      title={t('admin.deleteFile')}
-                      disabled={busyKey === file.key}
-                      onClick={() => setDeleteTarget(file)}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      className="p-2 rounded-md text-gray-400 hover:text-primary-500 glass-icon-btn disabled:opacity-40"
-                      title={t('admin.previewFile')}
-                      disabled={!canPreview}
-                      onClick={() => setPreview(file)}
-                    >
-                      <Eye size={16} />
-                    </button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                      {file.mediaType === 'video' && meta?.transcodeEnabled && (
+                        <button
+                          type="button"
+                          className="p-2 rounded-lg text-gray-400 hover:text-primary-500 glass-icon-btn transition-colors disabled:opacity-40"
+                          title={t('admin.transcode')}
+                          disabled={busyKey === file.key}
+                          onClick={() => triggerTranscode(file.key)}
+                        >
+                          <RefreshCw size={16} className={busyKey === file.key ? 'animate-spin' : undefined} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="p-2 rounded-lg text-gray-400 hover:text-red-500 glass-icon-btn transition-colors disabled:opacity-40"
+                        title={t('admin.deleteFile')}
+                        disabled={busyKey === file.key}
+                        onClick={() => setDeleteTarget(file)}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        className="p-2 rounded-lg text-gray-400 hover:text-primary-500 glass-icon-btn transition-colors disabled:opacity-40"
+                        title={t('admin.previewFile')}
+                        disabled={!canPreview}
+                        onClick={() => setPreview(file)}
+                      >
+                        <Eye size={16} />
+                      </button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
 
-      {hasMore && (
-        <Button
-          variant="outline"
-          className="w-full"
-          disabled={loadingMore}
-          onClick={() => load(page + 1, false)}
-        >
-          {loadingMore ? t('common.loading') : t('common.more')}
-        </Button>
-      )}
+        {hasMore && (
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={loadingMore}
+            onClick={() => load(page + 1, false)}
+          >
+            {loadingMore ? t('common.loading') : t('common.more')}
+          </Button>
+        )}
 
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
-        title={t('admin.deleteFile')}
-        description={
-          deleteTarget?.referenced
-            ? t('admin.deleteFileForce')
-            : t('admin.deleteFileConfirm', { key: deleteTarget?.key ?? '' })
-        }
-        confirmLabel={t('common.delete')}
-        variant="danger"
-        onConfirm={confirmDelete}
-      />
+        <ConfirmDialog
+          open={!!deleteTarget}
+          onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+          title={t('admin.deleteFile')}
+          description={
+            deleteTarget?.referenced
+              ? t('admin.deleteFileForce')
+              : t('admin.deleteFileConfirm', { key: deleteTarget?.key ?? '' })
+          }
+          confirmLabel={t('common.delete')}
+          variant="danger"
+          onConfirm={confirmDelete}
+        />
 
-      <ImageViewer
-        images={preview ? [{
-          url: preview.url || preview.posterUrl || '',
-          posterUrl: preview.posterUrl,
-          mediaType: preview.mediaType,
-          processing: preview.mediaType === 'video' && !preview.ready,
-        }] : []}
-        initialIndex={0}
-        open={!!preview}
-        onOpenChange={(open) => { if (!open) setPreview(null); }}
-      />
+        <ImageViewer
+          images={preview ? [{
+            url: preview.url || preview.posterUrl || '',
+            posterUrl: preview.posterUrl,
+            mediaType: preview.mediaType,
+            processing: preview.mediaType === 'video' && !preview.ready,
+          }] : []}
+          initialIndex={0}
+          open={!!preview}
+          onOpenChange={(open) => { if (!open) setPreview(null); }}
+        />
+      </div>
     </div>
   );
 }

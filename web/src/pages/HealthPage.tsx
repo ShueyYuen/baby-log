@@ -242,7 +242,7 @@ export default function HealthPage() {
 
         {/* Search */}
         <div className="relative mb-3">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 z-10 text-gray-400 pointer-events-none" />
           <input
             type="text"
             value={visitsQuery}
