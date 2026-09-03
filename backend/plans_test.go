@@ -75,6 +75,36 @@ func TestListPlansWithStatusFilter(t *testing.T) {
 	}
 }
 
+func TestListCompletedPlansNewestFirst(t *testing.T) {
+	s := newTestServer(t)
+	uid := insertUser(t, "u", "U", "user")
+	bid := createBabyFor(t, uid, "宝宝")
+
+	older := time.Now().Add(-365 * 24 * time.Hour).UTC().Format(isoLayout)
+	newer := time.Now().Add(-2 * time.Hour).UTC().Format(isoLayout)
+	for _, item := range []struct{ title, at string }{
+		{"乙肝疫苗(第1剂)", older},
+		{"刚完成的体检", newer},
+	} {
+		created := s.do(http.MethodPost, "/plans/", uid, map[string]interface{}{
+			"babyId": bid, "title": item.title, "type": "custom", "scheduledAt": item.at,
+		})
+		var p planOut
+		jsonUnmarshal(mustOK(t, created).Data, &p)
+		mustOK(t, s.do(http.MethodPut, "/plans/"+p.ID, uid, map[string]interface{}{"status": "completed"}))
+	}
+
+	e := mustOK(t, s.do(http.MethodGet, "/plans/?babyId="+bid+"&status=completed", uid, nil))
+	var list []planOut
+	jsonUnmarshal(extractItems(e.Data), &list)
+	if len(list) != 2 {
+		t.Fatalf("expected 2 completed plans, got %d", len(list))
+	}
+	if list[0].Title != "刚完成的体检" || list[1].Title != "乙肝疫苗(第1剂)" {
+		t.Fatalf("completed order want newest first, got %+v %+v", list[0].Title, list[1].Title)
+	}
+}
+
 func TestAutoRepeatPlanOnComplete(t *testing.T) {
 	s := newTestServer(t)
 	uid := insertUser(t, "u", "U", "user")

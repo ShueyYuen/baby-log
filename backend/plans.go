@@ -97,7 +97,12 @@ func handleListPlans(w http.ResponseWriter, r *http.Request) {
 	var total int
 	db.QueryRow(`SELECT COUNT(*) FROM "Plan" `+where, args...).Scan(&total)
 
-	query := `SELECT ` + planCols + ` FROM "Plan" ` + where + ` ORDER BY scheduledAt ASC LIMIT ? OFFSET ?`
+	order := `ORDER BY scheduledAt ASC`
+	if status == "completed" {
+		// 已完成按计划时间从近到远，刚完成的近期计划不会被旧疫苗记录顶出首页
+		order = `ORDER BY scheduledAt DESC`
+	}
+	query := `SELECT ` + planCols + ` FROM "Plan" ` + where + ` ` + order + ` LIMIT ? OFFSET ?`
 	args = append(args, pageSize, (page-1)*pageSize)
 
 	rows, err := db.Query(query, args...)

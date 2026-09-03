@@ -66,8 +66,8 @@ function planStatusConfig(t: TranslateFn): Record<string, { label: string; varia
   };
 }
 
-const LINKABLE_PLAN_TYPES = new Set(['vaccine', 'medicine', 'checkup', 'doctor']);
-const MEDICAL_PLAN_TYPES = new Set(['vaccine', 'doctor', 'checkup']);
+const LINKABLE_PLAN_TYPES = new Set(['medicine', 'checkup', 'doctor']);
+const MEDICAL_PLAN_TYPES = new Set(['doctor', 'checkup']);
 
 function recordCategoryLabels(t: TranslateFn): Record<string, string> {
   return {
@@ -95,8 +95,6 @@ function recordTypeLabels(t: TranslateFn): Record<string, string> {
 
 function getLinkedRecordMapping(planType: string): { category: string; type: string; data: Record<string, string> } | null {
   switch (planType) {
-    case 'vaccine':
-      return { category: 'nursing', type: 'supplement', data: { name: '' } };
     case 'medicine':
       return { category: 'activity', type: 'other', data: { note: '' } };
     case 'checkup':
@@ -254,11 +252,13 @@ function CalendarView({
   isViewer,
   onComplete,
   onCalendar,
+  refreshKey,
 }: {
   currentBaby: { id: string } | null;
   isViewer: boolean;
   onComplete: (plan: PlanItem) => void;
   onCalendar: (title: string, scheduledAt: string, description: string | undefined, reminder: number) => void;
+  refreshKey: number;
 }) {
   const { toast } = useToast();
   const { t } = useI18n();
@@ -286,7 +286,7 @@ function CalendarView({
       setLoading(false);
     };
     load();
-  }, [currentBaby, viewMonth]);
+  }, [currentBaby, viewMonth, refreshKey]);
 
   const plansByDate = useMemo(() => {
     const map = new Map<string, PlanItem[]>();
@@ -458,6 +458,7 @@ export default function PlansPage() {
   const [vaccineDialogOpen, setVaccineDialogOpen] = useState(false);
   const [vaccineGenerating, setVaccineGenerating] = useState(false);
   const [existingVaccineTitles, setExistingVaccineTitles] = useState<Set<string>>(new Set());
+  const [planEpoch, setPlanEpoch] = useState(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const PAGE_SIZE = 20;
 
@@ -539,7 +540,12 @@ export default function PlansPage() {
       if (status === 'completed' && isRepeat) {
         toast(t('plans.nextCreated'), 'success');
       }
-      loadPlans(1, true);
+      setPlanEpoch((n) => n + 1);
+      if (status === 'completed' && statusFilter !== 'completed') {
+        setStatusFilter('completed');
+      } else {
+        loadPlans(1, true);
+      }
       if (status === 'completed' && LINKABLE_PLAN_TYPES.has(plan.type)) {
         setLinkRecordPlan(plan);
       }
@@ -557,7 +563,7 @@ export default function PlansPage() {
           {
             babyId: currentBaby.id,
             visitDate: new Date(linkRecordPlan.scheduledAt).toISOString(),
-            department: linkRecordPlan.type === 'vaccine' ? t('planForm.departmentVaccine') : '',
+            department: '',
             diagnosis: linkRecordPlan.title,
             notes: linkRecordPlan.description || '',
           },
@@ -740,6 +746,7 @@ export default function PlansPage() {
         <CalendarView
           currentBaby={currentBaby}
           isViewer={isViewer}
+          refreshKey={planEpoch}
           onComplete={(plan) => setCompletingPlan(plan)}
           onCalendar={(title, scheduledAt, description, reminder) => addPlanToCalendar(title, scheduledAt, description, reminder)}
         />
